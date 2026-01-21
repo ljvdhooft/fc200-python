@@ -74,6 +74,8 @@ class FC200(ControlSurface):
             return
 
         self.device = self.song().tracks[0].devices[0].parameters[0]
+        if not self.device.value_has_listener(self._on_param_changed):
+            self.device.add_value_listener(self._on_param_changed)
         if bank == 0 and pedal == 0 and value == 127: 
             self.song().tracks[0].devices[0].parameters[0].value = 0 if self.device.value == 1 else 1
 
@@ -85,6 +87,10 @@ class FC200(ControlSurface):
 
         # Example Logic: Look for a specific Manufacturer ID and Command Byte
         # Let's say: F0 00 20 2F [Command] F7
+    def _on_param_changed(self):
+        led_status = 0 if self.device.value == 0 else 127
+        self.led_status(self.midi_bytes, 0, led_status)
+
     def toggle_selected_device(self):
         # Access the Live Object Model (LOM)
         # Song -> View -> Selected Track -> Devices
