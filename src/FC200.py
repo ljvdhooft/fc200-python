@@ -29,6 +29,22 @@ class FC200(ControlSurface):
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
 
+    def led_status(self, midi_bytes, pedal, value):
+        bank = 1
+        sysex_msg = (
+                midi_bytes[0], 
+                midi_bytes[1], 
+                midi_bytes[2],
+                midi_bytes[3],
+                midi_bytes[4],
+                bank,
+                pedal,
+                value,
+                ((128 - ((bank + pedal + value) % 128)) % 128),
+                247
+            )
+        self.log_message(f"\nsending out: {sysex_msg}")
+        self._send_midi(sysex_msg)
 
     def handle_sysex(self, midi_bytes):
         self.midi_bytes = midi_bytes
