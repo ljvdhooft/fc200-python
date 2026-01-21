@@ -73,6 +73,9 @@ class FC200(ControlSurface):
         if checksum != check_checksum:  # Checksum
             return
 
+        self.device = self.song().tracks[0].devices[0].parameters[0]
+        if bank == 0 and pedal == 0 and value == 127: 
+            self.song().tracks[0].devices[0].parameters[0].value = 0 if self.device.value == 1 else 1
 
 
 
