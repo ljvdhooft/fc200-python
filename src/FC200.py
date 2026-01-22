@@ -28,6 +28,9 @@ class FC200(ControlSurface):
 
         self._page = 1
         self._board = self.song().tracks[0].devices[0].chains[0]
+
+        self._observed_params = []
+        self._listeners()
         
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
@@ -55,6 +58,28 @@ class FC200(ControlSurface):
     def led_status(self, pedal, value):
         bank = 1
         self._send_sysex([bank, pedal, value])
+        return
+
+    def _listeners(self):
+        def update_led(parameter_index):
+            if self._page != 1:
+                return
+            name = self._board.devices[parameter_index].name
+            value = self._observed_params[parameter_index][0]
+            led_value = 127 if str(value) == "On" else 0
+            self.led_status(parameter_index, led_value)
+            return
+
+        for index in range(0, len(self._board.devices)):
+            self.log_message(index)
+            parameter = self._board.devices[index].parameters[0]
+
+            callback = lambda i=index: update_led(i)
+
+            if not parameter.value_has_listener(callback):
+                parameter.add_value_listener(callback)
+                self._observed_params.append((parameter, callback))
+        self.log_message(f"Added listeners for {len(self._observed_params)} devices")
         return
 
     def handle_sysex(self, midi_bytes):
@@ -157,6 +182,13 @@ class FC200(ControlSurface):
 
     def disconnect(self):
         """Clean up when the script is unloaded."""
+        self.log_message("(FC200) Removing all listeners...")
+        for param, callback in self._observed_params:
+            if param.value_has_listener(callback):
+                param.remove_value_listener(callback)
+
+        self._observed_params = []
+
         self.log_message("--- MyCustomSysEx Script Unloaded ---")
         super(FC200, self).disconnect()
 
