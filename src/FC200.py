@@ -21,6 +21,8 @@ from .MIDI_Map import *
 # MIDI_NOTE_TYPE = 0
 # MIDI_CC_TYPE = 1
 # MIDI_PB_TYPE = 2
+MIN_PAGE = 0
+MAX_PAGE = 2
 
 class FC200(ControlSurface):
     def __init__(self, c_instance):
@@ -126,12 +128,12 @@ class FC200(ControlSurface):
         self.led_status(0, led_status)
 
     def _page_up(self):
-        if self._page == 2:
+        if self._page == MAX_PAGE:
             return
         self._page += 1
         self.log_message(f"Page changed to {self._page}")
     def _page_down(self):
-        if self._page == 0:
+        if self._page == MIN_PAGE:
             return
         self._page -= 1
         self.log_message(f"Page changed to {self._page}")
