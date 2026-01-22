@@ -32,22 +32,30 @@ class FC200(ControlSurface):
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
 
-    def led_status(self, midi_bytes, pedal, value):
-        bank = 1
+    def _send_sysex(self, body):
         sysex_msg = (
-                midi_bytes[0], 
-                midi_bytes[1], 
-                midi_bytes[2],
-                midi_bytes[3],
-                midi_bytes[4],
-                bank,
-                pedal,
-                value,
-                ((128 - ((bank + pedal + value) % 128)) % 128),
+                240, 
+                65, 
+                0,
+                114,
+                18,
+                body[0],
+                body[1],
+                body[2],
+                self._checksum(body),
                 247
             )
         self.log_message(f"\nsending out: {sysex_msg}")
         self._send_midi(sysex_msg)
+        return
+
+    def _checksum(self, body):
+        return (128 - ((body[0] + body[1] + body[2]) % 128)) % 128
+
+    def led_status(self, pedal, value):
+        bank = 1
+        self._send_sysex([bank, pedal, value])
+        return
 
     def handle_sysex(self, midi_bytes):
         self.midi_bytes = midi_bytes
@@ -91,7 +99,7 @@ class FC200(ControlSurface):
         # Let's say: F0 00 20 2F [Command] F7
     def _on_param_changed(self):
         led_status = 0 if self.device.value == 0 else 127
-        self.led_status(self.midi_bytes, 0, led_status)
+        self.led_status(0, led_status)
 
     def toggle_selected_device(self):
         # Access the Live Object Model (LOM)
