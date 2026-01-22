@@ -25,7 +25,9 @@ from .MIDI_Map import *
 class FC200(ControlSurface):
     def __init__(self, c_instance):
         super(FC200, self).__init__(c_instance)
+
         self._page = 1
+        self._board = self.song().tracks[0].devices[0].chains[0]
         
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
@@ -130,6 +132,16 @@ class FC200(ControlSurface):
         self._page -= 1
         self.log_message(f"Page changed to {self._page}")
 
+    def toggle_device(self, body):
+        pedal_loops = self._board.devices
+        if body[1] >= len(pedal_loops):
+            return
+        pedal_loop = pedal_loops[body[1]]
+        pedal_loop.parameters[0].value = 0 if pedal_loop.parameters[0].value == 1 else 1
+
+        # parameter = 0 if parameter == 1 else 1
+        return
+
     def page_0(self, body):
         # Page UP
         if body == [0, 10, 127]:
@@ -148,6 +160,9 @@ class FC200(ControlSurface):
         # Page DOWN 
         if body == [0, 11, 127]:
             self._page_down()
+            return
+        if 0 <= body[1] < 10 and body[2] == 127:
+            self.toggle_device(body)
             return
 
     def page_2(self, body):
