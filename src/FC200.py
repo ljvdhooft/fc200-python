@@ -129,8 +129,6 @@ class FC200(ControlSurface):
             return
         pedal_loop = pedal_loops[body[1]]
         pedal_loop.parameters[0].value = 0 if pedal_loop.parameters[0].value == 1 else 1
-
-        # parameter = 0 if parameter == 1 else 1
         return
 
     def page_0(self, body):
