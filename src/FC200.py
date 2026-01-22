@@ -18,9 +18,6 @@ from .SpecialViewControllerComponent import DetailViewControllerComponent
 from .MIDI_Map import *
 
 
-# MIDI_NOTE_TYPE = 0
-# MIDI_CC_TYPE = 1
-# MIDI_PB_TYPE = 2
 MIN_PAGE = 0
 MAX_PAGE = 2
 
