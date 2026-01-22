@@ -107,11 +107,6 @@ class FC200(ControlSurface):
         else:
             self.log_message("No device found on selected track.")
 
-    def disconnect(self):
-        """Clean up when the script is unloaded."""
-        self.log_message("--- MyCustomSysEx Script Unloaded ---")
-        super(FC200, self).disconnect()
-
     def _page_up(self):
         if self._page == 2:
             return
@@ -164,6 +159,13 @@ class FC200(ControlSurface):
         if body == [0, 11, 127]:
             self._page_down()
             return
+
+
+
+    def disconnect(self):
+        """Clean up when the script is unloaded."""
+        self.log_message("--- MyCustomSysEx Script Unloaded ---")
+        super(FC200, self).disconnect()
 
 
 # class FC200(ControlSurface):   # Make sure you update the name
