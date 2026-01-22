@@ -95,8 +95,7 @@ class FC200(ControlSurface):
             if self._page == 2:
                 self.page_2(body)
                 return
-        # Example Logic: Look for a specific Manufacturer ID and Command Byte
-        # Let's say: F0 00 20 2F [Command] F7
+
     def _on_param_changed(self):
         led_status = 0 if self.device.value == 0 else 127
         self.led_status(0, led_status)
