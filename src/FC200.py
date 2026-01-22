@@ -20,6 +20,8 @@ from .MIDI_Map import *
 
 MIN_PAGE = 0
 MAX_PAGE = 2
+LOOP_MAPPING = [0, 1, 2, 3, 4, 6, 7, 8, 9]
+LOOP_VOLUME = 2
 
 class FC200(ControlSurface):
     def __init__(self, c_instance):
@@ -59,7 +61,7 @@ class FC200(ControlSurface):
         return (128 - ((body[0] + body[1] + body[2]) % 128)) % 128
 
     def leds_off(self):
-        for i in range(0, 9):
+        for i in range(0, 9 + 1):
             self.led_status(i, 0)
         return
 
@@ -73,20 +75,20 @@ class FC200(ControlSurface):
         return
 
     def _listeners(self):
-        def update_led(parameter_index):
+        def update_led(pedal, loop):
+            self.log_message(f"parameter {loop} changed, updating LED {pedal}")
             if self._page != 1:
                 return
-            value = self._observed_params[parameter_index][0]
+            value = self._observed_params[pedal][0]
             led_value = 127 if str(value) == "On" else 0
-            self.led_status(parameter_index, led_value)
-            self._led_status[self._page][parameter_index] = led_value 
+            self.led_status(pedal, led_value)
+            self._led_status[self._page][pedal] = led_value 
             return
 
-        for index in range(0, len(self._board.devices)):
-            self.log_message(index)
-            parameter = self._board.devices[index].parameters[0]
+        for index, loop in enumerate(LOOP_MAPPING):
+            parameter = self._board.devices[loop].parameters[0]
 
-            callback = lambda i=index: update_led(i)
+            callback = lambda i=index, l=loop: update_led(i, l)
 
             if not parameter.value_has_listener(callback):
                 parameter.add_value_listener(callback)
@@ -154,9 +156,9 @@ class FC200(ControlSurface):
 
     def toggle_device(self, body):
         pedal_loops = self._board.devices
-        if body[1] >= len(pedal_loops):
+        if body[1] >= len(LOOP_MAPPING):
             return
-        pedal_loop = pedal_loops[body[1]]
+        pedal_loop = pedal_loops[LOOP_MAPPING[body[1]]]
         pedal_loop.parameters[0].value = 0 if pedal_loop.parameters[0].value == 1 else 1
         return
 
