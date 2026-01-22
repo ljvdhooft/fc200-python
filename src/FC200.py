@@ -150,6 +150,7 @@ class FC200(ControlSurface):
         if body == [0, 11, 127]:
             self._page_down()
             return
+        # Toggle Device On/Off for pedals 1 thru 10
         if 0 <= body[1] < 10 and body[2] == 127:
             self.toggle_device(body)
             return
