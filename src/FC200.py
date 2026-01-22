@@ -31,6 +31,7 @@ class FC200(ControlSurface):
         
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
+        self._tasks.add(Task.loop(Task.sequence(Task.wait(2.0), Task.run(lambda: self.test_led()))))
 
     def led_status(self, midi_bytes, pedal, value):
         bank = 1
