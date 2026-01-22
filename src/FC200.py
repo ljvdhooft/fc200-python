@@ -25,6 +25,7 @@ from .MIDI_Map import *
 class FC200(ControlSurface):
     def __init__(self, c_instance):
         super(FC200, self).__init__(c_instance)
+        self._page = 1
         
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
@@ -62,6 +63,7 @@ class FC200(ControlSurface):
         bank = midi_bytes[5]
         pedal = midi_bytes[6]
         value = midi_bytes[7]
+        body = [bank, pedal, value]
 
         # Debug
         self.log_message(f"\nReceived SysEx: {midi_bytes}\nbank {bank}, pedal {pedal}, value {value}")
@@ -83,8 +85,15 @@ class FC200(ControlSurface):
 
 
         if midi_bytes[-1] == 247:       # Return list at end of message
-            return [bank, pedal, value]
-
+            if self._page == 0:
+                self.page_0(body)
+                return
+            if self._page == 1:
+                self.page_1(body)
+                return
+            if self._page == 2:
+                self.page_2(body)
+                return
         # Example Logic: Look for a specific Manufacturer ID and Command Byte
         # Let's say: F0 00 20 2F [Command] F7
     def _on_param_changed(self):
@@ -109,6 +118,48 @@ class FC200(ControlSurface):
         """Clean up when the script is unloaded."""
         self.log_message("--- MyCustomSysEx Script Unloaded ---")
         super(FC200, self).disconnect()
+
+    def _page_up(self):
+        if self._page == 2:
+            return
+        self._page += 1
+        self.log_message(f"Page changed to {self._page}")
+    def _page_down(self):
+        if self._page == 0:
+            return
+        self._page -= 1
+        self.log_message(f"Page changed to {self._page}")
+
+    def page_0(self, body):
+        # Page UP
+        if body == [0, 10, 127]:
+            self._page_up()
+            return
+        # Page DOWN 
+        if body == [0, 11, 127]:
+            self._page_down()
+            return
+
+    def page_1(self, body):
+        # Page UP
+        if body == [0, 10, 127]:
+            self._page_up()
+            return
+        # Page DOWN 
+        if body == [0, 11, 127]:
+            self._page_down()
+            return
+
+    def page_2(self, body):
+        # Page UP
+        if body == [0, 10, 127]:
+            self._page_up()
+            return
+        # Page DOWN 
+        if body == [0, 11, 127]:
+            self._page_down()
+            return
+
 
 # class FC200(ControlSurface):   # Make sure you update the name
 #     __doc__ = " Script for YourControllerName in APC emulation mode "   # Make sure you update the name
