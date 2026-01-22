@@ -33,6 +33,10 @@ class FC200(ControlSurface):
 
         self._observed_params = []
         self._listeners()
+
+        self._led_status = {}
+        for p in range(MIN_PAGE, MAX_PAGE + 1):
+            self._led_status[p] = {}
         
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
@@ -57,6 +61,15 @@ class FC200(ControlSurface):
     def _checksum(self, body):
         return (128 - ((body[0] + body[1] + body[2]) % 128)) % 128
 
+    def leds_off(self):
+        for i in range(0, 9):
+            self.led_status(i, 0)
+        return
+
+    def leds_recall(self):
+        for i in self._led_status[self._page]:
+            self.led_status(i, self._led_status[self._page][i])
+
     def led_status(self, pedal, value):
         bank = 1
         self._send_sysex([bank, pedal, value])
@@ -69,6 +82,7 @@ class FC200(ControlSurface):
             value = self._observed_params[parameter_index][0]
             led_value = 127 if str(value) == "On" else 0
             self.led_status(parameter_index, led_value)
+            self._led_status[self._page][parameter_index] = led_value 
             return
 
         for index in range(0, len(self._board.devices)):
@@ -130,11 +144,15 @@ class FC200(ControlSurface):
         if self._page == MAX_PAGE:
             return
         self._page += 1
+        self.leds_off()
+        self.leds_recall()
         self.log_message(f"Page changed to {self._page}")
     def _page_down(self):
         if self._page == MIN_PAGE:
             return
         self._page -= 1
+        self.leds_off()
+        self.leds_recall()
         self.log_message(f"Page changed to {self._page}")
 
     def toggle_device(self, body):
