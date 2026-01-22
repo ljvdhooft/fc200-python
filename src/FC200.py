@@ -66,7 +66,6 @@ class FC200(ControlSurface):
         def update_led(parameter_index):
             if self._page != 1:
                 return
-            name = self._board.devices[parameter_index].name
             value = self._observed_params[parameter_index][0]
             led_value = 127 if str(value) == "On" else 0
             self.led_status(parameter_index, led_value)
