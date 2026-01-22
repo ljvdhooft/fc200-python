@@ -100,20 +100,6 @@ class FC200(ControlSurface):
         led_status = 0 if self.device.value == 0 else 127
         self.led_status(0, led_status)
 
-    def toggle_selected_device(self):
-        # Access the Live Object Model (LOM)
-        # Song -> View -> Selected Track -> Devices
-        track = self.song().view.selected_track
-        
-        if len(track.devices) > 0:
-            device = track.devices[0]
-            # Device 'on' status is parameter 0
-            current_state = device.parameters[0].value
-            device.parameters[0].value = 0.0 if current_state > 0.0 else 1.0
-            self.log_message(f"Toggled device: {device.name}")
-        else:
-            self.log_message("No device found on selected track.")
-
     def _page_up(self):
         if self._page == 2:
             return
