@@ -205,6 +205,37 @@ class FC200(ControlSurface):
         parameter = self._board.devices[LOOP_VOLUME].parameters[1]
         parameter.value = value
 
+    def start_button(self):
+        self.song().start_playing()
+
+    def stop_button(self):
+        self.song().stop_playing()
+
+    def stop_all(self):
+        self.song().stop_all_clips()
+
+    def start_scene(self):
+        selected_scene = self.song().view.selected_scene
+        selected_scene.fire()
+        self.move_scene(1)
+        self.show_message(f"Fired: {selected_scene.name}")
+    
+    def move_scene(self, direction):
+        all_scenes = list(self.song().scenes)
+        selected_scene = self.song().view.selected_scene
+        selected_scene_index = all_scenes.index(selected_scene)
+        new_index = selected_scene_index + direction 
+        if 0 <= new_index < len(all_scenes):
+            self.song().view.selected_scene = all_scenes[new_index]
+            new_name = all_scenes[new_index].name
+            self.show_message(f"Scene: {new_name}")
+        return
+
+    def toggle_click(self):
+        self.song().metronome = not self.song().metronome
+        return
+
+
     def page_0(self, body):
         # Page UP
         if body == [0, 10, 127]:
@@ -217,6 +248,43 @@ class FC200(ControlSurface):
         # Expression pedal calls volume_control
         if body[1] == 13:
             self.volume_control(body[2])
+            return
+        # Ableton "start" button
+        if body == [0, 0, 127]:
+            self.start_button()
+            return
+        # Ableton "stop" button and stop all clips
+        if body == [0, 1, 127]:
+            self.stop_button()
+            self.stop_all()
+            return
+        # Ableton start scene
+        if body == [0, 2, 127]:
+            self.start_scene()
+            return
+        # Ableton scene down
+        if body == [0, 3, 127]:
+            self.move_scene(1)
+            return
+        # Ableton scene up
+        if body == [0, 4, 127]:
+            self.move_scene(-1)
+            return
+        # Ableton click on/off 
+        if body == [0, 5, 127]:
+            self.toggle_click()
+            return
+        # Start scene and stop immediately (recall preset)
+        if body == [0, 6, 127]:
+            return
+        # Store preset
+        if body == [0, 7, 127]:
+            return
+        # ForScore prev page
+        if body == [0, 8, 127]:
+            return
+        # ForScore next page
+        if body == [0, 9, 127]:
             return
 
     def page_1(self, body):
