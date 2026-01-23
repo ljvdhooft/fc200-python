@@ -33,6 +33,7 @@ class FC200(ControlSurface):
         self._led_status = {}
         for p in range(MIN_PAGE, MAX_PAGE + 1):
             self._led_status[p] = {}
+
         # Add listeners for page_0 (is_playing, metronome)
         if not self.song().is_playing_has_listener(self._on_is_playing_changed):
             self.log_message(f"Adding listener for is_playing")
