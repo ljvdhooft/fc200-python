@@ -21,7 +21,7 @@ from .MIDI_Map import *
 MIN_PAGE = 0
 MAX_PAGE = 2
 LOOP_MAPPING = [0, 1, 2, 3, 4, 6, 7, 8, 9]
-LOOP_VOLUME = 2
+LOOP_VOLUME = 5 
 
 class FC200(ControlSurface):
     def __init__(self, c_instance):
