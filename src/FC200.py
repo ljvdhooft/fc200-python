@@ -320,6 +320,14 @@ class FC200(ControlSurface):
     def disconnect(self):
         """Clean up when the script is unloaded."""
         self.log_message("(FC200) Removing all listeners...")
+
+        # Remove listeners for page_0 (is_playing, metronome)
+        if self.song().is_playing_has_listener(self._on_is_playing_changed):
+            self.song().remove_is_playing_listener(self._on_is_playing_changed)
+        if self.song().metronome_has_listener(self._on_metronome_changed):
+            self.song().remove_metronome_listener(self._on_metronome_changed)
+
+        # Remove listeners for page_1 (device_on)
         for param, callback in self._observed_params:
             if param.value_has_listener(callback):
                 param.remove_value_listener(callback)
