@@ -33,6 +33,15 @@ class FC200(ControlSurface):
         self._led_status = {}
         for p in range(MIN_PAGE, MAX_PAGE + 1):
             self._led_status[p] = {}
+        # Add listeners for page_0 (is_playing, metronome)
+        if not self.song().is_playing_has_listener(self._on_is_playing_changed):
+            self.log_message(f"Adding listener for is_playing")
+            self.song().add_is_playing_listener(self._on_is_playing_changed)
+            self._led_status[0][0] = 127 if self.song().is_playing else 0
+        if not self.song().metronome_has_listener(self._on_metronome_changed):
+            self.log_message(f"Adding listener for metronome state")
+            self.song().add_metronome_listener(self._on_metronome_changed)
+            self._led_status[0][5] = 127 if self.song().metronome else 0
         
         self._observed_params = []
         self._listeners()
@@ -96,6 +105,24 @@ class FC200(ControlSurface):
                 parameter.add_value_listener(callback)
                 self._observed_params.append((parameter, callback))
         self.log_message(f"Added listeners for {len(self._observed_params)} devices")
+        return
+
+    def _on_is_playing_changed(self):
+        is_playing = self.song().is_playing 
+        led_value = 127 if is_playing else 0
+        self._led_status[0][0] = led_value
+        if self._page != 0:
+            return
+        self.led_status(0, led_value)
+        return
+
+    def _on_metronome_changed(self):
+        metronome_state = self.song().metronome
+        led_value = 127 if metronome_state else 0
+        self._led_status[0][5] = led_value
+        if self._page != 0:
+            return
+        self.led_status(5, led_value)
         return
 
     def _init_leds(self):
