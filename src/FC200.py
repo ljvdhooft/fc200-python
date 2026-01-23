@@ -190,6 +190,7 @@ class FC200(ControlSurface):
         # Expression pedal calls volume_control
         if body[1] == 13:
             self.volume_control(body[2])
+            return
 
     def page_1(self, body):
         # Page UP
@@ -203,6 +204,7 @@ class FC200(ControlSurface):
         # Expression pedal calls volume_control
         if body[1] == 13:
             self.volume_control(body[2])
+            return
         # Toggle Device On/Off for pedals 1 thru 10
         if 0 <= body[1] < 10 and body[2] == 127:
             self.toggle_device(body)
