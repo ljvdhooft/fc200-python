@@ -30,13 +30,13 @@ class FC200(ControlSurface):
         self._page = 1
         self._board = self.song().tracks[0].devices[0].chains[0]
 
-        self._observed_params = []
-        self._listeners()
 
         self._led_status = {}
         for p in range(MIN_PAGE, MAX_PAGE + 1):
             self._led_status[p] = {}
         
+        self._observed_params = []
+        self._listeners()
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
 
