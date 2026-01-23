@@ -102,7 +102,6 @@ class FC200(ControlSurface):
         for index, loop in enumerate(LOOP_MAPPING):
             parameter = self._board.devices[loop].parameters[0]
             value = parameter.value
-            self.log_message(f"loop {loop} - {value}")
             led_value = 127 if value else 0
             self._led_status[1][index] = led_value
         return
