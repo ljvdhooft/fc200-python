@@ -145,6 +145,7 @@ class FC200(ControlSurface):
         self._page += 1
         self.leds_off()
         self.leds_recall()
+        self.show_message(f"Page {self._page}")
         self.log_message(f"Page changed to {self._page}")
     def _page_down(self):
         if self._page == MIN_PAGE:
@@ -152,6 +153,7 @@ class FC200(ControlSurface):
         self._page -= 1
         self.leds_off()
         self.leds_recall()
+        self.show_message(f"Page {self._page}")
         self.log_message(f"Page changed to {self._page}")
 
     def toggle_device(self, body):
