@@ -162,6 +162,10 @@ class FC200(ControlSurface):
         pedal_loop.parameters[0].value = 0 if pedal_loop.parameters[0].value == 1 else 1
         return
 
+    def volume_control(self, value):
+        parameter = self._board.devices[LOOP_VOLUME].parameters[1]
+        parameter.value = value
+
     def page_0(self, body):
         # Page UP
         if body == [0, 10, 127]:
@@ -185,6 +189,8 @@ class FC200(ControlSurface):
         if 0 <= body[1] < 10 and body[2] == 127:
             self.toggle_device(body)
             return
+        if body[1] == 13:
+            self.volume_control(body[2])
 
     def page_2(self, body):
         # Page UP
