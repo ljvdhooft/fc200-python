@@ -218,6 +218,9 @@ class FC200(ControlSurface):
         parameter = self._board.devices[LOOP_VOLUME].parameters[1]
         parameter.value = value
 
+    def tap_tempo(self):
+        self.song().tap_tempo()
+
     def start_button(self):
         self.song().start_playing()
 
@@ -263,6 +266,11 @@ class FC200(ControlSurface):
         # Expression pedal calls volume_control
         if body[1] == 13:
             self.volume_control(body[2])
+            return
+        # CTL button calls tap_tempo
+        if body == [0, 12, 127]:
+            self.tap_tempo()
+            self.flash_led(12)
             return
         # Ableton "start" button
         if body == [0, 0, 127]:
@@ -324,6 +332,11 @@ class FC200(ControlSurface):
         # Expression pedal calls volume_control
         if body[1] == 13:
             self.volume_control(body[2])
+            return
+        # CTL button calls tap_tempo
+        if body == [0, 12, 127]:
+            self.tap_tempo()
+            self.flash_led(12)
             return
         # Toggle Device On/Off for pedals 1 thru 10
         if 0 <= body[1] < 10 and body[2] == 127:
