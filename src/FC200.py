@@ -10,6 +10,7 @@ from _Framework.DeviceComponent import DeviceComponent
 from _Framework.ControlSurfaceComponent import ControlSurfaceComponent
 from _Framework.SessionZoomingComponent import SessionZoomingComponent
 from _Framework.SessionComponent import SessionComponent
+from _Framework import Task
 from .SpecialMixerComponent import SpecialMixerComponent
 from .SpecialTransportComponent import SpecialTransportComponent
 from .SpecialSessionComponent import SpecialSessionComponent
@@ -85,6 +86,16 @@ class FC200(ControlSurface):
         bank = 1
         self._send_sysex([bank, pedal, value])
         return
+
+    def flash_led(self, pedal_id):
+        # Turn LED ON
+        self.led_status(pedal_id, 127)
+        
+        # Schedule the OFF command 100ms later
+        self._tasks.add(Task.sequence(
+            Task.wait(0.1), # 0.1 seconds = 100ms
+            Task.run(lambda: self.led_status(pedal_id, 0))
+        ))
 
     def _listeners(self):
         def update_led(pedal, loop):
@@ -242,10 +253,12 @@ class FC200(ControlSurface):
         # Page UP
         if body == [0, 10, 127]:
             self._page_up()
+            self.flash_led(10)
             return
         # Page DOWN 
         if body == [0, 11, 127]:
             self._page_down()
+            self.flash_led(11)
             return
         # Expression pedal calls volume_control
         if body[1] == 13:
@@ -259,18 +272,22 @@ class FC200(ControlSurface):
         if body == [0, 1, 127]:
             self.stop_button()
             self.stop_all()
+            self.flash_led(1)
             return
         # Ableton start scene
         if body == [0, 2, 127]:
             self.start_scene()
+            self.flash_led(2)
             return
         # Ableton scene down
         if body == [0, 3, 127]:
             self.move_scene(1)
+            self.flash_led(3)
             return
         # Ableton scene up
         if body == [0, 4, 127]:
             self.move_scene(-1)
+            self.flash_led(4)
             return
         # Ableton click on/off 
         if body == [0, 5, 127]:
@@ -278,25 +295,31 @@ class FC200(ControlSurface):
             return
         # Start scene and stop immediately (recall preset)
         if body == [0, 6, 127]:
+            # self.flash_led(6)
             return
         # Store preset
         if body == [0, 7, 127]:
+            # self.flash_led(7)
             return
         # ForScore prev page
         if body == [0, 8, 127]:
+            # self.flash_led(8)
             return
         # ForScore next page
         if body == [0, 9, 127]:
+            # self.flash_led(9)
             return
 
     def page_1(self, body):
         # Page UP
         if body == [0, 10, 127]:
             self._page_up()
+            self.flash_led(10)
             return
         # Page DOWN 
         if body == [0, 11, 127]:
             self._page_down()
+            self.flash_led(11)
             return
         # Expression pedal calls volume_control
         if body[1] == 13:
@@ -311,10 +334,12 @@ class FC200(ControlSurface):
         # Page UP
         if body == [0, 10, 127]:
             self._page_up()
+            self.flash_led(10)
             return
         # Page DOWN 
         if body == [0, 11, 127]:
             self._page_down()
+            self.flash_led(11)
             return
 
 
