@@ -177,6 +177,8 @@ class FC200(ControlSurface):
         if body == [0, 11, 127]:
             self._page_down()
             return
+        if body[1] == 13:
+            self.volume_control(body[2])
 
     def page_1(self, body):
         # Page UP
