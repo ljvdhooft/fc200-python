@@ -30,13 +30,15 @@ class FC200(ControlSurface):
         self._page = 1
         self._board = self.song().tracks[0].devices[0].chains[0]
 
-
         self._led_status = {}
         for p in range(MIN_PAGE, MAX_PAGE + 1):
             self._led_status[p] = {}
         
         self._observed_params = []
         self._listeners()
+        self._init_leds()
+        self.leds_recall()
+
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
 
@@ -94,6 +96,15 @@ class FC200(ControlSurface):
                 parameter.add_value_listener(callback)
                 self._observed_params.append((parameter, callback))
         self.log_message(f"Added listeners for {len(self._observed_params)} devices")
+        return
+
+    def _init_leds(self):
+        for index, loop in enumerate(LOOP_MAPPING):
+            parameter = self._board.devices[loop].parameters[0]
+            value = parameter.value
+            self.log_message(f"loop {loop} - {value}")
+            led_value = 127 if value else 0
+            self._led_status[1][index] = led_value
         return
 
     def handle_sysex(self, midi_bytes):
