@@ -88,14 +88,15 @@ class FC200(ControlSurface):
     def _listeners(self):
         def update_led(pedal, loop):
             self.log_message(f"parameter {loop} changed, updating LED {pedal}")
-            if self._page != 1:
-                return
             value = self._observed_params[pedal][0]
             led_value = 127 if str(value) == "On" else 0
+            self._led_status[1][pedal] = led_value 
+            if self._page != 1:
+                return
             self.led_status(pedal, led_value)
-            self._led_status[self._page][pedal] = led_value 
             return
 
+        # Add listeners for page_1 (device on/off)
         for index, loop in enumerate(LOOP_MAPPING):
             parameter = self._board.devices[loop].parameters[0]
 
