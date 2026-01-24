@@ -45,6 +45,7 @@ class FC200(ControlSurface):
             self.song().add_metronome_listener(self._on_metronome_changed)
             self._led_status[0][5] = 127 if self.song().metronome else 0
         
+        self._favorite_parameter = None
         self._observed_params = []
         self._listeners()
         self.leds_off()
@@ -219,6 +220,15 @@ class FC200(ControlSurface):
         parameter = self._board.devices[LOOP_VOLUME].parameters[1]
         parameter.value = value
 
+    def favorite_parameter(self, body):
+        pedal = body[1]
+        parameter = self._board.devices[LOOP_MAPPING[pedal]].parameters[FAVORITE_PARAMETERS[pedal]]
+        self._favorite_parameter = parameter
+        self.leds_off()
+        self.led_status(pedal, 127)
+
+        return
+
     def tap_tempo(self):
         self.song().tap_tempo()
 
@@ -347,13 +357,23 @@ class FC200(ControlSurface):
     def page_2(self, body):
         # Page UP
         if body == [0, 10, 127]:
+            self._favorite_parameter = None
             self._page_up()
             self.flash_led(10)
             return
         # Page DOWN 
         if body == [0, 11, 127]:
+            self._favorite_parameter = None
             self._page_down()
             self.flash_led(11)
+            return
+        # Control favorite parameter when selected with pedal
+        if self._favorite_parameter and body[0] == 0 and body[1] == 13:
+            self._favorite_parameter.value = body[2]
+            return
+        # Device favorite parameter mode
+        if body[0] == 0 and 0 <= body[1] < 10 and body[2] == 127:
+            self.favorite_parameter(body)
             return
 
 
