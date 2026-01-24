@@ -47,6 +47,7 @@ class FC200(ControlSurface):
         
         self._observed_params = []
         self._listeners()
+        self.leds_off()
         self._init_leds()
         self.leds_recall()
 
