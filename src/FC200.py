@@ -339,7 +339,7 @@ class FC200(ControlSurface):
             self.flash_led(12)
             return
         # Toggle Device On/Off for pedals 1 thru 10
-        if 0 <= body[1] < 10 and body[2] == 127:
+        if body[0] == 0 and 0 <= body[1] < 10 and body[2] == 127:
             self.toggle_device(body)
             return
 
