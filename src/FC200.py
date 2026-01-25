@@ -47,6 +47,15 @@ class FC200(ControlSurface):
             self._led_status[0][5] = 127 if self.song().metronome else 0
         
         self._favorite_parameter = None
+        self._favorite_parameter_pedal = None
+        self._parameter_control = None
+        self._parameter_control_selected = None
+        self._parameter_control_selected_pedal = None
+        self._parameter_control_selected_parameter = None
+        self._parameter_control_chains = None
+        self._parameter_control_selected_chain = None
+        self._parameter_control_selected_chain_index = None
+        self._parameter_control_blink = None
         self._observed_params = []
         self._listeners()
         self.leds_off()
@@ -99,6 +108,16 @@ class FC200(ControlSurface):
             Task.wait(0.1), # 0.1 seconds = 100ms
             Task.run(lambda: self.led_status(pedal_id, 0))
         ))
+
+    def blink_leds(self):
+        for i in range(0, 9):
+            if i == 4:
+                continue
+            if i == self._parameter_control_selected:
+                self.led_status(self._parameter_control_selected, 127)
+                continue
+            self.led_status(i, self.blink_leds_value)
+        self.blink_leds_value = 0 if self.blink_leds_value == 127 else 127
 
     def _listeners(self):
         def update_led(pedal, loop):
@@ -178,6 +197,9 @@ class FC200(ControlSurface):
             return
 
         if midi_bytes[-1] == 247:       # Return list at end of message
+            if self._parameter_control is not None:
+                self.parameter_control(body)
+                return
             if self._page == 0:
                 self.page_0(body)
                 return
@@ -224,11 +246,73 @@ class FC200(ControlSurface):
     def favorite_parameter(self, body):
         pedal = body[1]
         parameter = self._board.devices[LOOP_MAPPING[pedal]].parameters[FAVORITE_PARAMETERS[pedal]]
+        self._favorite_parameter_pedal = pedal
         self._favorite_parameter = parameter
         self.leds_off()
         self.led_status(pedal, 127)
-
         return
+
+    def parameter_control(self, body):
+        # Map expression pedal to parameter_control selected parameter
+        if body[0] == 0 and body[1] == 13 and self._parameter_control_selected_parameter is not None:
+            self._parameter_control_selected_parameter.value = body[2]
+            return
+
+        # Map CTL pedal to exit parameter_control mode
+        if body == [0, 12, 0]:
+            return # Ignore releasing
+        if body == [0, 12, 127] and self._parameter_control_blink is not None: 
+            self._parameter_control = None
+            self._parameter_control_selected = None
+            self._parameter_control_selected_pedal = None
+            self._parameter_control_selected_parameter = None
+            self._parameter_control_chains = None
+            self._parameter_control_selected_chain = None
+            self._parameter_control_selected_chain_index = None
+            self._parameter_control_blink.kill()
+            self._parameter_control_blink = None
+            self.leds_off()
+            self.flash_led(12)
+            return
+
+        # Map bank up pedal to select different chains
+        if body == [0, 10, 127] and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
+            if self._parameter_control_selected_chain_index <= 0:
+                return
+            self._board.devices[self._parameter_control].view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index - 1]
+            self._parameter_control_selected_chain_index -= 1
+            self.flash_led(10)
+            return
+        # Map bank down pedal to select different chains
+        if body == [0, 11, 127] and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
+            if self._parameter_control_selected_chain_index >= len(self._parameter_control_chains):
+                return
+            self._board.devices[self._parameter_control].view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index + 1]
+            self._parameter_control_selected_chain_index += 1
+            self.flash_led(11)
+            return
+
+        # Initialize parameter_control mode with blinking
+        if not self._parameter_control_selected and self._parameter_control_blink is None:
+            self._favorite_parameter = None
+            self._favorite_parameter_pedal = None
+            self._parameter_control_chains = list(self._board.devices[self._parameter_control].chains)
+            self._parameter_control_selected_chain = self._board.devices[self._parameter_control].view.selected_chain
+            self._parameter_control_selected_chain_index = self._parameter_control_chains.index(self._board.devices[self._parameter_control].view.selected_chain)
+            self.log_message(self._parameter_control_selected_chain)
+            self.blink_leds_value = 127
+            self.blink_leds()
+            self._parameter_control_blink = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.5), Task.run(self.blink_leds))))
+            return
+
+        # Map pedals 1-4 and 6-9 to parameters (macros)
+        if body[0] == 0 and 0 <= body[1] < 9 and body[1] != 4 and body[2] == 127:
+            parameter_index = (body[1] - 4) if body[1] >= 5 else body[1] + 5
+            self._parameter_control_selected = body[1]
+            self._parameter_control_selected_parameter = self._board.devices[self._parameter_control].parameters[parameter_index]
+
+            self.show_message(f"{self._board.devices[self._parameter_control].name} - {self._parameter_control_selected_parameter.name}")
+            self.led_status(body[1], 127)
 
     def tap_tempo(self):
         self.song().tap_tempo()
@@ -359,14 +443,32 @@ class FC200(ControlSurface):
         # Page UP
         if body == [0, 10, 127]:
             self._favorite_parameter = None
+            self._favorite_parameter_pedal = None
             self._page_up()
             self.flash_led(10)
             return
         # Page DOWN 
         if body == [0, 11, 127]:
             self._favorite_parameter = None
+            self._favorite_parameter_pedal = None
             self._page_down()
             self.flash_led(11)
+            return        
+        # Expression pedal calls volume_control
+        if body[1] == 13 and self._favorite_parameter is None and self._parameter_control is None:
+            self.volume_control(body[2])
+            return
+        # Device full parameter mode
+        if self._favorite_parameter and body[0] == 0 and body[1] == self._favorite_parameter_pedal and body[2] == 127:
+            self._parameter_control = LOOP_MAPPING[body[1]]
+            self.parameter_control(body)
+            return
+        # Exit favorite parameter control
+        if body == [0, 12, 127] and self._favorite_parameter is not None:
+            self._favorite_parameter = None
+            self._favorite_parameter_pedal = None
+            self.leds_off()
+            self.flash_led(12)
             return
         # Control favorite parameter when selected with pedal
         if self._favorite_parameter and body[0] == 0 and body[1] == 13:
