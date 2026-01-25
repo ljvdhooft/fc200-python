@@ -17,6 +17,7 @@ from .SpecialSessionComponent import SpecialSessionComponent
 from .SpecialZoomingComponent import SpecialZoomingComponent
 from .SpecialViewControllerComponent import DetailViewControllerComponent
 from .MIDI_Map import *
+from .SegmentEncoder import SegmentEncoder
 
 
 MIN_PAGE = 0
@@ -35,6 +36,9 @@ class FC200(ControlSurface):
         self._led_status = {}
         for p in range(MIN_PAGE, MAX_PAGE + 1):
             self._led_status[p] = {}
+        self.display(1, "")
+        self.display(0, self._page)
+
 
         # Add listeners for page_0 (is_playing, metronome)
         if not self.song().is_playing_has_listener(self._on_is_playing_changed):
@@ -84,6 +88,10 @@ class FC200(ControlSurface):
 
     def _checksum(self, body):
         return (128 - ((body[0] + body[1] + body[2]) % 128)) % 128
+
+    def display(self, number, character):
+        binary = SegmentEncoder.get_segments(character)
+        self._send_sysex([2, number, binary])
 
     def leds_off(self):
         for i in range(0, 9 + 1):
@@ -220,6 +228,8 @@ class FC200(ControlSurface):
         self._page += 1
         self.leds_off()
         self.leds_recall()
+        self.display(1, "")
+        self.display(0, self._page)
         self.show_message(f"Page {self._page}")
         self.log_message(f"Page changed to {self._page}")
     def _page_down(self):
@@ -228,6 +238,8 @@ class FC200(ControlSurface):
         self._page -= 1
         self.leds_off()
         self.leds_recall()
+        self.display(1, "")
+        self.display(0, self._page)
         self.show_message(f"Page {self._page}")
         self.log_message(f"Page changed to {self._page}")
 
