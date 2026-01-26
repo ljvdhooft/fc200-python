@@ -56,6 +56,8 @@ class FC200(ControlSurface):
         if not self._track.playing_slot_index_has_listener(self._load_preset):
             self._track.add_playing_slot_index_listener(self._load_preset)
         
+        self._preset_store_confirm = None
+        self._preset_store_blinking_led = None
         self._favorite_parameter = None
         self._favorite_parameter_pedal = None
         self._parameter_control = None
@@ -74,6 +76,76 @@ class FC200(ControlSurface):
 
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
+
+    def _store_preset(self):
+        if self._preset_store_confirm is not None and not self._preset_store_confirm:
+            self.log_message("Overwrite!")
+            self._preset_store_confirm = True
+
+        def check_preset_exists(preset_file_path):
+            if os.path.exists(preset_file_path):
+                return True
+            return False
+
+        def clip_slot_name():
+            all_scenes = list(self.song().scenes)
+            selected_scene = self.song().view.selected_scene
+            selected_scene_index = all_scenes.index(selected_scene)
+            clip_slot = self._track.clip_slots[selected_scene_index]
+            if not clip_slot.has_clip:
+                return None
+            return clip_slot.clip.name
+        def get_parameter_values_for_preset():
+            preset = {}
+            for d in LOOP_MAPPING:
+                preset[d] = {"parameters": []}
+                device = self._board.devices[d]
+                for i in range(0, 8):
+                    parameter = device.parameters[i]
+                    preset[d]["parameters"].append(parameter.value)
+                selected_chain = device.view.selected_chain
+                preset[d]["chain"] = selected_chain.name
+            return preset
+        def store_preset(preset, path, name):
+            try:
+                with open(path, 'w') as f:
+                    preset_dict = json.dumps(preset, indent=2)
+                    f.write(preset_dict)
+                    self.log_message("saved preset file " + preset_file_path)
+                    self.show_message("Saved preset: " + name)
+            except Exception as e:
+                self.log_message("Error reading preset file: " + str(e))
+
+            return
+
+        if clip_slot_name() is None:
+            self.show_message('No clip on selected slot')
+            return
+        clip_name = clip_slot_name()
+
+        preset_folder = os.path.dirname("/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/")
+        if not os.path.exists(preset_folder):
+            return None
+
+        preset_file_name = "{}.json".format(clip_name)
+        preset_file_path = os.path.join(preset_folder, preset_file_name)
+
+        if check_preset_exists(preset_file_path) and self._preset_store_confirm is None:
+            self._preset_store_confirm = False
+            self.blink_led_value = 127
+            self._preset_store_blinking_led = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.5), Task.run(lambda: self.blink_led(7)))))
+            self.log_message("Confirm to overwrite")
+            self.show_message(f"Overwrite reset {clip_name} ?")
+            return
+        else:
+            self._preset_store_confirm = True
+
+        preset = get_parameter_values_for_preset()
+        store_preset(preset, preset_file_path, clip_name)
+        if self._preset_store_blinking_led is not None:
+            self.flash_led(7)
+            self._preset_store_blinking_led.kill()
+            self._preset_store_blinking_led = None
 
     def _send_sysex(self, body):
         sysex_msg = (
@@ -155,6 +227,10 @@ class FC200(ControlSurface):
             Task.wait(0.1), # 0.1 seconds = 100ms
             Task.run(lambda: self.led_status(pedal_id, 0))
         ))
+
+    def blink_led(self, led):
+        self.led_status(led, self.blink_led_value)
+        self.blink_led_value = 0 if self.blink_led_value == 127 else 127
 
     def blink_leds(self):
         for i in range(0, 9):
@@ -415,11 +491,17 @@ class FC200(ControlSurface):
         if body == [0, 10, 127]:
             self._page_up()
             self.flash_led(10)
+            if self._preset_store_blinking_led is not None:
+                self._preset_store_blinking_led.kill()
+                self._preset_store_blinking_led = None
             return
         # Page DOWN 
         if body == [0, 11, 127]:
             self._page_down()
             self.flash_led(11)
+            if self._preset_store_blinking_led is not None:
+                self._preset_store_blinking_led.kill()
+                self._preset_store_blinking_led = None
             return
         # Expression pedal calls volume_control
         if body[1] == 13:
@@ -427,6 +509,12 @@ class FC200(ControlSurface):
             return
         # CTL button calls tap_tempo
         if body == [0, 12, 127]:
+            if self._preset_store_blinking_led is not None:
+                self._preset_store_blinking_led.kill()
+                self._preset_store_blinking_led = None
+                self.show_message("Cancelled saving preset!")
+                self.led_status(7, 0)
+                return
             self.tap_tempo()
             self.flash_led(12)
             return
@@ -465,7 +553,8 @@ class FC200(ControlSurface):
             return
         # Store preset
         if body == [0, 7, 127]:
-            # self.flash_led(7)
+            self._store_preset()
+            self.flash_led(7)
             return
         # ForScore prev page
         if body == [0, 8, 127]:
