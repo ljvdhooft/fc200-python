@@ -216,7 +216,6 @@ class FC200(ControlSurface):
         preset = self.load_preset(clip_name)
         if preset is None:
             return
-        self.log_message(preset)
         self._tasks.add(Task.run(lambda: self.apply_preset(preset)))
 
     def _init_leds(self):
