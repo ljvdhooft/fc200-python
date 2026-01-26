@@ -147,6 +147,50 @@ class FC200(ControlSurface):
             self._preset_store_blinking_led.kill()
             self._preset_store_blinking_led = None
 
+    def _load_preset(self):
+        def load_preset(clip_name):
+            preset_folder = os.path.dirname("/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/")
+            preset_file_name = "{}.json".format(clip_name)
+            preset_file_path = os.path.join(preset_folder, preset_file_name)
+
+            if not os.path.exists(preset_file_path):
+                return None
+
+            try:
+                with open(preset_file_path, 'r') as f:
+                    data = f.read()
+                    preset_dict = json.loads(data)
+                    return preset_dict
+            except Exception as e:
+                self.log_message("Error reading preset file: " + str(e))
+
+        def apply_preset(preset):
+            for device in preset:
+                d = preset[device]
+                parameters = d['parameters']
+                for p, v in enumerate(parameters):
+                    parameter = self._board.devices[int(device)].parameters[int(p)]
+                    if not parameter.is_enabled:
+                        continue
+                    parameter.value = v
+                if "chain" in d:
+                    chains = self._board.devices[int(device)].chains
+                    for c in chains:
+                        if c.name == d["chain"]:
+                            self._board.devices[int(device)].view.selected_chain = c
+                            break 
+            return
+
+        slot = self._track.playing_slot_index
+        if slot < 0:
+            return
+        clip_name = self._track.clip_slots[slot].clip.name
+        self.log_message(clip_name)
+        preset = load_preset(clip_name)
+        if preset is None:
+            return
+        self._tasks.add(Task.run(lambda: apply_preset(preset)))
+
     def _send_sysex(self, body):
         sysex_msg = (
                 240, 
@@ -166,39 +210,6 @@ class FC200(ControlSurface):
 
     def _checksum(self, body):
         return (128 - ((body[0] + body[1] + body[2]) % 128)) % 128
-
-    def load_preset(self, clip_name):
-        preset_folder = os.path.dirname("/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/")
-        preset_file_name = "{}.json".format(clip_name)
-        preset_file_path = os.path.join(preset_folder, preset_file_name)
-
-        if not os.path.exists(preset_file_path):
-            return None
-
-        try:
-            with open(preset_file_path, 'r') as f:
-                data = f.read()
-                preset_dict = json.loads(data)
-                return preset_dict
-        except Exception as e:
-            self.log_message("Error reading preset file: " + str(e))
-
-    def apply_preset(self, preset):
-        for device in preset:
-            d = preset[device]
-            parameters = d['parameters']
-            for p, v in enumerate(parameters):
-                parameter = self._board.devices[int(device)].parameters[int(p)]
-                if not parameter.is_enabled:
-                    continue
-                parameter.value = v
-            if "chain" in d:
-                chains = self._board.devices[int(device)].chains
-                for c in chains:
-                    if c.name == d["chain"]:
-                        self._board.devices[int(device)].view.selected_chain = c
-                        break 
-        return
 
     def display(self, number, character):
         binary = SegmentEncoder.get_segments(character)
@@ -282,17 +293,6 @@ class FC200(ControlSurface):
             return
         self.led_status(5, led_value)
         return
-
-    def _load_preset(self):
-        slot = self._track.playing_slot_index
-        if slot < 0:
-            return
-        clip_name = self._track.clip_slots[slot].clip.name
-        self.log_message(clip_name)
-        preset = self.load_preset(clip_name)
-        if preset is None:
-            return
-        self._tasks.add(Task.run(lambda: self.apply_preset(preset)))
 
     def _init_leds(self):
         for index, loop in enumerate(LOOP_MAPPING):
