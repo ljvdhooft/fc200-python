@@ -18,6 +18,8 @@ from .SpecialZoomingComponent import SpecialZoomingComponent
 from .SpecialViewControllerComponent import DetailViewControllerComponent
 from .MIDI_Map import *
 from .SegmentEncoder import SegmentEncoder
+import os
+import json
 
 
 MIN_PAGE = 0
@@ -50,6 +52,9 @@ class FC200(ControlSurface):
             self.log_message(f"Adding listener for metronome state")
             self.song().add_metronome_listener(self._on_metronome_changed)
             self._led_status[0][5] = 127 if self.song().metronome else 0
+
+        if not self._track.playing_slot_index_has_listener(self._load_preset):
+            self._track.add_playing_slot_index_listener(self._load_preset)
         
         self._favorite_parameter = None
         self._favorite_parameter_pedal = None
@@ -89,6 +94,38 @@ class FC200(ControlSurface):
 
     def _checksum(self, body):
         return (128 - ((body[0] + body[1] + body[2]) % 128)) % 128
+
+    def load_preset(self, clip_name):
+        preset_folder = os.path.dirname("/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/")
+        preset_file_name = "{}.json".format(clip_name)
+        preset_file_path = os.path.join(preset_folder, preset_file_name)
+
+        if not os.path.exists(preset_file_path):
+            return None
+
+        try:
+            with open(preset_file_path, 'r') as f:
+                data = f.read()
+                preset_dict = json.loads(data)
+                return preset_dict
+        except Exception as e:
+            self.log_message("Error reading preset file: " + str(e))
+
+    def apply_preset(self, preset):
+        for device in preset:
+            d = preset[device]
+            parameters = d['parameters']
+            for p, v in enumerate(parameters):
+                parameter = self._board.devices[int(device)].parameters[int(p)]
+                if not parameter.is_enabled:
+                    continue
+                parameter.value = v
+            if "chain" in d:
+                chains = self._board.devices[int(device)].chains
+                if 0 <= d['chain'] < len(chains):
+                    chain = chains[d['chain']]
+                    self._board.devices[int(device)].view.selected_chain = chain
+        return
 
     def display(self, number, character):
         binary = SegmentEncoder.get_segments(character)
@@ -168,6 +205,18 @@ class FC200(ControlSurface):
             return
         self.led_status(5, led_value)
         return
+
+    def _load_preset(self):
+        slot = self._track.playing_slot_index
+        if slot < 0:
+            return
+        clip_name = self._track.clip_slots[slot].clip.name
+        self.log_message(clip_name)
+        preset = self.load_preset(clip_name)
+        if preset is None:
+            return
+        self.log_message(preset)
+        self._tasks.add(Task.run(lambda: self.apply_preset(preset)))
 
     def _init_leds(self):
         for index, loop in enumerate(LOOP_MAPPING):
@@ -503,6 +552,9 @@ class FC200(ControlSurface):
             self.song().remove_is_playing_listener(self._on_is_playing_changed)
         if self.song().metronome_has_listener(self._on_metronome_changed):
             self.song().remove_metronome_listener(self._on_metronome_changed)
+
+        if not self._track.playing_slot_index_has_listener(self._load_preset):
+            self._track.remove_playing_slot_index_listener(self._load_preset)
 
         # Remove listeners for page_1 (device_on)
         for param, callback in self._observed_params:
