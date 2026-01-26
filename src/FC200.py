@@ -122,9 +122,10 @@ class FC200(ControlSurface):
                 parameter.value = v
             if "chain" in d:
                 chains = self._board.devices[int(device)].chains
-                if 0 <= d['chain'] < len(chains):
-                    chain = chains[d['chain']]
-                    self._board.devices[int(device)].view.selected_chain = chain
+                for c in chains:
+                    if c.name == d["chain"]:
+                        self._board.devices[int(device)].view.selected_chain = c
+                        break 
         return
 
     def display(self, number, character):
