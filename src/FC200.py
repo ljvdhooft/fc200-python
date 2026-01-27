@@ -27,6 +27,11 @@ MAX_PAGE = 2
 LOOP_MAPPING = [0, 1, 2, 3, 4, 6, 7, 8, 9]
 LOOP_VOLUME = 5 
 FAVORITE_PARAMETERS = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+HIGHLIGHT_NOTES = {
+        "tuner": 0,
+        "board": 1,
+        "0": 2
+        }
 
 class FC200(ControlSurface):
     def __init__(self, c_instance):
@@ -53,9 +58,13 @@ class FC200(ControlSurface):
             self.song().add_metronome_listener(self._on_metronome_changed)
             self._led_status[0][5] = 127 if self.song().metronome else 0
 
+        if not self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
+            self._board.devices[LOOP_VOLUME].parameters[1].add_value_listener(self._highlight_tuner)
+
         if not self._track.playing_slot_index_has_listener(self._load_preset):
             self._track.add_playing_slot_index_listener(self._load_preset)
         
+        self._highlight_tuner_true = False
         self._preset_store_confirm = None
         self._preset_store_blinking_led = None
         self._favorite_parameter = None
@@ -76,6 +85,21 @@ class FC200(ControlSurface):
 
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
+
+    def _highlight_tuner(self):
+        parameter = self._board.devices[LOOP_VOLUME].parameters[1]
+        if parameter.value > 0:
+            if not self._highlight_tuner_true:
+                return
+            # Select self._board (Note C#-2)
+            self._send_midi((0x9F, HIGHLIGHT_NOTES['board'], 127))
+            self._highlight_tuner_true = False
+            return
+        if self._highlight_tuner_true:
+            return
+        # Select Tuner (Note C-2)
+        self._send_midi((0x9F, HIGHLIGHT_NOTES['tuner'], 127))
+        self._highlight_tuner_true = True
 
     def _store_preset(self):
         if self._preset_store_confirm is not None and not self._preset_store_confirm:
@@ -374,7 +398,10 @@ class FC200(ControlSurface):
         if body[1] >= len(LOOP_MAPPING):
             return
         pedal_loop = pedal_loops[LOOP_MAPPING[body[1]]]
-        pedal_loop.parameters[0].value = 0 if pedal_loop.parameters[0].value == 1 else 1
+        if pedal_loop.parameters[0].value == 0:
+            self._send_midi((0x9F, HIGHLIGHT_NOTES[str(LOOP_MAPPING[body[1]])], 127))
+            pedal_loop.parameters[0].value = 1 
+        pedal_loop.parameters[0].value = 0 
         return
 
     def volume_control(self, value):
@@ -642,7 +669,10 @@ class FC200(ControlSurface):
         if self.song().metronome_has_listener(self._on_metronome_changed):
             self.song().remove_metronome_listener(self._on_metronome_changed)
 
-        if not self._track.playing_slot_index_has_listener(self._load_preset):
+        if self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
+            self._board.devices[LOOP_VOLUME].parameters[1].remove_value_listener(self._highlight_tuner)
+
+        if self._track.playing_slot_index_has_listener(self._load_preset):
             self._track.remove_playing_slot_index_listener(self._load_preset)
 
         # Remove listeners for page_1 (device_on)
