@@ -372,20 +372,10 @@ class FC200(ControlSurface):
         led_status = 0 if self.device.value == 0 else 127
         self.led_status(0, led_status)
 
-    def _page_up(self):
-        if self._page == MAX_PAGE:
+    def _page_move(self, direction):
+        if not MIN_PAGE <= self._page + direction <= MAX_PAGE:
             return
-        self._page += 1
-        self.leds_off()
-        self.leds_recall()
-        self.display(1, "")
-        self.display(0, self._page)
-        self.show_message(f"Page {self._page}")
-        self.log_message(f"Page changed to {self._page}")
-    def _page_down(self):
-        if self._page == MIN_PAGE:
-            return
-        self._page -= 1
+        self._page += direction
         self.leds_off()
         self.leds_recall()
         self.display(1, "")
@@ -516,7 +506,7 @@ class FC200(ControlSurface):
     def page_0(self, body):
         # Page UP
         if body == [0, 10, 127]:
-            self._page_up()
+            self._page_move(1)
             self.flash_led(10)
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
@@ -524,7 +514,7 @@ class FC200(ControlSurface):
             return
         # Page DOWN 
         if body == [0, 11, 127]:
-            self._page_down()
+            self._page_move(-1)
             self.flash_led(11)
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
@@ -595,12 +585,12 @@ class FC200(ControlSurface):
     def page_1(self, body):
         # Page UP
         if body == [0, 10, 127]:
-            self._page_up()
+            self._page_move(1)
             self.flash_led(10)
             return
         # Page DOWN 
         if body == [0, 11, 127]:
-            self._page_down()
+            self._page_move(-1)
             self.flash_led(11)
             return
         # Expression pedal calls volume_control
@@ -622,14 +612,14 @@ class FC200(ControlSurface):
         if body == [0, 10, 127]:
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
-            self._page_up()
+            self._page_move(1)
             self.flash_led(10)
             return
         # Page DOWN 
         if body == [0, 11, 127]:
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
-            self._page_down()
+            self._page_move(-1)
             self.flash_led(11)
             return        
         # Expression pedal calls volume_control
