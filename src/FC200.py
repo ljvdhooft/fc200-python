@@ -390,8 +390,10 @@ class FC200(ControlSurface):
             return
         pedal_loop = pedal_loops[LOOP_MAPPING[body[1]]]
         if pedal_loop.parameters[0].value == 0:
-            self._send_midi((0x9F, HIGHLIGHT_NOTES[str(LOOP_MAPPING[body[1]])], 127))
+            if str(LOOP_MAPPING[body[1]]) in HIGHLIGHT_NOTES:
+                self._send_midi((0x9F, HIGHLIGHT_NOTES[str(LOOP_MAPPING[body[1]])], 127))
             pedal_loop.parameters[0].value = 1 
+            return
         pedal_loop.parameters[0].value = 0 
         return
 
