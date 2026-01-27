@@ -18,6 +18,7 @@ from .SpecialZoomingComponent import SpecialZoomingComponent
 from .SpecialViewControllerComponent import DetailViewControllerComponent
 from .config import *
 from .SegmentEncoder import SegmentEncoder
+from .MiraGUI import MiraGUI
 import os
 import json
 
@@ -274,6 +275,11 @@ class FC200(ControlSurface):
             value = self._observed_params[pedal][0]
             led_value = 127 if str(value) == "On" else 0
             self._led_status[1][pedal] = led_value 
+            if self._page == 2 and self._parameter_control is None:
+                self._mira.page_2()
+            if self._parameter_control is not None:
+                self._mira.parameter_control()
+
             if self._page != 1:
                 return
             self.led_status(pedal, led_value)
@@ -374,6 +380,10 @@ class FC200(ControlSurface):
         self.show_message(f"Page {self._page}")
         self.log_message(f"Page changed to {self._page}")
 
+        if self._page == 2:
+            self._mira.page_2()
+            self._mira.highlight_parameter(-1)
+
     def toggle_device(self, body):
         pedal_loops = self._board.devices
         if body[1] >= len(LOOP_MAPPING):
@@ -419,6 +429,8 @@ class FC200(ControlSurface):
             self._parameter_control_blink = None
             self.leds_off()
             self.flash_led(12)
+            self._mira.page_2()
+            self._mira.highlight_parameter(-1)
             return
 
         # Map bank up pedal to select different chains
@@ -449,6 +461,8 @@ class FC200(ControlSurface):
             self.blink_leds_value = 127
             self.blink_leds()
             self._parameter_control_blink = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.5), Task.run(self.blink_leds))))
+            self._mira.parameter_control()
+            self._mira.highlight_parameter(-1)
             return
 
         # Map pedals 1-4 and 6-9 to parameters (macros)
@@ -459,6 +473,7 @@ class FC200(ControlSurface):
 
             self.show_message(f"{self._board.devices[self._parameter_control].name} - {self._parameter_control_selected_parameter.name}")
             self.led_status(body[1], 127)
+            self._mira.highlight_parameter(body[1])
 
     def tap_tempo(self):
         self.song().tap_tempo()
@@ -628,6 +643,7 @@ class FC200(ControlSurface):
             self._favorite_parameter_pedal = None
             self.leds_off()
             self.flash_led(12)
+            self._mira.highlight_parameter(-1)
             return
         # Control favorite parameter when selected with pedal
         if self._favorite_parameter and body[0] == 0 and body[1] == 13:
@@ -636,8 +652,8 @@ class FC200(ControlSurface):
         # Device favorite parameter mode
         if body[0] == 0 and 0 <= body[1] < 10 and body[2] == 127:
             self.favorite_parameter(body)
+            self._mira.highlight_parameter(body[1])
             return
-
 
 
     def disconnect(self):

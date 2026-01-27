@@ -1,0 +1,85 @@
+from .config import *
+import socket
+import struct
+
+class MiraGUI:
+    def __init__(self, script, ip="127.0.0.1", port=8001):
+        self._script = script
+        self.ip = ip
+        self.port = port
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    def _send_osc(self, address, value):
+        # Basic OSC string padding (must be multiple of 4 bytes)
+        def osc_string(s):
+            return s.encode('utf-8') + b'\x00' * (4 - len(s) % 4 or 4)
+
+        # Build message: [Address][Type Tag][Value]
+        msg = osc_string(address)
+        if isinstance(value, str):
+            msg += osc_string(",s") + osc_string(value)
+        elif isinstance(value, int):
+            msg += osc_string(",i") + struct.pack(">i", value)
+        elif isinstance(value, float):
+            msg += osc_string(",f") + struct.pack(">f", value)
+
+        try:
+            self.sock.sendto(msg, (self.ip, self.port))
+        except:
+            pass
+
+    def highlight_parameter(self, index):
+        for i in range(0, 10):
+            self._send_osc(f"/parameters/{i}/highlight", False)
+        if index < 0:
+            return
+        index = (((index + 5) * (index < 5)) + ((index - 5) * (index >= 5)))
+        self._script.log_message(index)
+        self._send_osc(f"/parameters/{index}/highlight", True)
+
+    def page_2(self):
+        self._send_osc("/window", "parameters")
+        self._send_osc("/parameters/title/show/text", False)
+        self._send_osc("/parameters/chains/show", False)
+        self._send_osc("/parameters/title/text/text", "path")
+        self._send_osc("/parameters/title/text/value", "path")
+        for i, l in enumerate(LOOP_MAPPING):
+            fav_par = FAVORITE_PARAMETERS[i]
+            i = (((i + 5) * (i < 5)) + ((i - 5) * (i >= 5)))
+            path = f"path live_set tracks {TRACK} devices {MAIN_DEVICE} chains 0 devices {l}"
+            live_text_value_path = f"{path} parameters 0"
+            live_dial_path = f"{path} parameters {fav_par}"
+            self._send_osc(f"/parameters/{i}/text/text", path)
+            self._send_osc(f"/parameters/{i}/text/value", live_text_value_path)
+            self._send_osc(f"/parameters/{i}/dial", live_dial_path)
+            self._send_osc(f"/parameters/{i}/show", True)
+            self._send_osc(f"/parameters/{i}/show/text", True)
+
+        for i in range(len(LOOP_MAPPING), (10 + (9 - len(LOOP_MAPPING)))):
+            i = (((i + 5) * (i < 5)) + ((i - 5) * (i >= 5)))
+            self._send_osc(f"/parameters/{i}/show", False)
+
+    def parameter_control(self):
+        path = f"path live_set tracks {TRACK} devices {MAIN_DEVICE} chains 0 devices {self._script._parameter_control}"
+        live_text_value_path = f"{path} parameters 0"
+        self._send_osc("/window", "parameters")
+        self._send_osc("/parameters/title/show/text", True)
+        self._send_osc("/parameters/title/text/text", path)
+        self._send_osc("/parameters/title/text/value", live_text_value_path)
+        self._send_osc("/parameters/chains/show", True)
+        self._send_osc("/parameters/chains/path", path)
+        for i in range(0, 9):
+            if i == 4:
+                continue
+            live_dial_path = f"{path} parameters {((i + 1) * (i < 4) + (i * (i >= 4)))}"
+            # i = (((i + 5) * (i < 5)) + ((i - 5) * (i >= 5)))
+            self._send_osc(f"/parameters/{i}/text/text", "path")
+            self._send_osc(f"/parameters/{i}/text/value","path")
+            self._send_osc(f"/parameters/{i}/dial", live_dial_path)
+            self._send_osc(f"/parameters/{i}/show", True)
+            self._send_osc(f"/parameters/{i}/show/text", False)
+        self._send_osc(f"/parameters/4/show", False)
+        self._send_osc(f"/parameters/9/show", False)
+
+
+
