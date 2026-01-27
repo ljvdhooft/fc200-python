@@ -16,26 +16,17 @@ from .SpecialTransportComponent import SpecialTransportComponent
 from .SpecialSessionComponent import SpecialSessionComponent
 from .SpecialZoomingComponent import SpecialZoomingComponent
 from .SpecialViewControllerComponent import DetailViewControllerComponent
-from .MIDI_Map import *
+from .config import *
 from .SegmentEncoder import SegmentEncoder
 import os
 import json
 
 
-MIN_PAGE = 0
-MAX_PAGE = 2
-LOOP_MAPPING = [0, 1, 2, 3, 4, 6, 7, 8, 9]
-LOOP_VOLUME = 5 
-FAVORITE_PARAMETERS = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-HIGHLIGHT_NOTES = {
-        "tuner": 0,
-        "board": 1,
-        "0": 2
-        }
 
 class FC200(ControlSurface):
     def __init__(self, c_instance):
         super(FC200, self).__init__(c_instance)
+        self._mira = MiraGUI(self)
 
         self._page = 1
         self._track = self.song().tracks[0]
