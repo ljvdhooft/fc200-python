@@ -40,7 +40,7 @@ class FC200(ControlSurface):
         self.display(0, self._page)
 
 
-        # Add listeners for page_0 (is_playing, metronome)
+        # Add listeners for page_0 (is_playing, metronome, current_scene)
         if not self.song().is_playing_has_listener(self._on_is_playing_changed):
             self.log_message(f"Adding listener for is_playing")
             self.song().add_is_playing_listener(self._on_is_playing_changed)
@@ -49,6 +49,9 @@ class FC200(ControlSurface):
             self.log_message(f"Adding listener for metronome state")
             self.song().add_metronome_listener(self._on_metronome_changed)
             self._led_status[0][5] = 127 if self.song().metronome else 0
+        if not self.song().view.selected_scene_has_listener(self._on_selected_scene_changed):
+            self.log_message(f"Adding listener for selected scene")
+            self.song().view.add_selected_scene_listener(self._on_selected_scene_changed)
 
         if not self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
             self._board.devices[LOOP_VOLUME].parameters[1].add_value_listener(self._highlight_tuner)
@@ -56,6 +59,7 @@ class FC200(ControlSurface):
         if not self._track.playing_slot_index_has_listener(self._load_preset):
             self._track.add_playing_slot_index_listener(self._load_preset)
         
+        self._fired_scene = None
         self._highlight_tuner_true = False
         self._preset_store_confirm = None
         self._preset_store_blinking_led = None
@@ -71,6 +75,8 @@ class FC200(ControlSurface):
         self._parameter_control_blink = None
         self._observed_params = []
         self._listeners()
+        self._on_metronome_changed()
+        self._on_selected_scene_changed()
         self.leds_off()
         self._init_leds()
         self.leds_recall()
@@ -307,13 +313,20 @@ class FC200(ControlSurface):
         return
 
     def _on_metronome_changed(self):
-        metronome_state = self.song().metronome
-        led_value = 127 if metronome_state else 0
+        self._metronome_state = self.song().metronome
+        led_value = 127 if self._metronome_state else 0
         self._led_status[0][5] = led_value
         if self._page != 0:
             return
         self.led_status(5, led_value)
         return
+
+    def _on_selected_scene_changed(self):
+        self._all_scenes = list(self.song().scenes)
+        self._selected_scene = self.song().view.selected_scene
+        self._selected_scene_index = self._all_scenes.index(self._selected_scene)
+        if self._page < 2:
+            self._mira.scene_overview()
 
     def _init_leds(self):
         for index, loop in enumerate(LOOP_MAPPING):
@@ -490,19 +503,17 @@ class FC200(ControlSurface):
         self.song().stop_all_clips()
 
     def start_scene(self):
-        selected_scene = self.song().view.selected_scene
-        selected_scene.fire()
+        self._selected_scene.fire()
         self.move_scene(1)
-        self.show_message(f"Fired: {selected_scene.name}")
+        self._fired_scene = self._selected_scene
+        self._mira.scene_overview()
+        self.show_message(f"Fired: {self._selected_scene.name}")
     
     def move_scene(self, direction):
-        all_scenes = list(self.song().scenes)
-        selected_scene = self.song().view.selected_scene
-        selected_scene_index = all_scenes.index(selected_scene)
-        new_index = selected_scene_index + direction 
-        if 0 <= new_index < len(all_scenes):
-            self.song().view.selected_scene = all_scenes[new_index]
-            new_name = all_scenes[new_index].name
+        new_index = self._selected_scene_index + direction 
+        if 0 <= new_index < len(self._all_scenes):
+            self.song().view.selected_scene = self._all_scenes[new_index]
+            new_name = self._all_scenes[new_index].name
             self.show_message(f"Scene: {new_name}")
         return
 
@@ -574,7 +585,28 @@ class FC200(ControlSurface):
             return
         # Start scene and stop immediately (recall preset)
         if body == [0, 6, 127]:
-            # self.flash_led(6)
+            enable_metronome = False
+            if self._metronome_state:
+                self._tasks.add(
+                    Task.sequence(
+                        Task.run(self.toggle_click),
+                        Task.run(self.start_scene),
+                        Task.wait(0.1),
+                        Task.run(self.stop_button),
+                        Task.run(self.stop_all),
+                        Task.run(self.toggle_click)
+                    )
+                )
+                return
+            self._tasks.add(
+                Task.sequence(
+                    Task.run(self.start_scene),
+                    Task.wait(0.1),
+                    Task.run(self.stop_button),
+                    Task.run(self.stop_all),
+                )
+            )
+            self.flash_led(6)
             return
         # Store preset
         if body == [0, 7, 127]:
@@ -667,6 +699,8 @@ class FC200(ControlSurface):
             self.song().remove_is_playing_listener(self._on_is_playing_changed)
         if self.song().metronome_has_listener(self._on_metronome_changed):
             self.song().remove_metronome_listener(self._on_metronome_changed)
+        if self.song().view.selected_scene_has_listener(self._on_selected_scene_changed):
+            self.song().view.remove_selected_scene_listener(self._on_selected_scene_changed)
 
         if self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
             self._board.devices[LOOP_VOLUME].parameters[1].remove_value_listener(self._highlight_tuner)
