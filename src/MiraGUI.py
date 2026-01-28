@@ -37,6 +37,66 @@ class MiraGUI:
         self._script.log_message(index)
         self._send_osc(f"/parameters/{index}/highlight", True)
 
+    def scene_overview(self):
+        self._send_osc("/window", "scene_overview")
+        cur_index = self._script._selected_scene_index
+        cur = self._script._selected_scene
+
+
+        if cur_index - 3 < 0:
+            self._send_osc("/scenes/prev3/name", "")
+            self._send_osc("/scenes/prev3/color", 0)
+        else:
+            prev3 = self._script.song().scenes[cur_index - 3]
+            self._send_osc("/scenes/prev3/name", prev3.name)
+            self._send_osc("/scenes/prev3/color", prev3.color)
+        if cur_index - 2 < 0:
+            self._send_osc("/scenes/prev2/name", "")
+            self._send_osc("/scenes/prev2/color", 0)
+        else:
+            prev2 = self._script.song().scenes[cur_index - 2]
+            self._send_osc("/scenes/prev2/name", prev2.name)
+            self._send_osc("/scenes/prev2/color", prev2.color)
+        if cur_index - 1 < 0:
+            self._send_osc("/scenes/prev1/name", "")
+            self._send_osc("/scenes/prev1/color", 0)
+        else:
+            prev1 = self._script.song().scenes[cur_index - 1]
+            self._send_osc("/scenes/prev1/name", prev1.name)
+            self._send_osc("/scenes/prev1/color", prev1.color)
+
+        if cur_index + 1 >= len(self._script._all_scenes):
+            self._send_osc("/scenes/next1/name", "")
+            self._send_osc("/scenes/next1/color", 0)
+        else:
+            next1 = self._script.song().scenes[cur_index + 1]
+            self._send_osc("/scenes/next1/name", next1.name)
+            self._send_osc("/scenes/next1/color", next1.color)
+        if cur_index + 2 >= len(self._script._all_scenes):
+            self._send_osc("/scenes/next2/name", "")
+            self._send_osc("/scenes/next2/color", 0)
+        else:
+            next2 = self._script.song().scenes[cur_index + 2]
+            self._send_osc("/scenes/next2/name", next2.name)
+            self._send_osc("/scenes/next2/color", next2.color)
+        if cur_index + 3 >= len(self._script._all_scenes):
+            self._send_osc("/scenes/next3/name", "")
+            self._send_osc("/scenes/next3/color", 0)
+        else:
+            next3 = self._script.song().scenes[cur_index + 3]
+            self._send_osc("/scenes/next3/name", next3.name)
+            self._send_osc("/scenes/next3/color", next3.color)
+
+        self._send_osc("/scenes/cur/name", cur.name)
+        self._send_osc("/scenes/cur/color", cur.color)
+        fired_scene = self._script._fired_scene
+        if fired_scene is None:
+            self._send_osc("/scenes/fired", "")
+        else:
+            self._send_osc("/scenes/fired/name", fired_scene.name)
+            self._send_osc("/scenes/fired/color", fired_scene.color)
+        return
+
     def page_2(self):
         self._send_osc("/window", "parameters")
         self._send_osc("/parameters/title/show/text", False)

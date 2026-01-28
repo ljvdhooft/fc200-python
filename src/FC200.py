@@ -393,9 +393,14 @@ class FC200(ControlSurface):
         self.show_message(f"Page {self._page}")
         self.log_message(f"Page changed to {self._page}")
 
+        if self._page < 2:
+            self._mira.scene_overview()
+            self._mira.highlight_parameter(-1)
+            return
         if self._page == 2:
             self._mira.page_2()
             self._mira.highlight_parameter(-1)
+            return
 
     def toggle_device(self, body):
         pedal_loops = self._board.devices
