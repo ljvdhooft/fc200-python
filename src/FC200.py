@@ -30,8 +30,8 @@ class FC200(ControlSurface):
         self._mira = MiraGUI(self)
 
         self._page = 1
-        self._track = self.song().tracks[0]
-        self._board = self._track.devices[0].chains[0]
+        self._track = self.song().tracks[TRACK]
+        self._board = self._track.devices[MAIN_DEVICE].chains[0]
 
         self._led_status = {}
         for p in range(MIN_PAGE, MAX_PAGE + 1):
