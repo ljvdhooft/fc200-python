@@ -29,9 +29,19 @@ class FC200(ControlSurface):
         super(FC200, self).__init__(c_instance)
         self._mira = MiraGUI(self)
 
-        self._page = 1
-        self._track = self.song().tracks[TRACK]
-        self._board = self._track.devices[MAIN_DEVICE].chains[0]
+        self._page = 0
+        if 0 <= TRACK < len(self.song().tracks):
+            self._track = self.song().tracks[TRACK]
+            if 0 <= MAIN_DEVICE < len(self._track.devices):
+                if 'chains' in self._track.devices:
+                    self._board = self._track.devices[MAIN_DEVICE].chains[0]
+                    self._page = 1
+                else:
+                    self._board = None
+            else:
+                self._board = None
+        else:
+            self._track = None
 
         self._led_status = {}
         for p in range(MIN_PAGE, MAX_PAGE + 1):
@@ -53,12 +63,6 @@ class FC200(ControlSurface):
             self.log_message(f"Adding listener for selected scene")
             self.song().view.add_selected_scene_listener(self._on_selected_scene_changed)
 
-        if not self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
-            self._board.devices[LOOP_VOLUME].parameters[1].add_value_listener(self._highlight_tuner)
-
-        if not self._track.playing_slot_index_has_listener(self._load_preset):
-            self._track.add_playing_slot_index_listener(self._load_preset)
-        
         self._fired_scene = None
         self._highlight_tuner_true = False
         self._preset_store_confirm = None
@@ -74,12 +78,19 @@ class FC200(ControlSurface):
         self._parameter_control_selected_chain_index = None
         self._parameter_control_blink = None
         self._observed_params = []
-        self._listeners()
         self._on_metronome_changed()
         self._on_selected_scene_changed()
         self.leds_off()
-        self._init_leds()
-        self.leds_recall()
+
+        if self._track is not None and self._board is not None:
+            if not self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
+                self._board.devices[LOOP_VOLUME].parameters[1].add_value_listener(self._highlight_tuner)
+            if not self._track.playing_slot_index_has_listener(self._load_preset):
+                self._track.add_playing_slot_index_listener(self._load_preset)
+
+            self._listeners()
+            self._init_leds()
+            self.leds_recall()
 
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
@@ -416,6 +427,9 @@ class FC200(ControlSurface):
         return
 
     def volume_control(self, value):
+        if self._track is None or self._board is None:
+            self._send_midi((0xB0, 0, value))
+            return
         parameter = self._board.devices[LOOP_VOLUME].parameters[1]
         parameter.value = value
 
@@ -590,7 +604,8 @@ class FC200(ControlSurface):
             return
         # Start scene and stop immediately (recall preset)
         if body == [0, 6, 127]:
-            enable_metronome = False
+            if self._track is None or self._board is None:
+                return
             if self._metronome_state:
                 self._tasks.add(
                     Task.sequence(
@@ -615,6 +630,8 @@ class FC200(ControlSurface):
             return
         # Store preset
         if body == [0, 7, 127]:
+            if self._track is None or self._board is None:
+                return
             self._store_preset()
             self.flash_led(7)
             return
@@ -659,6 +676,8 @@ class FC200(ControlSurface):
             return
         # Toggle Device On/Off for pedals 1 thru 10
         if body[0] == 0 and 0 <= body[1] < 10 and body[2] == 127:
+            if self._track is None or self._board is None:
+                return
             self.toggle_device(body)
             return
 
@@ -683,11 +702,15 @@ class FC200(ControlSurface):
             return
         # Device full parameter mode
         if self._favorite_parameter and body[0] == 0 and body[1] == self._favorite_parameter_pedal and body[2] == 127:
+            if self._track is None or self._board is None:
+                return
             self._parameter_control = LOOP_MAPPING[body[1]]
             self.parameter_control(body)
             return
         # Exit favorite parameter control
         if body == [0, 12, 127] and self._favorite_parameter is not None:
+            if self._track is None or self._board is None:
+                return
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
             self.leds_off()
@@ -696,10 +719,14 @@ class FC200(ControlSurface):
             return
         # Control favorite parameter when selected with pedal
         if self._favorite_parameter and body[0] == 0 and body[1] == 13:
+            if self._track is None or self._board is None:
+                return
             self._favorite_parameter.value = body[2]
             return
         # Device favorite parameter mode
         if body[0] == 0 and 0 <= body[1] < 10 and body[2] == 127:
+            if self._track is None or self._board is None:
+                return
             self.favorite_parameter(body)
             self._mira.highlight_parameter(body[1])
             return
@@ -717,18 +744,19 @@ class FC200(ControlSurface):
         if self.song().view.selected_scene_has_listener(self._on_selected_scene_changed):
             self.song().view.remove_selected_scene_listener(self._on_selected_scene_changed)
 
-        if self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
-            self._board.devices[LOOP_VOLUME].parameters[1].remove_value_listener(self._highlight_tuner)
+        if self._track is not None and self._board is not None:
+            if self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
+                self._board.devices[LOOP_VOLUME].parameters[1].remove_value_listener(self._highlight_tuner)
 
-        if self._track.playing_slot_index_has_listener(self._load_preset):
-            self._track.remove_playing_slot_index_listener(self._load_preset)
+            if self._track.playing_slot_index_has_listener(self._load_preset):
+                self._track.remove_playing_slot_index_listener(self._load_preset)
 
-        # Remove listeners for page_1 (device_on)
-        for param, callback in self._observed_params:
-            if param.value_has_listener(callback):
-                param.remove_value_listener(callback)
+            # Remove listeners for page_1 (device_on)
+            for param, callback in self._observed_params:
+                if param.value_has_listener(callback):
+                    param.remove_value_listener(callback)
 
-        self._observed_params = []
+            self._observed_params = []
 
         self.log_message("--- MyCustomSysEx Script Unloaded ---")
         super(FC200, self).disconnect()
