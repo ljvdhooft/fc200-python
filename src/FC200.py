@@ -620,11 +620,21 @@ class FC200(ControlSurface):
             return
         # ForScore prev page
         if body == [0, 8, 127]:
-            # self.flash_led(8)
+            self._tasks.add(
+                Task.sequence(
+                    Task.run(lambda: self._send_midi((0xCF, FORSCORE_PREV_PAGE))),
+                    Task.run(lambda: self.flash_led(8))
+                )
+            )
             return
         # ForScore next page
         if body == [0, 9, 127]:
-            # self.flash_led(9)
+            self._tasks.add(
+                Task.sequence(
+                    Task.run(lambda: self._send_midi((0xCF, FORSCORE_NEXT_PAGE))),
+                    Task.run(lambda: self.flash_led(9))
+                )
+            )
             return
 
     def page_1(self, body):
