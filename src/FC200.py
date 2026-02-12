@@ -23,6 +23,8 @@ import os
 import json
 
 
+DEBUG = False
+
 
 class FC200(ControlSurface):
     def __init__(self, c_instance):
@@ -52,16 +54,19 @@ class FC200(ControlSurface):
 
         # Add listeners for page_0 (is_playing, metronome, current_scene)
         if not self.song().is_playing_has_listener(self._on_is_playing_changed):
-            self.log_message(f"Adding listener for is_playing")
             self.song().add_is_playing_listener(self._on_is_playing_changed)
             self._led_status[0][0] = 127 if self.song().is_playing else 0
+            if DEBUG:
+                self.log_message(f"Adding listener for is_playing")
         if not self.song().metronome_has_listener(self._on_metronome_changed):
-            self.log_message(f"Adding listener for metronome state")
             self.song().add_metronome_listener(self._on_metronome_changed)
             self._led_status[0][5] = 127 if self.song().metronome else 0
+            if DEBUG:
+                self.log_message(f"Adding listener for metronome state")
         if not self.song().view.selected_scene_has_listener(self._on_selected_scene_changed):
-            self.log_message(f"Adding listener for selected scene")
             self.song().view.add_selected_scene_listener(self._on_selected_scene_changed)
+            if DEBUG:
+                self.log_message(f"Adding listener for selected scene")
 
         self._fired_scene = None
         self._highlight_tuner_true = False
@@ -112,7 +117,6 @@ class FC200(ControlSurface):
 
     def _store_preset(self):
         if self._preset_store_confirm is not None and not self._preset_store_confirm:
-            self.log_message("Overwrite!")
             self._preset_store_confirm = True
 
         def check_preset_exists(preset_file_path):
@@ -144,8 +148,9 @@ class FC200(ControlSurface):
                 with open(path, 'w') as f:
                     preset_dict = json.dumps(preset, indent=2)
                     f.write(preset_dict)
-                    self.log_message("saved preset file " + preset_file_path)
                     self.show_message("Saved preset: " + name)
+                    if DEBUG:
+                        self.log_message("saved preset file " + preset_file_path)
             except Exception as e:
                 self.log_message("Error reading preset file: " + str(e))
 
@@ -167,7 +172,6 @@ class FC200(ControlSurface):
             self._preset_store_confirm = False
             self.blink_led_value = 127
             self._preset_store_blinking_led = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.5), Task.run(lambda: self.blink_led(7)))))
-            self.log_message("Confirm to overwrite")
             self.show_message(f"Overwrite reset {clip_name} ?")
             return
         else:
@@ -218,7 +222,6 @@ class FC200(ControlSurface):
         if slot < 0:
             return
         clip_name = self._track.clip_slots[slot].clip.name
-        self.log_message(clip_name)
         preset = load_preset(clip_name)
         if preset is None:
             return
@@ -237,7 +240,8 @@ class FC200(ControlSurface):
                 self._checksum(body),
                 247
             )
-        self.log_message(f"\nsending out: {sysex_msg}")
+        if DEBUG:
+            self.log_message(f"\nsending out: {sysex_msg}")
         self._send_midi(sysex_msg)
         return
 
@@ -288,7 +292,8 @@ class FC200(ControlSurface):
 
     def _listeners(self):
         def update_led(pedal, loop):
-            self.log_message(f"parameter {loop} changed, updating LED {pedal}")
+            if DEBUG:
+                self.log_message(f"parameter {loop} changed, updating LED {pedal}")
             value = self._observed_params[pedal][0]
             led_value = 127 if str(value) == "On" else 0
             self._led_status[1][pedal] = led_value 
@@ -311,7 +316,8 @@ class FC200(ControlSurface):
             if not parameter.value_has_listener(callback):
                 parameter.add_value_listener(callback)
                 self._observed_params.append((parameter, callback))
-        self.log_message(f"Added listeners for {len(self._observed_params)} devices")
+        if DEBUG:
+            self.log_message(f"Added listeners for {len(self._observed_params)} devices")
         return
 
     def _on_is_playing_changed(self):
@@ -366,7 +372,8 @@ class FC200(ControlSurface):
         body = [bank, pedal, value]
 
         # Debug
-        self.log_message(f"\nReceived SysEx: {midi_bytes}\nbank {bank}, pedal {pedal}, value {value}")
+        if DEBUG:
+            self.log_message(f"\nReceived SysEx: {midi_bytes}\nbank {bank}, pedal {pedal}, value {value}")
 
         checksum = midi_bytes[-2]
 
@@ -402,7 +409,8 @@ class FC200(ControlSurface):
         self.display(1, "")
         self.display(0, self._page)
         self.show_message(f"Page {self._page}")
-        self.log_message(f"Page changed to {self._page}")
+        if DEBUG:
+            self.log_message(f"Page changed to {self._page}")
 
         if self._page < 2:
             self._mira.scene_overview()
@@ -491,7 +499,6 @@ class FC200(ControlSurface):
             self._parameter_control_chains = list(self._board.devices[self._parameter_control].chains)
             self._parameter_control_selected_chain = self._board.devices[self._parameter_control].view.selected_chain
             self._parameter_control_selected_chain_index = self._parameter_control_chains.index(self._board.devices[self._parameter_control].view.selected_chain)
-            self.log_message(self._parameter_control_selected_chain)
             self.blink_leds_value = 127
             self.blink_leds()
             self._parameter_control_blink = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.5), Task.run(self.blink_leds))))
@@ -758,7 +765,7 @@ class FC200(ControlSurface):
 
             self._observed_params = []
 
-        self.log_message("--- MyCustomSysEx Script Unloaded ---")
+        self.log_message("--- FC200 Script Unloaded ---")
         super(FC200, self).disconnect()
 
 
