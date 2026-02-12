@@ -116,9 +116,6 @@ class FC200(ControlSurface):
         self._highlight_tuner_true = True
 
     def _store_preset(self):
-        if self._preset_store_confirm is not None and not self._preset_store_confirm:
-            self._preset_store_confirm = True
-
         def check_preset_exists(preset_file_path):
             if os.path.exists(preset_file_path):
                 return True
@@ -143,12 +140,11 @@ class FC200(ControlSurface):
                 selected_chain = device.view.selected_chain
                 preset[d]["chain"] = selected_chain.name
             return preset
-        def store_preset(preset, path, name):
+        def store_preset(preset, path):
             try:
                 with open(path, 'w') as f:
                     preset_dict = json.dumps(preset, indent=2)
                     f.write(preset_dict)
-                    self.show_message("Saved preset: " + name)
                     if DEBUG:
                         self.log_message("saved preset file " + preset_file_path)
             except Exception as e:
@@ -177,12 +173,15 @@ class FC200(ControlSurface):
         else:
             self._preset_store_confirm = True
 
-        preset = get_parameter_values_for_preset()
-        store_preset(preset, preset_file_path, clip_name)
-        if self._preset_store_blinking_led is not None:
-            self.flash_led(7)
-            self._preset_store_blinking_led.kill()
-            self._preset_store_blinking_led = None
+        if self._preset_store_confirm:
+            preset = get_parameter_values_for_preset()
+            store_preset(preset, preset_file_path)
+            self._preset_store_confirm = None
+            self.show_message("Saved preset: " + str(clip_name))
+            if self._preset_store_blinking_led is not None:
+                self._preset_store_blinking_led.kill()
+                self._preset_store_blinking_led = None
+            self._tasks.add(Task.sequence(Task.wait(0.5), Task.run(lambda: self.flash_led(7)), Task.wait(0.2), Task.run(lambda: self.flash_led(7))))
 
     def _load_preset(self):
         def load_preset(clip_name):
