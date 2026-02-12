@@ -68,6 +68,7 @@ class FC200(ControlSurface):
             if DEBUG:
                 self.log_message(f"Adding listener for selected scene")
 
+        self._expr_display_recall_page = None
         self._fired_scene = None
         self._highlight_tuner_true = False
         self._preset_store_confirm = None
@@ -289,6 +290,27 @@ class FC200(ControlSurface):
             self.led_status(i, self.blink_leds_value)
         self.blink_leds_value = 0 if self.blink_leds_value == 127 else 127
 
+    def _expr_display(self, value):
+        def kill_sequence():
+            self._expr_display_recall_page.kill() 
+            self._expr_display_recall_page = None
+        def recall_page():
+            self.display(1, " ")
+            self.display(0, self._page)
+        if self._expr_display_recall_page is not None:
+            kill_sequence()
+        scaled = int(value / 127 * 99)
+        v = str(scaled).zfill(2)
+        self.display(0, v[1])
+        self.display(1, v[0])
+        self._expr_display_recall_page = self._tasks.add(
+                Task.sequence(
+                    Task.wait(1), 
+                    Task.run(recall_page),
+                    Task.run(kill_sequence)
+                    )
+            )
+
     def _listeners(self):
         def update_led(pedal, loop):
             if DEBUG:
@@ -453,6 +475,7 @@ class FC200(ControlSurface):
         # Map expression pedal to parameter_control selected parameter
         if body[0] == 0 and body[1] == 13 and self._parameter_control_selected_parameter is not None:
             self._parameter_control_selected_parameter.value = body[2]
+            self._expr_display(body[2])
             return
 
         # Map CTL pedal to exit parameter_control mode
@@ -567,6 +590,7 @@ class FC200(ControlSurface):
         # Expression pedal calls volume_control
         if body[1] == 13:
             self.volume_control(body[2])
+            self._expr_display(body[2])
             return
         # CTL button calls tap_tempo
         if body == [0, 12, 127]:
@@ -674,6 +698,7 @@ class FC200(ControlSurface):
         # Expression pedal calls volume_control
         if body[1] == 13:
             self.volume_control(body[2])
+            self._expr_display(body[2])
             return
         # CTL button calls tap_tempo
         if body == [0, 12, 127]:
@@ -705,6 +730,7 @@ class FC200(ControlSurface):
         # Expression pedal calls volume_control
         if body[1] == 13 and self._favorite_parameter is None and self._parameter_control is None:
             self.volume_control(body[2])
+            self._expr_display(body[2])
             return
         # Device full parameter mode
         if self._favorite_parameter and body[0] == 0 and body[1] == self._favorite_parameter_pedal and body[2] == 127:
@@ -728,6 +754,7 @@ class FC200(ControlSurface):
             if self._track is None or self._board is None:
                 return
             self._favorite_parameter.value = body[2]
+            self._expr_display(body[2])
             return
         # Device favorite parameter mode
         if body[0] == 0 and 0 <= body[1] < 10 and body[2] == 127:
