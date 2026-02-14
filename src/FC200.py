@@ -35,7 +35,7 @@ class FC200(ControlSurface):
         if 0 <= TRACK < len(self.song().tracks):
             self._track = self.song().tracks[TRACK]
             if 0 <= MAIN_DEVICE < len(self._track.devices):
-                if 'chains' in self._track.devices:
+                if self._track.devices[MAIN_DEVICE].can_have_chains:
                     self._board = self._track.devices[MAIN_DEVICE].chains[0]
                     self._page = 1
                 else:
