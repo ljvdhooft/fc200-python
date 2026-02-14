@@ -122,14 +122,17 @@ class FC200(ControlSurface):
                 return True
             return False
 
-        def clip_slot_name():
-            all_scenes = list(self.song().scenes)
-            selected_scene = self.song().view.selected_scene
-            selected_scene_index = all_scenes.index(selected_scene)
+        def clip_slot_name(selected_scene_index):
             clip_slot = self._track.clip_slots[selected_scene_index]
             if not clip_slot.has_clip:
                 return None
             return clip_slot.clip.name
+        def copy_clip(selected_scene_index):
+            source = self._track.clip_slots[0]
+            if not source.has_clip:
+                return None
+            source.duplicate_clip_to(self._track.clip_slots[selected_scene_index])
+
         def get_parameter_values_for_preset():
             preset = {}
             for d in LOOP_MAPPING:
@@ -153,10 +156,15 @@ class FC200(ControlSurface):
 
             return
 
-        if clip_slot_name() is None:
-            self.show_message('No clip on selected slot')
+        all_scenes = list(self.song().scenes)
+        selected_scene = self.song().view.selected_scene
+        selected_scene_index = all_scenes.index(selected_scene)
+
+        if clip_slot_name(selected_scene_index) is None:
+            if copy_clip(selected_scene_index) is None:
+                self.show_message('No clip on selected slot')
             return
-        clip_name = clip_slot_name()
+        clip_name = clip_slot_name(selected_scene_index)
 
         preset_folder = os.path.dirname("/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/")
         if not os.path.exists(preset_folder):
