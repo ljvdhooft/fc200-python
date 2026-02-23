@@ -1,4 +1,3 @@
-
 import Live # type: ignore
 from _Framework.ControlSurface import ControlSurface
 from _Framework.InputControlElement import *
@@ -50,7 +49,6 @@ class FC200(ControlSurface):
             self._led_status[p] = {}
         self.display(1, "")
         self.display(0, self._page)
-
 
         # Add listeners for page_0 (is_playing, metronome, current_scene)
         if not self.song().is_playing_has_listener(self._on_is_playing_changed):
@@ -269,7 +267,7 @@ class FC200(ControlSurface):
     def flash_led(self, pedal_id):
         # Turn LED ON
         self.led_status(pedal_id, 127)
-        
+
         # Schedule the OFF command 100ms later
         self._tasks.add(Task.sequence(
             Task.wait(0.1), # 0.1 seconds = 100ms
@@ -556,7 +554,7 @@ class FC200(ControlSurface):
         self._fired_scene = self._selected_scene
         self._mira.scene_overview()
         self.show_message(f"Fired: {self._selected_scene.name}")
-    
+
     def move_scene(self, direction):
         new_index = self._selected_scene_index + direction 
         if 0 <= new_index < len(self._all_scenes):
@@ -569,7 +567,6 @@ class FC200(ControlSurface):
         self.song().metronome = not self.song().metronome
         return
 
-
     def page_0(self, body):
         # Page UP
         if body == [0, 10, 127]:
@@ -579,7 +576,7 @@ class FC200(ControlSurface):
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
             return
-        # Page DOWN 
+        # Page DOWN
         if body == [0, 11, 127]:
             self._page_move(-1)
             self.flash_led(11)
@@ -628,7 +625,7 @@ class FC200(ControlSurface):
             self.move_scene(-1)
             self.flash_led(4)
             return
-        # Ableton click on/off 
+        # Ableton click on/off
         if body == [0, 5, 127]:
             self.toggle_click()
             return
@@ -690,7 +687,7 @@ class FC200(ControlSurface):
             self._page_move(1)
             self.flash_led(10)
             return
-        # Page DOWN 
+        # Page DOWN
         if body == [0, 11, 127]:
             self._page_move(-1)
             self.flash_led(11)
@@ -720,7 +717,7 @@ class FC200(ControlSurface):
             self._page_move(1)
             self.flash_led(10)
             return
-        # Page DOWN 
+        # Page DOWN
         if body == [0, 11, 127]:
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
@@ -764,7 +761,6 @@ class FC200(ControlSurface):
             self._mira.highlight_parameter(body[1])
             return
 
-
     def disconnect(self):
         """Clean up when the script is unloaded."""
         self.log_message("(FC200) Removing all listeners...")
@@ -793,5 +789,3 @@ class FC200(ControlSurface):
 
         self.log_message("--- FC200 Script Unloaded ---")
         super(FC200, self).disconnect()
-
-
