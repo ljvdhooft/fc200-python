@@ -21,7 +21,6 @@ from .MiraGUI import MiraGUI
 
 from . import xmltodict
 
-import shutil
 import gzip
 import os
 import json
@@ -96,6 +95,8 @@ class FC200(ControlSurface):
                 self._board.devices[LOOP_VOLUME].parameters[1].add_value_listener(self._highlight_tuner)
             if not self._track.playing_slot_index_has_listener(self._load_preset):
                 self._track.add_playing_slot_index_listener(self._load_preset)
+            if not self._track.devices[1].chains[1].devices[0].parameters[1].value_has_listener(self._display_tuner):
+                self._track.devices[1].chains[1].devices[0].parameters[1].add_value_listener(self._display_tuner)
 
             self._listeners()
             self._init_leds()
@@ -103,6 +104,28 @@ class FC200(ControlSurface):
 
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
+
+    def _display_tuner(self):
+        tuner = self._track.devices[1].chains[1].devices[0]
+        note = int(tuner.parameters[2].value) % 12
+        cents = int(tuner.parameters[1].value) - 50
+        notes = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
+        note_a = notes[note]
+        sharp = False 
+        self.log_message(f"{note_a}, {cents}")
+        if len(note_a) == 2:
+            note_a = note_a[0]
+            sharp = True
+
+        binary = 0 if sharp == False else 4 
+        if -10 < cents < 10:
+            binary += 64
+        if cents <= -10:
+            binary += 1
+        if cents >= 10:
+            binary += 8
+        self.display(1, note_a) 
+        self.display_raw(0, binary)
 
     def _highlight_tuner(self):
         parameter = self._board.devices[LOOP_VOLUME].parameters[1]
@@ -285,6 +308,9 @@ class FC200(ControlSurface):
 
     def display(self, number, character):
         binary = SegmentEncoder.get_segments(character)
+        self._send_sysex([2, number, binary])
+
+    def display_raw(self, number, binary):
         self._send_sysex([2, number, binary])
 
     def leds_off(self):
@@ -813,9 +839,10 @@ class FC200(ControlSurface):
         if self._track is not None and self._board is not None:
             if self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
                 self._board.devices[LOOP_VOLUME].parameters[1].remove_value_listener(self._highlight_tuner)
-
             if self._track.playing_slot_index_has_listener(self._load_preset):
                 self._track.remove_playing_slot_index_listener(self._load_preset)
+            if not self._track.devices[1].chains[1].devices[0].parameters[1].value_has_listener(self._display_tuner):
+                self._track.devices[1].chains[1].devices[0].parameters[1].remove_value_listener(self._display_tuner)
 
             # Remove listeners for page_1 (device_on)
             for param, callback in self._observed_params:
