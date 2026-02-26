@@ -20,7 +20,10 @@ from .config import *
 from .SegmentEncoder import SegmentEncoder
 from .MiraGUI import MiraGUI
 
+from . import xmltodict
+
 import shutil
+import gzip
 import os
 import json
 
