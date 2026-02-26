@@ -1,9 +1,10 @@
-from .config import *
+from . import config
 import socket
 import struct
 
 class MiraGUI:
     def __init__(self, script, ip="127.0.0.1", port=8001):
+        self.settings = config.Settings
         self._script = script
         self.ip = ip
         self.port = port
@@ -103,10 +104,10 @@ class MiraGUI:
         self._send_osc("/parameters/chains/show", False)
         self._send_osc("/parameters/title/text/text", "path")
         self._send_osc("/parameters/title/text/value", "path")
-        for i, l in enumerate(LOOP_MAPPING):
-            fav_par = FAVORITE_PARAMETERS[i]
+        for i, l in enumerate(self.settings.LOOP_MAPPING):
+            fav_par = self.settings.FAVORITE_PARAMETERS[i]
             i = (((i + 5) * (i < 5)) + ((i - 5) * (i >= 5)))
-            path = f"path live_set tracks {TRACK} devices {MAIN_DEVICE} chains 0 devices {l}"
+            path = f"path live_set tracks {self.settings.TRACK} devices {self.settings.MAIN_DEVICE} chains 0 devices {l}"
             live_text_value_path = f"{path} parameters 0"
             live_dial_path = f"{path} parameters {fav_par}"
             self._send_osc(f"/parameters/{i}/text/text", path)
@@ -115,12 +116,12 @@ class MiraGUI:
             self._send_osc(f"/parameters/{i}/show", True)
             self._send_osc(f"/parameters/{i}/show/text", True)
 
-        for i in range(len(LOOP_MAPPING), (10 + (9 - len(LOOP_MAPPING)))):
+        for i in range(len(self.settings.LOOP_MAPPING), (10 + (9 - len(self.settings.LOOP_MAPPING)))):
             i = (((i + 5) * (i < 5)) + ((i - 5) * (i >= 5)))
             self._send_osc(f"/parameters/{i}/show", False)
 
     def parameter_control(self):
-        path = f"path live_set tracks {TRACK} devices {MAIN_DEVICE} chains 0 devices {self._script._parameter_control}"
+        path = f"path live_set tracks {self.settings.TRACK} devices {self.settings.MAIN_DEVICE} chains 0 devices {self._script._parameter_control}"
         live_text_value_path = f"{path} parameters 0"
         self._send_osc("/window", "parameters")
         self._send_osc("/parameters/title/show/text", True)
