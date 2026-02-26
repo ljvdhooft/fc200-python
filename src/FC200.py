@@ -36,12 +36,18 @@ class FC200(ControlSurface):
         self._mira = MiraGUI(self)
         self.settings = config.Settings()
 
+        if not self.song().is_ableton_link_enabled_has_listener(self._reload_config):
+            self.song().add_is_ableton_link_enabled_listener(self._reload_config)
+
+        self._setup()
+
+        # Log to the Ableton Log.txt file
+        self.log_message("--- FC200 Script Loaded ---")
+
+    def _setup(self):
         self._page = 0
         self._track = None
         self._board = None
-
-        if not self.song().is_ableton_link_enabled_has_listener(self._reload_config):
-            self.song().add_is_ableton_link_enabled_listener(self._reload_config)
 
         if 0 <= self.settings.TRACK < len(self.song().tracks):
             self._track = self.song().tracks[self.settings.TRACK]
@@ -51,7 +57,6 @@ class FC200(ControlSurface):
                         self._board = self._track.devices[self.settings.MAIN_DEVICE].chains[0]
                         self._page = 1
 
-        self.log_message(self._board)
         self._led_status = {}
         for p in range(self.settings.MIN_PAGE, self.settings.MAX_PAGE + 1):
             self._led_status[p] = {}
@@ -104,14 +109,15 @@ class FC200(ControlSurface):
             self._init_leds()
             self.leds_recall()
 
-        # Log to the Ableton Log.txt file
-        self.log_message("--- FC200 Script Loaded ---")
-
     def _reload_config(self):
         importlib.reload(config)
         self.settings = config.Settings()
-        if DEBUG:
-            self.log_message("Reloading config!")
+        self._setup()
+
+        self.log_message("Reloading config!")
+        for key, value in self.settings.__class__.__dict__.items():
+            if not key.startswith('__'):
+                self.log_message(f"{key}: {value}")
 
     def _highlight_tuner(self):
         parameter = self._board.devices[self.settings.LOOP_VOLUME].parameters[1]
