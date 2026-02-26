@@ -19,6 +19,8 @@ from .SpecialViewControllerComponent import DetailViewControllerComponent
 from .config import *
 from .SegmentEncoder import SegmentEncoder
 from .MiraGUI import MiraGUI
+
+import shutil
 import os
 import json
 
@@ -144,15 +146,26 @@ class FC200(ControlSurface):
                 selected_chain = device.view.selected_chain
                 preset[d]["chain"] = selected_chain.name
             return preset
-        def store_preset(preset, path):
+        def store_dummy_clip(preset_folder, name):
+            template = os.path.join(preset_folder, 'template.alc.xml')
+            if not os.path.exists(template):
+                return
+            preset_file_name = "{}.alc".format(name)
+            path = os.path.join(preset_folder, preset_file_name)
+            shutil.copy2(template, path)
+            return
+
+        def store_preset(preset, path, name):
+            preset_file_name = "{}.json".format(name)
+            path = os.path.join(preset_folder, "_json", preset_file_name)
             try:
                 with open(path, 'w') as f:
                     preset_dict = json.dumps(preset, indent=2)
                     f.write(preset_dict)
                     if DEBUG:
-                        self.log_message("saved preset file " + preset_file_path)
+                        self.log_message("saved preset file " + path)
             except Exception as e:
-                self.log_message("Error reading preset file: " + str(e))
+                self.log_message("Error saving preset file: " + str(e))
 
             return
 
@@ -166,7 +179,7 @@ class FC200(ControlSurface):
             return
         clip_name = clip_slot_name(selected_scene_index)
 
-        preset_folder = os.path.dirname("/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/")
+        preset_folder = os.path.dirname(PRESET_FOLDER)
         if not os.path.exists(preset_folder):
             return None
 
@@ -184,7 +197,8 @@ class FC200(ControlSurface):
 
         if self._preset_store_confirm:
             preset = get_parameter_values_for_preset()
-            store_preset(preset, preset_file_path)
+            store_preset(preset, preset_folder, clip_name)
+            store_dummy_clip(preset_folder, clip_name)
             self._preset_store_confirm = None
             self.show_message("Saved preset: " + str(clip_name))
             if self._preset_store_blinking_led is not None:
@@ -194,7 +208,7 @@ class FC200(ControlSurface):
 
     def _load_preset(self):
         def load_preset(clip_name):
-            preset_folder = os.path.dirname("/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/")
+            preset_folder = os.path.dirname(PRESET_FOLDER)
             preset_file_name = "{}.json".format(clip_name)
             preset_file_path = os.path.join(preset_folder, preset_file_name)
 
