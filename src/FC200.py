@@ -117,6 +117,8 @@ class FC200(ControlSurface):
 
         if self._volume > 0:
             return
+        if self._favorite_parameter is not None or self._parameter_control is not None:
+            return
         tuner_rack = self._track.devices[1]
         tuner_device = tuner_rack.chains[1].devices[1]
         note = int(tuner_device.parameters[2].value) % 12
