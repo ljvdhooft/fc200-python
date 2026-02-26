@@ -102,10 +102,14 @@ class FC200(ControlSurface):
             self._init_leds()
             self.leds_recall()
 
+        self._volume = int(self._board.devices[LOOP_VOLUME].parameters[1].value)
+
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
 
     def _display_tuner(self):
+        if self._volume > 0:
+            return
         tuner = self._track.devices[1].chains[1].devices[0]
         note = int(tuner.parameters[2].value) % 12
         cents = int(tuner.parameters[1].value) - 50
@@ -522,6 +526,7 @@ class FC200(ControlSurface):
             return
         parameter = self._board.devices[LOOP_VOLUME].parameters[1]
         parameter.value = value
+        self._volume = value
 
     def favorite_parameter(self, body):
         pedal = body[1]
