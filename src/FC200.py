@@ -21,7 +21,6 @@ from .MiraGUI import MiraGUI
 
 from . import xmltodict
 
-import shutil
 import gzip
 import os
 import json
@@ -79,7 +78,7 @@ class FC200(ControlSurface):
             if DEBUG:
                 self.log_message(f"Adding listener for selected scene")
 
-        self._expr_display_recall_page = None
+        self._display_recall_page = None
         self._fired_scene = None
         self._highlight_tuner_true = False
         self._preset_store_confirm = None
@@ -104,6 +103,8 @@ class FC200(ControlSurface):
                 self._board.devices[self.settings.LOOP_VOLUME].parameters[1].add_value_listener(self._highlight_tuner)
             if not self._track.playing_slot_index_has_listener(self._load_preset):
                 self._track.add_playing_slot_index_listener(self._load_preset)
+            if not self._track.devices[1].chains[1].devices[1].parameters[1].value_has_listener(self._display_tuner):
+                self._track.devices[1].chains[1].devices[1].parameters[1].add_value_listener(self._display_tuner)
 
             self._listeners()
             self._init_leds()
@@ -118,6 +119,54 @@ class FC200(ControlSurface):
         for key, value in self.settings.__class__.__dict__.items():
             if not key.startswith('__'):
                 self.log_message(f"{key}: {value}")
+
+    def _display_tuner(self):
+        def kill_sequence():
+            self._display_recall_page.kill() 
+            self._display_recall_page = None
+        def recall_page():
+            self.display(1, " ")
+            self.display(0, self._page)
+
+        if self._volume > 0:
+            return
+        if self._favorite_parameter is not None or self._parameter_control is not None:
+            return
+        tuner_rack = self._track.devices[1]
+        tuner_device = tuner_rack.chains[1].devices[1]
+        note = int(tuner_device.parameters[2].value) % 12
+        cents = int(tuner_device.parameters[1].value) - 50
+        notes = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
+        note_a = notes[note]
+        sharp = False 
+        if len(note_a) == 2:
+            note_a = note_a[0]
+            sharp = True
+
+        offset = (float(tuner_rack.parameters[1].value) - 64) / 1.
+        cents += offset
+        # self.log_message(f'note: {note}, cents: {cents}, offset: {offset}')
+
+        binary = 0 if sharp == False else 4 
+        tolerance = 3
+        if (tolerance * -1) < cents < tolerance:
+            binary += 64
+        if cents <= (tolerance * -1):
+            binary += 1
+        if cents >= tolerance:
+            binary += 8
+        self.display(1, note_a) 
+        self.display_raw(0, binary)
+
+        if self._display_recall_page is not None:
+            kill_sequence()
+        self._display_recall_page = self._tasks.add(
+                Task.sequence(
+                    Task.wait(1), 
+                    Task.run(recall_page),
+                    Task.run(kill_sequence)
+                    )
+            )
 
     def _highlight_tuner(self):
         parameter = self._board.devices[self.settings.LOOP_VOLUME].parameters[1]
@@ -302,6 +351,9 @@ class FC200(ControlSurface):
         binary = SegmentEncoder.get_segments(character)
         self._send_sysex([2, number, binary])
 
+    def display_raw(self, number, binary):
+        self._send_sysex([2, number, binary])
+
     def leds_off(self):
         for i in range(0, 9 + 1):
             self.led_status(i, 0)
@@ -342,18 +394,18 @@ class FC200(ControlSurface):
 
     def _expr_display(self, value):
         def kill_sequence():
-            self._expr_display_recall_page.kill() 
-            self._expr_display_recall_page = None
+            self._display_recall_page.kill() 
+            self._display_recall_page = None
         def recall_page():
             self.display(1, " ")
             self.display(0, self._page)
-        if self._expr_display_recall_page is not None:
+        if self._display_recall_page is not None:
             kill_sequence()
         scaled = int(value / 127 * 99)
         v = str(scaled).zfill(2)
         self.display(0, v[1])
         self.display(1, v[0])
-        self._expr_display_recall_page = self._tasks.add(
+        self._display_recall_page = self._tasks.add(
                 Task.sequence(
                     Task.wait(1), 
                     Task.run(recall_page),
@@ -511,6 +563,7 @@ class FC200(ControlSurface):
             return
         parameter = self._board.devices[self.settings.LOOP_VOLUME].parameters[1]
         parameter.value = value
+        self._volume = value
 
     def favorite_parameter(self, body):
         pedal = body[1]
@@ -830,6 +883,8 @@ class FC200(ControlSurface):
                 self._board.devices[self.settings.LOOP_VOLUME].parameters[1].remove_value_listener(self._highlight_tuner)
             if self._track.playing_slot_index_has_listener(self._load_preset):
                 self._track.remove_playing_slot_index_listener(self._load_preset)
+            if not self._track.devices[1].chains[1].devices[1].parameters[1].value_has_listener(self._display_tuner):
+                self._track.devices[1].chains[1].devices[1].parameters[1].remove_value_listener(self._display_tuner)
 
             # Remove listeners for page_1 (device_on)
             for param, callback in self._observed_params:
