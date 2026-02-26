@@ -1,3 +1,4 @@
+PRESET_FOLDER = "/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/"
 TRACK = 0
 MAIN_DEVICE = 3
 MIN_PAGE = 0
