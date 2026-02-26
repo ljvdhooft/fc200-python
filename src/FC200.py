@@ -147,12 +147,24 @@ class FC200(ControlSurface):
                 preset[d]["chain"] = selected_chain.name
             return preset
         def store_dummy_clip(preset_folder, name):
-            template = os.path.join(preset_folder, 'template.alc.xml')
-            if not os.path.exists(template):
+            template_file = os.path.join(preset_folder, 'template.alc.xml')
+            if not os.path.exists(template_file):
                 return
-            preset_file_name = "{}.alc".format(name)
-            path = os.path.join(preset_folder, preset_file_name)
-            shutil.copy2(template, path)
+
+            with open(template_file, 'r') as t:
+                template = xmltodict.parse(t.read())
+                if template:
+
+                    template_clip = template['Ableton']['LiveSet']['Tracks']['AudioTrack']['DeviceChain']['MainSequencer']['ClipSlotList']['ClipSlot']['ClipSlot']['Value']['AudioClip']
+                    template_clip['Name']['@Value'] = name
+                    template_clip['Color']['@Value'] = 69
+
+                    dummy_clip = xmltodict.unparse(template)
+                    preset_file_name = "{}.alc".format(name)
+                    path = os.path.join(preset_folder, preset_file_name)
+                    with gzip.open(path, 'wb') as f:
+                        f.write(dummy_clip.encode('utf-8'))
+
             return
 
         def store_preset(preset, path, name):
@@ -184,7 +196,7 @@ class FC200(ControlSurface):
             return None
 
         preset_file_name = "{}.json".format(clip_name)
-        preset_file_path = os.path.join(preset_folder, preset_file_name)
+        preset_file_path = os.path.join(preset_folder, '_json/', preset_file_name)
 
         if check_preset_exists(preset_file_path) and self._preset_store_confirm is None:
             self._preset_store_confirm = False
@@ -210,7 +222,7 @@ class FC200(ControlSurface):
         def load_preset(clip_name):
             preset_folder = os.path.dirname(PRESET_FOLDER)
             preset_file_name = "{}.json".format(clip_name)
-            preset_file_path = os.path.join(preset_folder, preset_file_name)
+            preset_file_path = os.path.join(preset_folder, '_json/', preset_file_name)
 
             if not os.path.exists(preset_file_path):
                 return None
