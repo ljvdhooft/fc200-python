@@ -70,7 +70,7 @@ class FC200(ControlSurface):
             if DEBUG:
                 self.log_message(f"Adding listener for selected scene")
 
-        self._expr_display_recall_page = None
+        self._display_recall_page = None
         self._fired_scene = None
         self._highlight_tuner_true = False
         self._preset_store_confirm = None
@@ -108,6 +108,13 @@ class FC200(ControlSurface):
         self.log_message("--- FC200 Script Loaded ---")
 
     def _display_tuner(self):
+        def kill_sequence():
+            self._display_recall_page.kill() 
+            self._display_recall_page = None
+        def recall_page():
+            self.display(1, " ")
+            self.display(0, self._page)
+
         if self._volume > 0:
             return
         tuner = self._track.devices[1].chains[1].devices[0]
@@ -130,6 +137,16 @@ class FC200(ControlSurface):
             binary += 8
         self.display(1, note_a) 
         self.display_raw(0, binary)
+
+        if self._display_recall_page is not None:
+            kill_sequence()
+        self._display_recall_page = self._tasks.add(
+                Task.sequence(
+                    Task.wait(1), 
+                    Task.run(recall_page),
+                    Task.run(kill_sequence)
+                    )
+            )
 
     def _highlight_tuner(self):
         parameter = self._board.devices[LOOP_VOLUME].parameters[1]
@@ -357,18 +374,18 @@ class FC200(ControlSurface):
 
     def _expr_display(self, value):
         def kill_sequence():
-            self._expr_display_recall_page.kill() 
-            self._expr_display_recall_page = None
+            self._display_recall_page.kill() 
+            self._display_recall_page = None
         def recall_page():
             self.display(1, " ")
             self.display(0, self._page)
-        if self._expr_display_recall_page is not None:
+        if self._display_recall_page is not None:
             kill_sequence()
         scaled = int(value / 127 * 99)
         v = str(scaled).zfill(2)
         self.display(0, v[1])
         self.display(1, v[0])
-        self._expr_display_recall_page = self._tasks.add(
+        self._display_recall_page = self._tasks.add(
                 Task.sequence(
                     Task.wait(1), 
                     Task.run(recall_page),
