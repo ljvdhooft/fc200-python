@@ -1,6 +1,6 @@
 PRESET_FOLDER = "/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/"
 TRACK = 0
-MAIN_DEVICE = 3
+MAIN_DEVICE = 4
 MIN_PAGE = 0
 MAX_PAGE = 2
 LOOP_MAPPING = [0, 1, 2, 3, 4, 6, 7, 8, 9]
