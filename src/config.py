@@ -1,6 +1,6 @@
 class Settings:
     PRESET_FOLDER = "/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/"
-    TRACK = 32
+    TRACK = 31
     MAIN_DEVICE = 4
     MIN_PAGE = 0
     MAX_PAGE = 2
