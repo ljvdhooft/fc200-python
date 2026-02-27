@@ -506,6 +506,13 @@ class FC200(ControlSurface):
             return
 
         if midi_bytes[-1] == 247:       # Return list at end of message
+            # Force FC200 to SysEx mode
+            if self.settings.FORCE_SYSEX:
+                if body[0] == 3 and body[1] == 0 and body[2] != 3:
+                    self._send_sysex([3, 1, 3])
+                    self._page_move(0)
+                    if DEBUG:
+                        self.log_message("Set to sysex mode")
             if self._parameter_control is not None:
                 self.parameter_control(body)
                 return
