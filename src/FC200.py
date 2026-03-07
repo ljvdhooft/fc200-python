@@ -18,6 +18,7 @@ from .SpecialViewControllerComponent import DetailViewControllerComponent
 from . import config
 from .SegmentEncoder import SegmentEncoder
 from .MiraGUI import MiraGUI
+from .OSCremote import OSCremote
 
 from . import xmltodict
 
@@ -33,6 +34,7 @@ class FC200(ControlSurface):
     def __init__(self, c_instance):
         super(FC200, self).__init__(c_instance)
         self._mira = MiraGUI(self)
+        self._oscremote = OSCremote(self)
         self.settings = config.Settings()
 
         if not self.song().is_ableton_link_enabled_has_listener(self._reload_config):
@@ -174,13 +176,13 @@ class FC200(ControlSurface):
             if not self._highlight_tuner_true:
                 return
             # Select self._board (Note C#-2)
-            self._send_midi((0x9F, self.settings.HIGHLIGHT_NOTES['board'], 1))
+            self._oscremote._send_osc(f"/remote/note/{self.settings.HIGHLIGHT_NOTES['board']}/1", 127)
             self._highlight_tuner_true = False
             return
         if self._highlight_tuner_true:
             return
         # Select Tuner (Note C-2)
-        self._send_midi((0x9F, self.settings.HIGHLIGHT_NOTES["tuner"], 1))
+        self._oscremote._send_osc(f"/remote/note/{self.settings.HIGHLIGHT_NOTES['tuner']}/1", 127)
         self._highlight_tuner_true = True
 
     def _store_preset(self):
@@ -506,6 +508,13 @@ class FC200(ControlSurface):
             return
 
         if midi_bytes[-1] == 247:       # Return list at end of message
+            # Force FC200 to SysEx mode
+            if self.settings.FORCE_SYSEX:
+                if body[0] == 3 and body[1] == 0 and body[2] != 3:
+                    self._send_sysex([3, 1, 3])
+                    self._page_move(0)
+                    if DEBUG:
+                        self.log_message("Set to sysex mode")
             if self._parameter_control is not None:
                 self.parameter_control(body)
                 return
@@ -771,7 +780,7 @@ class FC200(ControlSurface):
         if body == [0, 8, 127]:
             self._tasks.add(
                 Task.sequence(
-                    Task.run(lambda: self._send_midi((0xCF, self.settings.FORSCORE_PREV_PAGE))),
+                    Task.run(lambda: self._oscremote._send_osc(f"/remote/pc/{self.settings.FORSCORE_PREV_PAGE}/2", 127)),
                     Task.run(lambda: self.flash_led(8))
                 )
             )
@@ -780,7 +789,7 @@ class FC200(ControlSurface):
         if body == [0, 9, 127]:
             self._tasks.add(
                 Task.sequence(
-                    Task.run(lambda: self._send_midi((0xCF, self.settings.FORSCORE_NEXT_PAGE))),
+                    Task.run(lambda: self._oscremote._send_osc(f"/remote/pc/{self.settings.FORSCORE_NEXT_PAGE}/2", 127)),
                     Task.run(lambda: self.flash_led(9))
                 )
             )
