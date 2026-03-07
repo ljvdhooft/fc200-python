@@ -1,4 +1,3 @@
-
 import Live # type: ignore
 from _Framework.ControlSurface import ControlSurface
 from _Framework.InputControlElement import *
@@ -16,12 +15,17 @@ from .SpecialTransportComponent import SpecialTransportComponent
 from .SpecialSessionComponent import SpecialSessionComponent
 from .SpecialZoomingComponent import SpecialZoomingComponent
 from .SpecialViewControllerComponent import DetailViewControllerComponent
-from .config import *
+from . import config
 from .SegmentEncoder import SegmentEncoder
 from .MiraGUI import MiraGUI
+from .OSCremote import OSCremote
+
+from . import xmltodict
+
+import gzip
 import os
 import json
-
+import importlib
 
 DEBUG = False
 
@@ -30,27 +34,35 @@ class FC200(ControlSurface):
     def __init__(self, c_instance):
         super(FC200, self).__init__(c_instance)
         self._mira = MiraGUI(self)
+        self._oscremote = OSCremote(self)
+        self.settings = config.Settings()
 
+        if not self.song().is_ableton_link_enabled_has_listener(self._reload_config):
+            self.song().add_is_ableton_link_enabled_listener(self._reload_config)
+
+        self._setup()
+
+        # Log to the Ableton Log.txt file
+        self.log_message("--- FC200 Script Loaded ---")
+
+    def _setup(self):
         self._page = 0
-        if 0 <= TRACK < len(self.song().tracks):
-            self._track = self.song().tracks[TRACK]
-            if 0 <= MAIN_DEVICE < len(self._track.devices):
-                if self._track.devices[MAIN_DEVICE].can_have_chains:
-                    self._board = self._track.devices[MAIN_DEVICE].chains[0]
-                    self._page = 1
-                else:
-                    self._board = None
-            else:
-                self._board = None
-        else:
-            self._track = None
+        self._track = None
+        self._board = None
+
+        if 0 <= self.settings.TRACK < len(self.song().tracks):
+            self._track = self.song().tracks[self.settings.TRACK]
+            if self._track.devices:
+                if 0 <= self.settings.MAIN_DEVICE < len(self._track.devices):
+                    if self._track.devices[self.settings.MAIN_DEVICE].can_have_chains:
+                        self._board = self._track.devices[self.settings.MAIN_DEVICE].chains[0]
+                        self._page = 1
 
         self._led_status = {}
-        for p in range(MIN_PAGE, MAX_PAGE + 1):
+        for p in range(self.settings.MIN_PAGE, self.settings.MAX_PAGE + 1):
             self._led_status[p] = {}
         self.display(1, "")
         self.display(0, self._page)
-
 
         # Add listeners for page_0 (is_playing, metronome, current_scene)
         if not self.song().is_playing_has_listener(self._on_is_playing_changed):
@@ -68,7 +80,7 @@ class FC200(ControlSurface):
             if DEBUG:
                 self.log_message(f"Adding listener for selected scene")
 
-        self._expr_display_recall_page = None
+        self._display_recall_page = None
         self._fired_scene = None
         self._highlight_tuner_true = False
         self._preset_store_confirm = None
@@ -89,31 +101,88 @@ class FC200(ControlSurface):
         self.leds_off()
 
         if self._track is not None and self._board is not None:
-            if not self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
-                self._board.devices[LOOP_VOLUME].parameters[1].add_value_listener(self._highlight_tuner)
+            if not self._board.devices[self.settings.LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
+                self._board.devices[self.settings.LOOP_VOLUME].parameters[1].add_value_listener(self._highlight_tuner)
             if not self._track.playing_slot_index_has_listener(self._load_preset):
                 self._track.add_playing_slot_index_listener(self._load_preset)
+            if not self._track.devices[1].chains[1].devices[1].parameters[1].value_has_listener(self._display_tuner):
+                self._track.devices[1].chains[1].devices[1].parameters[1].add_value_listener(self._display_tuner)
 
             self._listeners()
             self._init_leds()
             self.leds_recall()
 
-        # Log to the Ableton Log.txt file
-        self.log_message("--- FC200 Script Loaded ---")
+    def _reload_config(self):
+        importlib.reload(config)
+        self.settings = config.Settings()
+        self._setup()
+
+        self.log_message("Reloading config!")
+        for key, value in self.settings.__class__.__dict__.items():
+            if not key.startswith('__'):
+                self.log_message(f"{key}: {value}")
+
+    def _display_tuner(self):
+        def kill_sequence():
+            self._display_recall_page.kill() 
+            self._display_recall_page = None
+        def recall_page():
+            self.display(1, " ")
+            self.display(0, self._page)
+
+        if self._volume > 0:
+            return
+        if self._favorite_parameter is not None or self._parameter_control is not None:
+            return
+        tuner_rack = self._track.devices[1]
+        tuner_device = tuner_rack.chains[1].devices[1]
+        note = int(tuner_device.parameters[2].value) % 12
+        cents = int(tuner_device.parameters[1].value) - 50
+        notes = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
+        note_a = notes[note]
+        sharp = False 
+        if len(note_a) == 2:
+            note_a = note_a[0]
+            sharp = True
+
+        offset = (float(tuner_rack.parameters[1].value) - 64) / 1.
+        cents += offset
+        # self.log_message(f'note: {note}, cents: {cents}, offset: {offset}')
+
+        binary = 0 if sharp == False else 4 
+        tolerance = 3
+        if (tolerance * -1) < cents < tolerance:
+            binary += 64
+        if cents <= (tolerance * -1):
+            binary += 1
+        if cents >= tolerance:
+            binary += 8
+        self.display(1, note_a) 
+        self.display_raw(0, binary)
+
+        if self._display_recall_page is not None:
+            kill_sequence()
+        self._display_recall_page = self._tasks.add(
+                Task.sequence(
+                    Task.wait(1), 
+                    Task.run(recall_page),
+                    Task.run(kill_sequence)
+                    )
+            )
 
     def _highlight_tuner(self):
-        parameter = self._board.devices[LOOP_VOLUME].parameters[1]
+        parameter = self._board.devices[self.settings.LOOP_VOLUME].parameters[1]
         if parameter.value > 0:
             if not self._highlight_tuner_true:
                 return
             # Select self._board (Note C#-2)
-            self._send_midi((0x9F, HIGHLIGHT_NOTES['board'], 127))
+            self._oscremote._send_osc(f"/remote/note/{self.settings.HIGHLIGHT_NOTES['board']}/1", 127)
             self._highlight_tuner_true = False
             return
         if self._highlight_tuner_true:
             return
         # Select Tuner (Note C-2)
-        self._send_midi((0x9F, HIGHLIGHT_NOTES['tuner'], 127))
+        self._oscremote._send_osc(f"/remote/note/{self.settings.HIGHLIGHT_NOTES['tuner']}/1", 127)
         self._highlight_tuner_true = True
 
     def _store_preset(self):
@@ -122,17 +191,20 @@ class FC200(ControlSurface):
                 return True
             return False
 
-        def clip_slot_name():
-            all_scenes = list(self.song().scenes)
-            selected_scene = self.song().view.selected_scene
-            selected_scene_index = all_scenes.index(selected_scene)
+        def clip_slot_name(selected_scene_index):
             clip_slot = self._track.clip_slots[selected_scene_index]
             if not clip_slot.has_clip:
                 return None
             return clip_slot.clip.name
+        def copy_clip(selected_scene_index):
+            source = self._track.clip_slots[0]
+            if not source.has_clip:
+                return None
+            source.duplicate_clip_to(self._track.clip_slots[selected_scene_index])
+
         def get_parameter_values_for_preset():
             preset = {}
-            for d in LOOP_MAPPING:
+            for d in self.settings.LOOP_MAPPING:
                 preset[d] = {"parameters": []}
                 device = self._board.devices[d]
                 for i in range(0, 8):
@@ -141,29 +213,57 @@ class FC200(ControlSurface):
                 selected_chain = device.view.selected_chain
                 preset[d]["chain"] = selected_chain.name
             return preset
-        def store_preset(preset, path):
+        def store_dummy_clip(preset_folder, name):
+            template_file = os.path.join(preset_folder, 'template.alc.xml')
+            if not os.path.exists(template_file):
+                return
+
+            with open(template_file, 'r') as t:
+                template = xmltodict.parse(t.read())
+                if template:
+
+                    template_clip = template['Ableton']['LiveSet']['Tracks']['AudioTrack']['DeviceChain']['MainSequencer']['ClipSlotList']['ClipSlot']['ClipSlot']['Value']['AudioClip']
+                    template_clip['Name']['@Value'] = name
+                    template_clip['Color']['@Value'] = 69
+
+                    dummy_clip = xmltodict.unparse(template)
+                    preset_file_name = "{}.alc".format(name)
+                    path = os.path.join(preset_folder, preset_file_name)
+                    with gzip.open(path, 'wb') as f:
+                        f.write(dummy_clip.encode('utf-8'))
+
+            return
+
+        def store_preset(preset, path, name):
+            preset_file_name = "{}.json".format(name)
+            path = os.path.join(preset_folder, "_json", preset_file_name)
             try:
                 with open(path, 'w') as f:
                     preset_dict = json.dumps(preset, indent=2)
                     f.write(preset_dict)
                     if DEBUG:
-                        self.log_message("saved preset file " + preset_file_path)
+                        self.log_message("saved preset file " + path)
             except Exception as e:
-                self.log_message("Error reading preset file: " + str(e))
+                self.log_message("Error saving preset file: " + str(e))
 
             return
 
-        if clip_slot_name() is None:
-            self.show_message('No clip on selected slot')
-            return
-        clip_name = clip_slot_name()
+        all_scenes = list(self.song().scenes)
+        selected_scene = self.song().view.selected_scene
+        selected_scene_index = all_scenes.index(selected_scene)
 
-        preset_folder = os.path.dirname("/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/")
+        if clip_slot_name(selected_scene_index) is None:
+            if copy_clip(selected_scene_index) is None:
+                self.show_message('No clip on selected slot')
+            return
+        clip_name = clip_slot_name(selected_scene_index)
+
+        preset_folder = os.path.dirname(self.settings.PRESET_FOLDER)
         if not os.path.exists(preset_folder):
             return None
 
         preset_file_name = "{}.json".format(clip_name)
-        preset_file_path = os.path.join(preset_folder, preset_file_name)
+        preset_file_path = os.path.join(preset_folder, '_json/', preset_file_name)
 
         if check_preset_exists(preset_file_path) and self._preset_store_confirm is None:
             self._preset_store_confirm = False
@@ -176,7 +276,8 @@ class FC200(ControlSurface):
 
         if self._preset_store_confirm:
             preset = get_parameter_values_for_preset()
-            store_preset(preset, preset_file_path)
+            store_preset(preset, preset_folder, clip_name)
+            store_dummy_clip(preset_folder, clip_name)
             self._preset_store_confirm = None
             self.show_message("Saved preset: " + str(clip_name))
             if self._preset_store_blinking_led is not None:
@@ -186,9 +287,9 @@ class FC200(ControlSurface):
 
     def _load_preset(self):
         def load_preset(clip_name):
-            preset_folder = os.path.dirname("/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/")
+            preset_folder = os.path.dirname(self.settings.PRESET_FOLDER)
             preset_file_name = "{}.json".format(clip_name)
-            preset_file_path = os.path.join(preset_folder, preset_file_name)
+            preset_file_path = os.path.join(preset_folder, '_json/', preset_file_name)
 
             if not os.path.exists(preset_file_path):
                 return None
@@ -252,6 +353,9 @@ class FC200(ControlSurface):
         binary = SegmentEncoder.get_segments(character)
         self._send_sysex([2, number, binary])
 
+    def display_raw(self, number, binary):
+        self._send_sysex([2, number, binary])
+
     def leds_off(self):
         for i in range(0, 9 + 1):
             self.led_status(i, 0)
@@ -269,7 +373,7 @@ class FC200(ControlSurface):
     def flash_led(self, pedal_id):
         # Turn LED ON
         self.led_status(pedal_id, 127)
-        
+
         # Schedule the OFF command 100ms later
         self._tasks.add(Task.sequence(
             Task.wait(0.1), # 0.1 seconds = 100ms
@@ -292,18 +396,18 @@ class FC200(ControlSurface):
 
     def _expr_display(self, value):
         def kill_sequence():
-            self._expr_display_recall_page.kill() 
-            self._expr_display_recall_page = None
+            self._display_recall_page.kill() 
+            self._display_recall_page = None
         def recall_page():
             self.display(1, " ")
             self.display(0, self._page)
-        if self._expr_display_recall_page is not None:
+        if self._display_recall_page is not None:
             kill_sequence()
         scaled = int(value / 127 * 99)
         v = str(scaled).zfill(2)
         self.display(0, v[1])
         self.display(1, v[0])
-        self._expr_display_recall_page = self._tasks.add(
+        self._display_recall_page = self._tasks.add(
                 Task.sequence(
                     Task.wait(1), 
                     Task.run(recall_page),
@@ -329,7 +433,7 @@ class FC200(ControlSurface):
             return
 
         # Add listeners for page_1 (device on/off)
-        for index, loop in enumerate(LOOP_MAPPING):
+        for index, loop in enumerate(self.settings.LOOP_MAPPING):
             parameter = self._board.devices[loop].parameters[0]
 
             callback = lambda i=index, l=loop: update_led(i, l)
@@ -367,7 +471,7 @@ class FC200(ControlSurface):
             self._mira.scene_overview()
 
     def _init_leds(self):
-        for index, loop in enumerate(LOOP_MAPPING):
+        for index, loop in enumerate(self.settings.LOOP_MAPPING):
             parameter = self._board.devices[loop].parameters[0]
             value = parameter.value
             led_value = 127 if value else 0
@@ -404,6 +508,13 @@ class FC200(ControlSurface):
             return
 
         if midi_bytes[-1] == 247:       # Return list at end of message
+            # Force FC200 to SysEx mode
+            if self.settings.FORCE_SYSEX:
+                if body[0] == 3 and body[1] == 0 and body[2] != 3:
+                    self._send_sysex([3, 1, 3])
+                    self._page_move(0)
+                    if DEBUG:
+                        self.log_message("Set to sysex mode")
             if self._parameter_control is not None:
                 self.parameter_control(body)
                 return
@@ -422,7 +533,7 @@ class FC200(ControlSurface):
         self.led_status(0, led_status)
 
     def _page_move(self, direction):
-        if not MIN_PAGE <= self._page + direction <= MAX_PAGE:
+        if not self.settings.MIN_PAGE <= self._page + direction <= self.settings.MAX_PAGE:
             return
         self._page += direction
         self.leds_off()
@@ -444,12 +555,12 @@ class FC200(ControlSurface):
 
     def toggle_device(self, body):
         pedal_loops = self._board.devices
-        if body[1] >= len(LOOP_MAPPING):
+        if body[1] >= len(self.settings.LOOP_MAPPING):
             return
-        pedal_loop = pedal_loops[LOOP_MAPPING[body[1]]]
+        pedal_loop = pedal_loops[self.settings.LOOP_MAPPING[body[1]]]
         if pedal_loop.parameters[0].value == 0:
-            if str(LOOP_MAPPING[body[1]]) in HIGHLIGHT_NOTES:
-                self._send_midi((0x9F, HIGHLIGHT_NOTES[str(LOOP_MAPPING[body[1]])], 127))
+            # if str(self.settings.LOOP_MAPPING[body[1]]) in self.settings.HIGHLIGHT_NOTES:
+            #     self._send_midi((0x9F, self.settings.HIGHLIGHT_NOTES[str(self.settings.LOOP_MAPPING[body[1]])], 127))
             pedal_loop.parameters[0].value = 1 
             return
         pedal_loop.parameters[0].value = 0 
@@ -459,12 +570,13 @@ class FC200(ControlSurface):
         if self._track is None or self._board is None:
             self._send_midi((0xB0, 0, value))
             return
-        parameter = self._board.devices[LOOP_VOLUME].parameters[1]
+        parameter = self._board.devices[self.settings.LOOP_VOLUME].parameters[1]
         parameter.value = value
+        self._volume = value
 
     def favorite_parameter(self, body):
         pedal = body[1]
-        parameter = self._board.devices[LOOP_MAPPING[pedal]].parameters[FAVORITE_PARAMETERS[pedal]]
+        parameter = self._board.devices[self.settings.LOOP_MAPPING[pedal]].parameters[self.settings.FAVORITE_PARAMETERS[pedal]]
         self._favorite_parameter_pedal = pedal
         self._favorite_parameter = parameter
         self.leds_off()
@@ -556,7 +668,7 @@ class FC200(ControlSurface):
         self._fired_scene = self._selected_scene
         self._mira.scene_overview()
         self.show_message(f"Fired: {self._selected_scene.name}")
-    
+
     def move_scene(self, direction):
         new_index = self._selected_scene_index + direction 
         if 0 <= new_index < len(self._all_scenes):
@@ -569,7 +681,6 @@ class FC200(ControlSurface):
         self.song().metronome = not self.song().metronome
         return
 
-
     def page_0(self, body):
         # Page UP
         if body == [0, 10, 127]:
@@ -579,7 +690,7 @@ class FC200(ControlSurface):
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
             return
-        # Page DOWN 
+        # Page DOWN
         if body == [0, 11, 127]:
             self._page_move(-1)
             self.flash_led(11)
@@ -628,7 +739,7 @@ class FC200(ControlSurface):
             self.move_scene(-1)
             self.flash_led(4)
             return
-        # Ableton click on/off 
+        # Ableton click on/off
         if body == [0, 5, 127]:
             self.toggle_click()
             return
@@ -669,7 +780,7 @@ class FC200(ControlSurface):
         if body == [0, 8, 127]:
             self._tasks.add(
                 Task.sequence(
-                    Task.run(lambda: self._send_midi((0xCF, FORSCORE_PREV_PAGE))),
+                    Task.run(lambda: self._oscremote._send_osc(f"/remote/pc/{self.settings.FORSCORE_PREV_PAGE}/2", 127)),
                     Task.run(lambda: self.flash_led(8))
                 )
             )
@@ -678,7 +789,7 @@ class FC200(ControlSurface):
         if body == [0, 9, 127]:
             self._tasks.add(
                 Task.sequence(
-                    Task.run(lambda: self._send_midi((0xCF, FORSCORE_NEXT_PAGE))),
+                    Task.run(lambda: self._oscremote._send_osc(f"/remote/pc/{self.settings.FORSCORE_NEXT_PAGE}/2", 127)),
                     Task.run(lambda: self.flash_led(9))
                 )
             )
@@ -690,7 +801,7 @@ class FC200(ControlSurface):
             self._page_move(1)
             self.flash_led(10)
             return
-        # Page DOWN 
+        # Page DOWN
         if body == [0, 11, 127]:
             self._page_move(-1)
             self.flash_led(11)
@@ -720,7 +831,7 @@ class FC200(ControlSurface):
             self._page_move(1)
             self.flash_led(10)
             return
-        # Page DOWN 
+        # Page DOWN
         if body == [0, 11, 127]:
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
@@ -736,7 +847,7 @@ class FC200(ControlSurface):
         if self._favorite_parameter and body[0] == 0 and body[1] == self._favorite_parameter_pedal and body[2] == 127:
             if self._track is None or self._board is None:
                 return
-            self._parameter_control = LOOP_MAPPING[body[1]]
+            self._parameter_control = self.settings.LOOP_MAPPING[body[1]]
             self.parameter_control(body)
             return
         # Exit favorite parameter control
@@ -764,7 +875,6 @@ class FC200(ControlSurface):
             self._mira.highlight_parameter(body[1])
             return
 
-
     def disconnect(self):
         """Clean up when the script is unloaded."""
         self.log_message("(FC200) Removing all listeners...")
@@ -778,11 +888,12 @@ class FC200(ControlSurface):
             self.song().view.remove_selected_scene_listener(self._on_selected_scene_changed)
 
         if self._track is not None and self._board is not None:
-            if self._board.devices[LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
-                self._board.devices[LOOP_VOLUME].parameters[1].remove_value_listener(self._highlight_tuner)
-
+            if self._board.devices[self.settings.LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
+                self._board.devices[self.settings.LOOP_VOLUME].parameters[1].remove_value_listener(self._highlight_tuner)
             if self._track.playing_slot_index_has_listener(self._load_preset):
                 self._track.remove_playing_slot_index_listener(self._load_preset)
+            if not self._track.devices[1].chains[1].devices[1].parameters[1].value_has_listener(self._display_tuner):
+                self._track.devices[1].chains[1].devices[1].parameters[1].remove_value_listener(self._display_tuner)
 
             # Remove listeners for page_1 (device_on)
             for param, callback in self._observed_params:
@@ -793,5 +904,3 @@ class FC200(ControlSurface):
 
         self.log_message("--- FC200 Script Unloaded ---")
         super(FC200, self).disconnect()
-
-
