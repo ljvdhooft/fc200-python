@@ -50,13 +50,16 @@ class FC200(ControlSurface):
         self._track = None
         self._board = None
 
-        if 0 <= self.settings.TRACK < len(self.song().tracks):
-            self._track = self.song().tracks[self.settings.TRACK]
-            if self._track.devices:
-                if 0 <= self.settings.MAIN_DEVICE < len(self._track.devices):
-                    if self._track.devices[self.settings.MAIN_DEVICE].can_have_chains:
-                        self._board = self._track.devices[self.settings.MAIN_DEVICE].chains[0]
-                        self._page = 1
+        tracks = self.song().tracks
+        for i, track in enumerate(tracks):
+            devices = track.devices
+            for j, device in enumerate(devices):
+                if device.name == "FC200 Pedalboard":
+                    self.log_message(f"Found pedalboard at track {i+1} device {j+1}")
+                    self._track = track
+                    self._board = device.chains[0]
+                    self._page = 1
+                    break
 
         self._led_status = {}
         for p in range(self.settings.MIN_PAGE, self.settings.MAX_PAGE + 1):
