@@ -33,9 +33,10 @@ DEBUG = False
 class FC200(ControlSurface):
     def __init__(self, c_instance):
         super(FC200, self).__init__(c_instance)
-        self._mira = MiraGUI(self)
-        self._oscremote = OSCremote(self)
         self.settings = config.Settings()
+        self._setup_track()
+        self._mira = MiraGUI(self, self._track_index, self._device_index)
+        self._oscremote = OSCremote(self)
 
         if not self.song().is_ableton_link_enabled_has_listener(self._reload_config):
             self.song().add_is_ableton_link_enabled_listener(self._reload_config)
@@ -45,19 +46,26 @@ class FC200(ControlSurface):
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
 
-    def _setup(self):
+    def _setup_track(self):
         self._page = 0
         self._track = None
         self._board = None
 
-        if 0 <= self.settings.TRACK < len(self.song().tracks):
-            self._track = self.song().tracks[self.settings.TRACK]
-            if self._track.devices:
-                if 0 <= self.settings.MAIN_DEVICE < len(self._track.devices):
-                    if self._track.devices[self.settings.MAIN_DEVICE].can_have_chains:
-                        self._board = self._track.devices[self.settings.MAIN_DEVICE].chains[0]
-                        self._page = 1
+        tracks = self.song().tracks
+        for i, track in enumerate(tracks):
+            devices = track.devices
+            for j, device in enumerate(devices):
+                if device.name == "FC200 Pedalboard":
+                    self.log_message(f"Found pedalboard at track {i+1} device {j+1}")
+                    self._track = track
+                    self._track_index = i
+                    self._device = device
+                    self._device_index = j
+                    self._board = device.chains[0]
+                    self._page = 1
+                    break
 
+    def _setup(self):
         self._led_status = {}
         for p in range(self.settings.MIN_PAGE, self.settings.MAX_PAGE + 1):
             self._led_status[p] = {}
