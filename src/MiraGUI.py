@@ -3,12 +3,14 @@ import socket
 import struct
 
 class MiraGUI:
-    def __init__(self, script, ip="127.0.0.1", port=8001):
+    def __init__(self, script, track, device, ip="127.0.0.1", port=8001):
         self.settings = config.Settings
         self._script = script
         self.ip = ip
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._track = track
+        self._device = device
 
     def _send_osc(self, address, value):
         # Basic OSC string padding (must be multiple of 4 bytes)
@@ -35,7 +37,6 @@ class MiraGUI:
         if index < 0:
             return
         index = (((index + 5) * (index < 5)) + ((index - 5) * (index >= 5)))
-        self._script.log_message(index)
         self._send_osc(f"/parameters/{index}/highlight", True)
 
     def scene_overview(self):
@@ -107,7 +108,7 @@ class MiraGUI:
         for i, l in enumerate(self.settings.LOOP_MAPPING):
             fav_par = self.settings.FAVORITE_PARAMETERS[i]
             i = (((i + 5) * (i < 5)) + ((i - 5) * (i >= 5)))
-            path = f"path live_set tracks {self.settings.TRACK} devices {self.settings.MAIN_DEVICE} chains 0 devices {l}"
+            path = f"path live_set tracks {self._track} devices {self._device} chains 0 devices {l}"
             live_text_value_path = f"{path} parameters 0"
             live_dial_path = f"{path} parameters {fav_par}"
             self._send_osc(f"/parameters/{i}/text/text", path)
@@ -121,7 +122,7 @@ class MiraGUI:
             self._send_osc(f"/parameters/{i}/show", False)
 
     def parameter_control(self):
-        path = f"path live_set tracks {self.settings.TRACK} devices {self.settings.MAIN_DEVICE} chains 0 devices {self._script._parameter_control}"
+        path = f"path live_set tracks {self._track} devices {self._device} chains 0 devices {self._script._parameter_control}"
         live_text_value_path = f"{path} parameters 0"
         self._send_osc("/window", "parameters")
         self._send_osc("/parameters/title/show/text", True)
