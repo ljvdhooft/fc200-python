@@ -276,7 +276,7 @@ class FC200(ControlSurface):
         if check_preset_exists(preset_file_path) and self._preset_store_confirm is None:
             self._preset_store_confirm = False
             self.blink_led_value = 127
-            self._preset_store_blinking_led = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.5), Task.run(lambda: self.blink_led(7)))))
+            self._preset_store_blinking_led = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.3), Task.run(lambda: self.blink_led(7)))))
             self.show_message(f"Overwrite reset {clip_name} ?")
             return
         else:
@@ -291,7 +291,7 @@ class FC200(ControlSurface):
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
-            self._tasks.add(Task.sequence(Task.wait(0.5), Task.run(lambda: self.flash_led(7)), Task.wait(0.2), Task.run(lambda: self.flash_led(7))))
+            self._tasks.add(Task.sequence(Task.wait(0.3), Task.run(lambda: self.flash_led(7)), Task.wait(0.1), Task.run(lambda: self.flash_led(7)), Task.run(lambda: self.flash_led(7)), Task.wait(0.1), Task.run(lambda: self.flash_led(7))))
 
     def _load_preset(self):
         def load_preset(clip_name):
@@ -697,6 +697,7 @@ class FC200(ControlSurface):
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
+                self._preset_store_confirm = None
             return
         # Page DOWN
         if body == [0, 11, 127]:
@@ -705,6 +706,8 @@ class FC200(ControlSurface):
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
+                self._preset_store_confirm = None
+
             return
         # Expression pedal calls volume_control
         if body[1] == 13:
@@ -716,6 +719,7 @@ class FC200(ControlSurface):
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
+                self._preset_store_confirm = None
                 self.show_message("Cancelled saving preset!")
                 self.led_status(7, 0)
                 return
