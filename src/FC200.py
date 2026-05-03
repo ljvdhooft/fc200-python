@@ -697,6 +697,7 @@ class FC200(ControlSurface):
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
+                self._preset_store_confirm = None
             return
         # Page DOWN
         if body == [0, 11, 127]:
@@ -705,6 +706,8 @@ class FC200(ControlSurface):
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
+                self._preset_store_confirm = None
+
             return
         # Expression pedal calls volume_control
         if body[1] == 13:
@@ -716,6 +719,7 @@ class FC200(ControlSurface):
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
+                self._preset_store_confirm = None
                 self.show_message("Cancelled saving preset!")
                 self.led_status(7, 0)
                 return
