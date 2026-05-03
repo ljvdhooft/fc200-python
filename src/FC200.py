@@ -760,10 +760,10 @@ class FC200(ControlSurface):
             if self._track is None or self._board is None:
                 return
             if self._metronome_state:
+                self.toggle_click()
+                self.start_scene()
                 self._tasks.add(
                     Task.sequence(
-                        Task.run(self.toggle_click),
-                        Task.run(self.start_scene),
                         Task.wait(0.1),
                         Task.run(self.stop_button),
                         Task.run(self.stop_all),
@@ -771,9 +771,9 @@ class FC200(ControlSurface):
                     )
                 )
                 return
+            self.start_scene()
             self._tasks.add(
                 Task.sequence(
-                    Task.run(self.start_scene),
                     Task.wait(0.1),
                     Task.run(self.stop_button),
                     Task.run(self.stop_all),
