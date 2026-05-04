@@ -402,13 +402,17 @@ class FC200(ControlSurface):
             self.led_status(i, self.blink_leds_value)
         self.blink_leds_value = 0 if self.blink_leds_value == 127 else 127
 
-    def _expr_display(self, value):
+    def _expr_display(self, value, recall_0=None, recall_1=None, timeout=1):
+        if recall_0 is None:
+            recall_0 = self._page
+        if recall_1 is None:
+            recall_1 = " "
         def kill_sequence():
             self._display_recall_page.kill() 
             self._display_recall_page = None
         def recall_page():
-            self.display(1, " ")
-            self.display(0, self._page)
+            self.display(1, recall_1)
+            self.display(0, recall_0)
         if self._display_recall_page is not None:
             kill_sequence()
         scaled = int(value / 127 * 99)
@@ -417,7 +421,7 @@ class FC200(ControlSurface):
         self.display(1, v[0])
         self._display_recall_page = self._tasks.add(
                 Task.sequence(
-                    Task.wait(1), 
+                    Task.wait(timeout), 
                     Task.run(recall_page),
                     Task.run(kill_sequence)
                     )
@@ -595,7 +599,9 @@ class FC200(ControlSurface):
         # Map expression pedal to parameter_control selected parameter
         if body[0] == 0 and body[1] == 13 and self._parameter_control_selected_parameter is not None:
             self._parameter_control_selected_parameter.value = body[2]
-            self._expr_display(body[2])
+            v = str(self._parameter_control)
+            self._expr_display(body[2], v[-1], v[-2] if len(v) > 1 else ' ', 0.5)
+            # self._expr_display(body[2])
             return
 
         # Map CTL pedal to exit parameter_control mode
@@ -613,6 +619,8 @@ class FC200(ControlSurface):
             self._parameter_control_blink = None
             self.leds_off()
             self.flash_led(12)
+            self.display(1, " ")
+            self.display(0, self._page)
             self._mira.page_2()
             self._mira.highlight_parameter(-1)
             return
@@ -643,6 +651,9 @@ class FC200(ControlSurface):
             self._parameter_control_selected_chain_index = self._parameter_control_chains.index(self._board.devices[self._parameter_control].view.selected_chain)
             self.blink_leds_value = 127
             self.blink_leds()
+            v = str(self._parameter_control)
+            self.display(0, v[-1])
+            self.display(1, v[-2] if len(v) > 1 else ' ')
             self._parameter_control_blink = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.5), Task.run(self.blink_leds))))
             self._mira.parameter_control()
             self._mira.highlight_parameter(-1)
