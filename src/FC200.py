@@ -586,6 +586,17 @@ class FC200(ControlSurface):
         parameter.value = value
         self._volume = value
 
+    def freeze_control(self, value):
+        if self._track is None or self._board is None:
+            # self._send_midi((0xB0, 0, value))
+            return
+        parameters = self._board.devices[self.settings.LOOP_FREEZE].parameters
+        def parameter_1():
+            parameters[1].value = value
+        def parameter_2():
+            parameters[2].value = value
+        self._tasks.add(Task.sequence(Task.run(lambda: parameter_1()), Task.wait(0.5), Task.run(lambda: parameter_2())))
+
     def favorite_parameter(self, body):
         pedal = body[1]
         parameter = self._board.devices[self.settings.LOOP_MAPPING[pedal]].parameters[self.settings.FAVORITE_PARAMETERS[pedal]]
@@ -833,6 +844,10 @@ class FC200(ControlSurface):
         if body[1] == 13:
             self.volume_control(body[2])
             self._expr_display(body[2])
+            return
+        # Expression pedal calls volume_control
+        if body[1] == 14:
+            self.freeze_control(body[2])
             return
         # CTL button calls tap_tempo
         if body == [0, 12, 127]:
