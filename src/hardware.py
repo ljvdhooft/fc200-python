@@ -25,13 +25,13 @@ class FC200Hardware:
 
         Return True if it switched.
         """
-        if body[:2] != [se.MODE_STATUS, se.MODE_CURRENT] or body[2] == se.MODE_EXCLUSIVE:
+        if body[:2] != [se.Area.MODE_STATUS, se.MODE_CURRENT] or body[2] == se.MODE_EXCLUSIVE:
             return False
-        self.send([se.MODE_STATUS, se.MODE_SET, se.MODE_EXCLUSIVE])
+        self.send([se.Area.MODE_STATUS, se.MODE_SET, se.MODE_EXCLUSIVE])
         return True
 
     def led(self, pedal, value):
-        self.send([se.LED_STATUS, pedal, value])
+        self.send([se.Area.LED_STATUS, pedal, value])
 
     def leds_off(self):
         for pedal in range(0, 9 + 1):
@@ -71,5 +71,5 @@ class FC200Hardware:
         ))
 
     def _write_bank_display(self, left, right):
-        self.send([se.BANK_DISPLAY_STATUS, se.BANK_DISPLAY_LEFT, left])
-        self.send([se.BANK_DISPLAY_STATUS, se.BANK_DISPLAY_RIGHT, right])
+        self.send([se.Area.BANK_DISPLAY_STATUS, se.BANK_DISPLAY_LEFT, left])
+        self.send([se.Area.BANK_DISPLAY_STATUS, se.BANK_DISPLAY_RIGHT, right])

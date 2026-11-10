@@ -20,6 +20,10 @@ class BuildParseTest(unittest.TestCase):
     def test_build(self):
         self.assertEqual(se.build([1, 7, 127]), (240, 65, 0, 114, 18, 1, 7, 127, 121, 247))
 
+    def test_build_sends_plain_ints(self):
+        msg = se.build([se.Area.LED_STATUS, 7, 127])
+        self.assertTrue(all(type(b) is int for b in msg))
+
     def test_round_trip(self):
         for body in ([0, 10, 127], [0, 13, 64], [3, 0, 2]):
             self.assertEqual(se.parse(se.build(body)), body)

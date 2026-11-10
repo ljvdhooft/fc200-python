@@ -5,15 +5,19 @@ byte: [address MSB, address LSB, data]. The address MSB selects an area of
 the parameter address map. No Live imports, so it can be unit-tested.
 """
 
+from enum import IntEnum
+
 # Exclusive status, Roland manufacturer ID, device ID, model ID (FC-200), DT1
 HEADER = (0xF0, 0x41, 0x00, 0x72, 0x12)
 EOX = 0xF7
 
-# Parameter address map: address MSB
-PEDAL_STATUS = 0x00         # inbound: pedal operated
-LED_STATUS = 0x01
-BANK_DISPLAY_STATUS = 0x02
-MODE_STATUS = 0x03
+
+class Area(IntEnum):
+    """Parameter address map: address MSB."""
+    PEDAL_STATUS = 0x00         # inbound: pedal operated
+    LED_STATUS = 0x01
+    BANK_DISPLAY_STATUS = 0x02
+    MODE_STATUS = 0x03
 
 # Pedal Status / LED Status: address LSB
 (PEDAL_1, PEDAL_2, PEDAL_3, PEDAL_4, PEDAL_5,
@@ -57,7 +61,8 @@ def checksum(body):
 
 def build(body):
     """Return the full DT1 message for an [address MSB, address LSB, data] body."""
-    return HEADER + tuple(body) + (checksum(body), EOX)
+    # Plain ints: Live's send_midi gets no IntEnum members
+    return HEADER + tuple(int(b) for b in body) + (checksum(body), EOX)
 
 
 def parse(midi_bytes):
@@ -74,21 +79,21 @@ def parse(midi_bytes):
 
 def pressed(body, pedal):
     """True if body is the pedal being pressed down (not released)."""
-    return body == [PEDAL_STATUS, pedal, ON]
+    return body == [Area.PEDAL_STATUS, pedal, ON]
 
 
 def released(body, pedal):
-    return body == [PEDAL_STATUS, pedal, OFF]
+    return body == [Area.PEDAL_STATUS, pedal, OFF]
 
 
 def number_pedal_pressed(body):
     """True if body is one of Pedals 1-10 being pressed down."""
-    return body[0] == PEDAL_STATUS and PEDAL_1 <= body[1] <= PEDAL_10 and body[2] == ON
+    return body[0] == Area.PEDAL_STATUS and PEDAL_1 <= body[1] <= PEDAL_10 and body[2] == ON
 
 
 def changed(body, pedal):
     """True if body is a Pedal Status change of the pedal, with any value."""
-    return body[0] == PEDAL_STATUS and body[1] == pedal
+    return body[0] == Area.PEDAL_STATUS and body[1] == pedal
 
 
 def segments(char):
