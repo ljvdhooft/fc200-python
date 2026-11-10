@@ -1,20 +1,5 @@
-import Live # type: ignore
 from _Framework.ControlSurface import ControlSurface
-from _Framework.InputControlElement import *
-from _Framework.SliderElement import SliderElement
-from _Framework.ButtonElement import ButtonElement
-from _Framework.ButtonMatrixElement import ButtonMatrixElement
-from _Framework.ChannelStripComponent import ChannelStripComponent
-from _Framework.DeviceComponent import DeviceComponent
-from _Framework.ControlSurfaceComponent import ControlSurfaceComponent
-from _Framework.SessionZoomingComponent import SessionZoomingComponent
-from _Framework.SessionComponent import SessionComponent
 from _Framework import Task
-from .SpecialMixerComponent import SpecialMixerComponent
-from .SpecialTransportComponent import SpecialTransportComponent
-from .SpecialSessionComponent import SpecialSessionComponent
-from .SpecialZoomingComponent import SpecialZoomingComponent
-from .SpecialViewControllerComponent import DetailViewControllerComponent
 from . import config
 from .SegmentEncoder import SegmentEncoder
 from .MiraGUI import MiraGUI
@@ -155,7 +140,6 @@ class FC200(ControlSurface):
 
         offset = (float(tuner_rack.parameters[1].value) - 64) / 1.
         cents += offset
-        # self.log_message(f'note: {note}, cents: {cents}, offset: {offset}')
 
         binary = 0 if sharp == False else 4 
         tolerance = 3
@@ -491,7 +475,6 @@ class FC200(ControlSurface):
         return
 
     def handle_sysex(self, midi_bytes):
-        self.midi_bytes = midi_bytes
         if midi_bytes[0] != 240:        # SysEx start
             return
         if midi_bytes[1] != 65:         # Roland Manufacturer ID
@@ -540,10 +523,6 @@ class FC200(ControlSurface):
                 self.page_2(body)
                 return
 
-    def _on_param_changed(self):
-        led_status = 0 if self.device.value == 0 else 127
-        self.led_status(0, led_status)
-
     def _page_move(self, direction):
         if not self.settings.MIN_PAGE <= self._page + direction <= self.settings.MAX_PAGE:
             return
@@ -571,8 +550,6 @@ class FC200(ControlSurface):
             return
         pedal_loop = pedal_loops[self.settings.LOOP_MAPPING[body[1]]]
         if pedal_loop.parameters[0].value == 0:
-            # if str(self.settings.LOOP_MAPPING[body[1]]) in self.settings.HIGHLIGHT_NOTES:
-            #     self._send_midi((0x9F, self.settings.HIGHLIGHT_NOTES[str(self.settings.LOOP_MAPPING[body[1]])], 127))
             pedal_loop.parameters[0].value = 1 
             return
         pedal_loop.parameters[0].value = 0 
@@ -588,7 +565,6 @@ class FC200(ControlSurface):
 
     def freeze_control(self, value):
         if self._track is None or self._board is None:
-            # self._send_midi((0xB0, 0, value))
             return
         parameters = self._board.devices[self.settings.LOOP_FREEZE].parameters
         def parameter_1():
@@ -612,7 +588,6 @@ class FC200(ControlSurface):
             self._parameter_control_selected_parameter.value = body[2]
             v = str(self._parameter_control)
             self._expr_display(body[2], v[-1], v[-2] if len(v) > 1 else ' ', 0.5)
-            # self._expr_display(body[2])
             return
 
         # Map CTL pedal to exit parameter_control mode

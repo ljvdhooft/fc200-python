@@ -1,8 +1,6 @@
 class Settings:
     PRESET_FOLDER = "/Users/ljvdhooft/Music/Ableton/User Library/eGit presets/"
-    TRACK = 31
     FORCE_SYSEX = True
-    MAIN_DEVICE = 4
     MIN_PAGE = 0
     MAX_PAGE = 2
     LOOP_MAPPING = [0, 1, 2, 3, 4, 6, 7, 8, 9]

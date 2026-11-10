@@ -8,7 +8,7 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
 - Integration tests: none yet
 
 ### What this does
-Roland FC200 floor pedal → MIDI SysEx → `src/FC200.py` (a `ControlSurface`) drives an audio effect rack on a guitar track (`config.Settings.TRACK`, `MAIN_DEVICE`) to emulate a pedalboard, plus transport/session control. `src/MIDI_Map.py` maps FC200 CCs/notes; `src/SegmentEncoder.py` decodes the pedal's segment-display SysEx.
+Roland FC200 floor pedal → MIDI SysEx → `src/FC200.py` (a `ControlSurface`) drives an audio effect rack (found by its device name, "FC200 Pedalboard", on any track) to emulate a pedalboard, plus transport/session control. `src/SegmentEncoder.py` encodes characters for the pedal's 7-segment display.
 
 ### Preset system (shadow JSON + dummy clip)
 A dummy audio clip on the guitar track's clip slots doubles as a preset slot — its name is the preset name:
