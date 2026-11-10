@@ -9,7 +9,6 @@ from .hardware import FC200Hardware
 from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
 
-import os
 import importlib
 from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
@@ -84,6 +83,7 @@ class FC200(ControlSurface):
                     break
 
     def _setup(self) -> None:
+        self._presets = presets.PresetStore(self.settings.PRESET_FOLDER)
         self._led_status = {}
         for p in range(self.settings.MIN_PAGE, self.settings.MAX_PAGE + 1):
             self._led_status[p] = {}
@@ -210,8 +210,7 @@ class FC200(ControlSurface):
         """
         if self._track is None:
             return
-        scene_index = list(self.song().scenes).index(self.song().view.selected_scene)
-        slot = self._track.clip_slots[scene_index]
+        slot = self._track.clip_slots[self._selected_scene_index]
         if not slot.has_clip:
             # Copy the dummy clip from slot 0; rename it, then store again
             if not self._track.clip_slots[0].has_clip:
@@ -221,19 +220,18 @@ class FC200(ControlSurface):
             return
         name = slot.clip.name
 
-        folder = self.settings.PRESET_FOLDER
-        if not os.path.exists(folder):
+        if not self._presets.available():
             return
 
-        if presets.exists(folder, name) and self._preset_store_confirm is None:
+        if self._presets.exists(name) and self._preset_store_confirm is None:
             self._preset_store_confirm = False
-            self._preset_store_blinking_led = self._hw.blink(se.Pedal.P8, 0.3)
+            self._preset_store_blinking_led = self._hw.blink_loop(se.Pedal.P8, 0.3)
             self.show_message(f"Overwrite preset {name}?")
             return
 
         try:
-            presets.save(folder, name, self._read_preset())
-            presets.write_alc(folder, name)
+            self._presets.save(name, presets.Preset.read(self._pedalboard(), self.settings.LOOP_MAPPING))
+            self._presets.write_alc(name)
         except OSError as e:
             self.log_message(f"Error saving preset {name}: {e}")
             return
@@ -250,30 +248,6 @@ class FC200(ControlSurface):
         self._preset_store_confirm = None
         return True
 
-    def _read_preset(self) -> presets.Preset:
-        """Current state of every mapped loop: its first 8 parameters and selected chain."""
-        preset: presets.Preset = {}
-        for index in self.settings.LOOP_MAPPING:
-            loop = self._loop(index)
-            preset[index] = {
-                "parameters": [loop.parameters[i].value for i in range(8)],
-                "chain": loop.view.selected_chain.name,
-            }
-        return preset
-
-    def _apply_preset(self, preset: presets.Preset) -> None:
-        for index, state in preset.items():
-            loop = self._loop(index)
-            for i, value in enumerate(state["parameters"]):
-                parameter = loop.parameters[i]
-                if parameter.is_enabled:
-                    parameter.value = value
-            if "chain" in state:
-                for chain in loop.chains:
-                    if chain.name == state["chain"]:
-                        loop.view.selected_chain = chain
-                        break
-
     def _load_preset(self) -> None:
         """Apply the preset named after the clip that just started playing, if any."""
         if self._track is None:
@@ -283,13 +257,13 @@ class FC200(ControlSurface):
             return
         name = self._track.clip_slots[slot].clip.name
         try:
-            preset = presets.load(self.settings.PRESET_FOLDER, name)
+            preset = self._presets.load(name)
         except (OSError, ValueError) as e:
             self.log_message(f"Error reading preset {name}: {e}")
             return
         if preset is None:
             return
-        self._tasks.add(Task.run(lambda: self._apply_preset(preset)))
+        self._tasks.add(Task.run(lambda: preset.apply(self._pedalboard())))
 
     def leds_recall(self) -> None:
         for i in self._led_status[self._page]:
@@ -365,10 +339,21 @@ class FC200(ControlSurface):
         self._hw.led(se.Pedal.P6, led_value)
         return
 
+    # Scenes are read from the song on access, so they stay current when scenes
+    # are added or removed. MiraGUI reads these too.
+    @property
+    def _all_scenes(self) -> list[Scene]:
+        return list(self.song().scenes)
+
+    @property
+    def _selected_scene(self) -> Scene:
+        return self.song().view.selected_scene
+
+    @property
+    def _selected_scene_index(self) -> int:
+        return self._all_scenes.index(self._selected_scene)
+
     def _on_selected_scene_changed(self) -> None:
-        self._all_scenes = list(self.song().scenes)
-        self._selected_scene = self.song().view.selected_scene
-        self._selected_scene_index = self._all_scenes.index(self._selected_scene)
         if self._page < 2:
             self._mira.scene_overview()
 
@@ -548,11 +533,12 @@ class FC200(ControlSurface):
         self.song().stop_all_clips()
 
     def start_scene(self) -> None:
-        self._selected_scene.fire()
+        scene = self._selected_scene
+        scene.fire()
         self.move_scene(1)
-        self._fired_scene = self._selected_scene
+        self._fired_scene = scene
         self._mira.scene_overview()
-        self.show_message(f"Fired: {self._selected_scene.name}")
+        self.show_message(f"Fired: {scene.name}")
 
     def move_scene(self, direction: int) -> None:
         new_index = self._selected_scene_index + direction 

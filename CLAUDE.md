@@ -16,9 +16,11 @@ Roland FC200 floor pedal → MIDI SysEx → `src/FC200.py` (a `ControlSurface`) 
 
 ### Preset system (shadow JSON + dummy clip)
 A dummy audio clip on the guitar track's clip slots doubles as a preset slot — its name is the preset name:
-- File handling lives in `src/presets.py` (no Live imports, tested): `save`/`load`/`exists` for `<PRESET_FOLDER>/_json/<clip name>.json`, and `write_alc` for the matching `.alc` clip (from `template.alc.xml`, patched via `xmltodict`) so the dummy clip is importable from Ableton's browser. `Preset` = board device index → `{parameters: [8 floats], chain: <selected chain name>}`.
-- **Store** (`FC200._store_preset`): `_read_preset()` reads the rack, then `presets.save` + `write_alc`. Prompts for confirmation (blinking LED) if a preset with that name already exists; `_cancel_preset_store()` ends a pending confirmation.
-- **Recall** (`FC200._load_preset`): fires on the track's `playing_slot_index` listener — when a clip is launched, `presets.load` looks up `<clip name>.json` and `_apply_preset()` re-applies it to the rack. No-ops if no shadow file matches.
+- `src/presets.py` (no runtime Live imports, tested with fake boards):
+  - `Preset` (dataclass): board device index → `{parameters: [8 floats], chain: <selected chain name>}`; `Preset.read(board, indices)`, `preset.apply(board)`, `to_json`/`from_json`.
+  - `PresetStore(folder)`: `exists`/`save`/`load` for `<PRESET_FOLDER>/_json/<clip name>.json`, and `write_alc` for the matching `.alc` clip (from `template.alc.xml`, patched via `xmltodict`) so the dummy clip is importable from Ableton's browser.
+- **Store** (`FC200._store_preset`): `Preset.read` from the board, then `save` + `write_alc`. Prompts for confirmation (blinking LED) if a preset with that name already exists; `_cancel_preset_store()` ends a pending confirmation.
+- **Recall** (`FC200._load_preset`): fires on the track's `playing_slot_index` listener — when a clip is launched, `load` looks up `<clip name>.json` and `apply`s it to the board. No-ops if no shadow file matches.
 - `PRESET_FOLDER` is set in `src/config.py` (`~/Music/Ableton/User Library/eGit presets`, expanded per user).
 - The `.json` and `.alc` are a loosely coupled pair kept in sync only by this store flow; renaming a clip in Live does **not** rename its shadow file.
 

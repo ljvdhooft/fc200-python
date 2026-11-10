@@ -55,7 +55,7 @@ class FC200Hardware:
             steps += [Task.wait(interval), Task.run(lambda: self.flash(pedal))]
         self._tasks.add(Task.sequence(*steps))
 
-    def blink(self, pedal: se.Pedal, interval: float) -> Task.Task:
+    def blink_loop(self, pedal: se.Pedal, interval: float) -> Task.Task:
         """Blink one LED until the returned task is killed."""
         values = itertools.cycle((se.ON, se.OFF))
         return self._tasks.add(Task.loop(Task.sequence(
