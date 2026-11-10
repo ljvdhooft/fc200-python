@@ -3,16 +3,13 @@ from __future__ import annotations
 from _Framework.ControlSurface import ControlSurface
 from _Framework import Task
 from . import config
+from . import presets
 from . import roland_exclusive as se
 from .hardware import FC200Hardware
 from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
 
-from . import xmltodict
-
-import gzip
 import os
-import json
 import importlib
 from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
@@ -206,149 +203,93 @@ class FC200(ControlSurface):
         self._highlight_tuner_true = True
 
     def _store_preset(self) -> None:
-        def check_preset_exists(preset_file_path):
-            if os.path.exists(preset_file_path):
-                return True
-            return False
+        """Save the board to the preset named after the clip on the selected scene.
 
-        def clip_slot_name(selected_scene_index):
-            clip_slot = self._track.clip_slots[selected_scene_index]
-            if not clip_slot.has_clip:
-                return None
-            return clip_slot.clip.name
-        def copy_clip(selected_scene_index):
-            source = self._track.clip_slots[0]
-            if not source.has_clip:
-                return None
-            source.duplicate_clip_to(self._track.clip_slots[selected_scene_index])
-            return True
-
-        def get_parameter_values_for_preset():
-            preset = {}
-            for d in self.settings.LOOP_MAPPING:
-                preset[d] = {"parameters": []}
-                device = self._loop(d)
-                for i in range(0, 8):
-                    parameter = device.parameters[i]
-                    preset[d]["parameters"].append(parameter.value)
-                selected_chain = device.view.selected_chain
-                preset[d]["chain"] = selected_chain.name
-            return preset
-        def store_dummy_clip(preset_folder, name):
-            template_file = os.path.join(preset_folder, 'template.alc.xml')
-            if not os.path.exists(template_file):
-                return
-
-            with open(template_file, 'r') as t:
-                template = xmltodict.parse(t.read())
-                if template:
-
-                    template_clip = template['Ableton']['LiveSet']['Tracks']['AudioTrack']['DeviceChain']['MainSequencer']['ClipSlotList']['ClipSlot']['ClipSlot']['Value']['AudioClip']
-                    template_clip['Name']['@Value'] = name
-                    template_clip['Color']['@Value'] = 69
-
-                    dummy_clip = xmltodict.unparse(template)
-                    preset_file_name = "{}.alc".format(name)
-                    path = os.path.join(preset_folder, preset_file_name)
-                    with gzip.open(path, 'wb') as f:
-                        f.write(dummy_clip.encode('utf-8'))
-
+        An existing preset asks for confirmation first: the store pedal blinks
+        until it is pressed again (overwrite) or CTL cancels.
+        """
+        if self._track is None:
             return
-
-        def store_preset(preset, preset_folder, name):
-            preset_file_name = "{}.json".format(name)
-            path = os.path.join(preset_folder, "_json", preset_file_name)
-            try:
-                with open(path, 'w') as f:
-                    preset_dict = json.dumps(preset, indent=2)
-                    f.write(preset_dict)
-                    if DEBUG:
-                        self.log_message("saved preset file " + path)
-            except Exception as e:
-                self.log_message("Error saving preset file: " + str(e))
-
-            return
-
-        all_scenes = list(self.song().scenes)
-        selected_scene = self.song().view.selected_scene
-        selected_scene_index = all_scenes.index(selected_scene)
-
-        if clip_slot_name(selected_scene_index) is None:
-            if copy_clip(selected_scene_index) is None:
+        scene_index = list(self.song().scenes).index(self.song().view.selected_scene)
+        slot = self._track.clip_slots[scene_index]
+        if not slot.has_clip:
+            # Copy the dummy clip from slot 0; rename it, then store again
+            if not self._track.clip_slots[0].has_clip:
                 self.show_message('No clip on selected slot')
+                return
+            self._track.clip_slots[0].duplicate_clip_to(slot)
             return
-        clip_name = clip_slot_name(selected_scene_index)
+        name = slot.clip.name
 
-        preset_folder = self.settings.PRESET_FOLDER
-        if not os.path.exists(preset_folder):
-            return None
+        folder = self.settings.PRESET_FOLDER
+        if not os.path.exists(folder):
+            return
 
-        preset_file_name = "{}.json".format(clip_name)
-        preset_file_path = os.path.join(preset_folder, '_json/', preset_file_name)
-
-        if check_preset_exists(preset_file_path) and self._preset_store_confirm is None:
+        if presets.exists(folder, name) and self._preset_store_confirm is None:
             self._preset_store_confirm = False
             self._preset_store_blinking_led = self._hw.blink(se.Pedal.P8, 0.3)
-            self.show_message(f"Overwrite reset {clip_name} ?")
+            self.show_message(f"Overwrite preset {name}?")
             return
-        else:
-            self._preset_store_confirm = True
 
-        if self._preset_store_confirm:
-            preset = get_parameter_values_for_preset()
-            store_preset(preset, preset_folder, clip_name)
-            store_dummy_clip(preset_folder, clip_name)
-            self._preset_store_confirm = None
-            self.show_message("Saved preset: " + str(clip_name))
-            if self._preset_store_blinking_led is not None:
-                self._preset_store_blinking_led.kill()
-                self._preset_store_blinking_led = None
-            self._tasks.add(Task.sequence(Task.wait(0.3), Task.run(lambda: self._hw.flash(se.Pedal.P8)), Task.wait(0.1), Task.run(lambda: self._hw.flash(se.Pedal.P8)), Task.run(lambda: self._hw.flash(se.Pedal.P8)), Task.wait(0.1), Task.run(lambda: self._hw.flash(se.Pedal.P8))))
+        try:
+            presets.save(folder, name, self._read_preset())
+            presets.write_alc(folder, name)
+        except OSError as e:
+            self.log_message(f"Error saving preset {name}: {e}")
+            return
+        self._cancel_preset_store()
+        self.show_message(f"Saved preset: {name}")
+        self._hw.flash_repeatedly(se.Pedal.P8, 3)
+
+    def _cancel_preset_store(self) -> bool:
+        """Stop a pending overwrite confirmation. Return True if one was pending."""
+        if self._preset_store_blinking_led is None:
+            return False
+        self._preset_store_blinking_led.kill()
+        self._preset_store_blinking_led = None
+        self._preset_store_confirm = None
+        return True
+
+    def _read_preset(self) -> presets.Preset:
+        """Current state of every mapped loop: its first 8 parameters and selected chain."""
+        preset: presets.Preset = {}
+        for index in self.settings.LOOP_MAPPING:
+            loop = self._loop(index)
+            preset[index] = {
+                "parameters": [loop.parameters[i].value for i in range(8)],
+                "chain": loop.view.selected_chain.name,
+            }
+        return preset
+
+    def _apply_preset(self, preset: presets.Preset) -> None:
+        for index, state in preset.items():
+            loop = self._loop(index)
+            for i, value in enumerate(state["parameters"]):
+                parameter = loop.parameters[i]
+                if parameter.is_enabled:
+                    parameter.value = value
+            if "chain" in state:
+                for chain in loop.chains:
+                    if chain.name == state["chain"]:
+                        loop.view.selected_chain = chain
+                        break
 
     def _load_preset(self) -> None:
-        def load_preset(clip_name):
-            preset_folder = self.settings.PRESET_FOLDER
-            preset_file_name = "{}.json".format(clip_name)
-            preset_file_path = os.path.join(preset_folder, '_json/', preset_file_name)
-
-            if not os.path.exists(preset_file_path):
-                return None
-
-            try:
-                with open(preset_file_path, 'r') as f:
-                    data = f.read()
-                    preset_dict = json.loads(data)
-                    return preset_dict
-            except Exception as e:
-                self.log_message("Error reading preset file: " + str(e))
-
-        def apply_preset(preset):
-            for device in preset:
-                d = preset[device]
-                parameters = d['parameters']
-                for p, v in enumerate(parameters):
-                    parameter = self._loop(int(device)).parameters[int(p)]
-                    if not parameter.is_enabled:
-                        continue
-                    parameter.value = v
-                if "chain" in d:
-                    chains = self._loop(int(device)).chains
-                    for c in chains:
-                        if c.name == d["chain"]:
-                            self._loop(int(device)).view.selected_chain = c
-                            break 
-            return
-
+        """Apply the preset named after the clip that just started playing, if any."""
         if self._track is None:
             return
         slot = self._track.playing_slot_index
         if slot < 0:
             return
-        clip_name = self._track.clip_slots[slot].clip.name
-        preset = load_preset(clip_name)
+        name = self._track.clip_slots[slot].clip.name
+        try:
+            preset = presets.load(self.settings.PRESET_FOLDER, name)
+        except (OSError, ValueError) as e:
+            self.log_message(f"Error reading preset {name}: {e}")
+            return
         if preset is None:
             return
-        self._tasks.add(Task.run(lambda: apply_preset(preset)))
+        self._tasks.add(Task.run(lambda: self._apply_preset(preset)))
 
     def leds_recall(self) -> None:
         for i in self._led_status[self._page]:
@@ -630,20 +571,13 @@ class FC200(ControlSurface):
         if se.pressed(body, se.Pedal.UP):
             self._page_move(1)
             self._hw.flash(se.Pedal.UP)
-            if self._preset_store_blinking_led is not None:
-                self._preset_store_blinking_led.kill()
-                self._preset_store_blinking_led = None
-                self._preset_store_confirm = None
+            self._cancel_preset_store()
             return
         # Page DOWN
         if se.pressed(body, se.Pedal.DOWN):
             self._page_move(-1)
             self._hw.flash(se.Pedal.DOWN)
-            if self._preset_store_blinking_led is not None:
-                self._preset_store_blinking_led.kill()
-                self._preset_store_blinking_led = None
-                self._preset_store_confirm = None
-
+            self._cancel_preset_store()
             return
         # Expression pedal calls volume_control
         if se.changed(body, se.Pedal.EXP):
@@ -652,10 +586,7 @@ class FC200(ControlSurface):
             return
         # CTL button calls tap_tempo
         if se.pressed(body, se.Pedal.CTL):
-            if self._preset_store_blinking_led is not None:
-                self._preset_store_blinking_led.kill()
-                self._preset_store_blinking_led = None
-                self._preset_store_confirm = None
+            if self._cancel_preset_store():
                 self.show_message("Cancelled saving preset!")
                 self._hw.led(se.Pedal.P8, se.OFF)
                 return

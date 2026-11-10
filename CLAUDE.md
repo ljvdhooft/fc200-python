@@ -16,8 +16,9 @@ Roland FC200 floor pedal → MIDI SysEx → `src/FC200.py` (a `ControlSurface`) 
 
 ### Preset system (shadow JSON + dummy clip)
 A dummy audio clip on the guitar track's clip slots doubles as a preset slot — its name is the preset name:
-- **Store** (`FC200._store_preset`): reads current values of all chain devices' parameters from the rack, writes them to `<PRESET_FOLDER>/_json/<clip name>.json`, and generates a matching `.alc` clip file (from `template.alc.xml`, patched via `xmltodict`) so the dummy clip is importable from Ableton's browser. Prompts for confirmation (blinking LED) if a preset with that name already exists.
-- **Recall** (`FC200._load_preset`): fires on the track's `playing_slot_index` listener — when a clip is launched, it looks up `<clip name>.json` and re-applies the saved parameter values to the rack. No-ops if no shadow file matches.
+- File handling lives in `src/presets.py` (no Live imports, tested): `save`/`load`/`exists` for `<PRESET_FOLDER>/_json/<clip name>.json`, and `write_alc` for the matching `.alc` clip (from `template.alc.xml`, patched via `xmltodict`) so the dummy clip is importable from Ableton's browser. `Preset` = board device index → `{parameters: [8 floats], chain: <selected chain name>}`.
+- **Store** (`FC200._store_preset`): `_read_preset()` reads the rack, then `presets.save` + `write_alc`. Prompts for confirmation (blinking LED) if a preset with that name already exists; `_cancel_preset_store()` ends a pending confirmation.
+- **Recall** (`FC200._load_preset`): fires on the track's `playing_slot_index` listener — when a clip is launched, `presets.load` looks up `<clip name>.json` and `_apply_preset()` re-applies it to the rack. No-ops if no shadow file matches.
 - `PRESET_FOLDER` is set in `src/config.py` (`~/Music/Ableton/User Library/eGit presets`, expanded per user).
 - The `.json` and `.alc` are a loosely coupled pair kept in sync only by this store flow; renaming a clip in Live does **not** rename its shadow file.
 

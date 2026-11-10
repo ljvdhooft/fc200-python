@@ -48,6 +48,13 @@ class FC200Hardware:
             Task.run(lambda: self.led(pedal, se.OFF))
         ))
 
+    def flash_repeatedly(self, pedal: se.Pedal, times: int, interval: float = 0.2) -> None:
+        """Flash one LED `times` times, `interval` seconds apart."""
+        steps: list[Task.Task] = []
+        for _ in range(times):
+            steps += [Task.wait(interval), Task.run(lambda: self.flash(pedal))]
+        self._tasks.add(Task.sequence(*steps))
+
     def blink(self, pedal: se.Pedal, interval: float) -> Task.Task:
         """Blink one LED until the returned task is killed."""
         values = itertools.cycle((se.ON, se.OFF))
