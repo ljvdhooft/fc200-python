@@ -15,6 +15,9 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
 ### What this does
 Roland FC200 floor pedal → MIDI SysEx → `src/FC200.py` (a `ControlSurface`) drives an audio effect rack (found by its device name, "FC200 Pedalboard", on any track) to emulate a pedalboard, plus transport/session control. `src/roland_exclusive.py` (no Live imports) holds the Roland Exclusive (DT1) format, the FC-200 address map and the bank display segment encoding; `src/hardware.py` drives the LEDs, bank display and mode. Names follow the FC-200 manual (pp. 39-44, `~/Documents/02 DEV - Max/FC200 Programming/FC-200 manual.pdf`).
 
+### Pages (`src/pages.py`)
+`FC200.handle_sysex` parses the message and hands it to the active `Mode`. The pages are `TransportPage` (0: transport, scenes, presets, ForScore), `LoopsPage` (1: loop on/off, freeze) and `FavoritesPage` (2: one favorite parameter per loop). `ParameterControl` takes over page 2 to edit one loop's macros and chains. Shared behaviour lives in `Page.handle`: bank pedals change the page, EXP sets the volume, CTL taps the tempo. Pages override the hooks they need. Each mode owns its state and cleans up in `on_exit()`; each page keeps its own LED state (`page.leds`, shown by `set_led` only while active). Pages have no runtime Live imports and are tested with a fake surface (`tests/test_pages.py`).
+
 ### Preset system (shadow JSON + dummy clip)
 A dummy audio clip on the guitar track's clip slots doubles as a preset slot — its name is the preset name:
 - `src/presets.py` (no runtime Live imports, tested with fake boards):

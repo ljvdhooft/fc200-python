@@ -3,6 +3,7 @@ from __future__ import annotations
 from _Framework.ControlSurface import ControlSurface
 from _Framework import Task
 from . import config
+from . import pages
 from . import presets
 from . import roland_exclusive as se
 from .hardware import FC200Hardware
@@ -12,13 +13,13 @@ from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
 
 import importlib
+from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     # Type-only: resolved from stubs/, never imported at runtime
     from Live.Chain import Chain
-    from Live.Device import Device
     from Live.DeviceParameter import DeviceParameter
     from Live.RackDevice import RackDevice
     from Live.Scene import Scene
@@ -28,24 +29,14 @@ DEBUG = False
 
 
 class FC200(ControlSurface):
-    _page: int
+    _page: int                              # index into _pages
     # None when no pedalboard is found; handlers check that at runtime
     _track: Track | None
     _board: Chain | None                    # chain 0 of the "FC200 Pedalboard" rack
-    _led_status: dict[int, dict[se.Pedal, int]]   # page -> pedal -> LED value
     _fired_scene: Scene | None
     _presets: presets.PresetManager | None  # None without a pedalboard
-    _favorite_parameter: DeviceParameter | None
-    _favorite_parameter_pedal: se.Pedal | None
-    _parameter_control: int | None          # board device index
-    _parameter_control_selected: se.Pedal | None
-    _parameter_control_selected_pedal: se.Pedal | None
-    _parameter_control_selected_parameter: DeviceParameter | None
-    _parameter_control_chains: list[Chain] | None
-    _parameter_control_selected_chain: Chain | None
-    _parameter_control_selected_chain_index: int | None
-    _parameter_control_blink: Task.Task | None
-    blink_leds_value: int
+    _pages: list[pages.Page]
+    _mode: pages.Mode                       # receives the pedal events
 
     def __init__(self, c_instance: object) -> None:
         super(FC200, self).__init__(c_instance)
@@ -100,6 +91,13 @@ class FC200(ControlSurface):
     def _selected_scene_index(self) -> int:
         return self._all_scenes.index(self._selected_scene)
 
+    @property
+    def _parameter_control(self) -> int | None:
+        """Board device index being edited in ParameterControl, if any. MiraGUI reads this."""
+        if isinstance(self._mode, pages.ParameterControl):
+            return self._mode.device_index
+        return None
+
     # --- Setup ----------------------------------------------------------------
 
     def _setup_track(self) -> None:
@@ -123,10 +121,11 @@ class FC200(ControlSurface):
 
     def _setup(self) -> None:
         self._presets = None
-        self._led_status = {}
-        for p in range(self.settings.MIN_PAGE, self.settings.MAX_PAGE + 1):
-            self._led_status[p] = {}
-        self._hw.set_bank_display(' ', self._page)
+        self._transport_page = pages.TransportPage(self)
+        self._loops_page = pages.LoopsPage(self)
+        self._favorites_page = pages.FavoritesPage(self)
+        self._pages = [self._transport_page, self._loops_page, self._favorites_page]
+        self._mode = self._pages[self._page]
 
         # Page 0: transport LEDs and the scene overview
         self._listeners.add(self.song(), "is_playing", self._on_is_playing_changed)
@@ -135,20 +134,9 @@ class FC200(ControlSurface):
 
         self._fired_scene = None
         self._highlight_tuner_true = False
-        self._favorite_parameter = None
-        self._favorite_parameter_pedal = None
-        self._parameter_control = None
-        self._parameter_control_selected = None
-        self._parameter_control_selected_pedal = None
-        self._parameter_control_selected_parameter = None
-        self._parameter_control_chains = None
-        self._parameter_control_selected_chain = None
-        self._parameter_control_selected_chain_index = None
-        self._parameter_control_blink = None
         self._on_is_playing_changed()
         self._on_metronome_changed()
         self._on_selected_scene_changed()
-        self._hw.leds_off()
 
         if self._has_pedalboard:
             track = self._board_track()
@@ -166,12 +154,13 @@ class FC200(ControlSurface):
                 self._hw, se.Pedal.P8, self.show_message, lambda: self._page, store_page=0))
 
             self._add_loop_listeners()
-            self._init_leds()
-            self.leds_recall()
+
+        self._redraw()
 
     def _reload_config(self) -> None:
         importlib.reload(config)
         self.settings = config.Settings()
+        self._mode.on_exit()
         self._listeners.remove_all()
         if self._presets is not None:
             self._presets.disconnect()
@@ -182,16 +171,108 @@ class FC200(ControlSurface):
             if not key.startswith('__'):
                 self.log_message(f"{key}: {value}")
 
+    # --- Pages ----------------------------------------------------------------
+
+    def handle_sysex(self, midi_bytes: tuple[int, ...]) -> None:
+        body = se.parse(midi_bytes)
+        if DEBUG:
+            self.log_message(f"\nReceived SysEx: {midi_bytes}\nbody {body}")
+        if body is None:
+            return
+
+        if self.settings.FORCE_SYSEX and self._hw.force_exclusive_mode(body):
+            self._redraw()
+            if DEBUG:
+                self.log_message("Set to sysex mode")
+        self._mode.handle(body)
+
+    def _move_page(self, direction: int) -> None:
+        """Go to the next or previous page. At the first or last page, the page is
+        re-entered, which still drops its state (favorite, pending preset)."""
+        index = self._page + direction
+        if not self.settings.MIN_PAGE <= index <= self.settings.MAX_PAGE:
+            self._show_page(self._page, announce=False)
+            return
+        self._show_page(index)
+
+    def _show_page(self, index: int, announce: bool = True) -> None:
+        self._mode.on_exit()
+        self._page = index
+        self._redraw()
+        if announce:
+            self.show_message(f"Page {self._page}")
+        if DEBUG:
+            self.log_message(f"Page changed to {self._page}")
+        self._mode = self._pages[index]
+        self._mode.on_enter()
+
+    def _set_mode(self, mode: pages.Mode) -> None:
+        self._mode.on_exit()
+        self._mode = mode
+        mode.on_enter()
+
+    def _redraw(self) -> None:
+        """LEDs and bank display for the current page."""
+        self._hw.leds_off()
+        for pedal, value in self._pages[self._page].leds.items():
+            self._hw.led(pedal, value)
+        self._hw.set_bank_display(' ', self._page)
+
+    def _after(self, seconds: float, fn: Callable[[], None]) -> None:
+        self._tasks.add(Task.sequence(Task.wait(seconds), Task.run(fn)))
+
+    def _every(self, seconds: float, fn: Callable[[], None]) -> Task.Task:
+        """Run fn every `seconds` until the returned task is killed."""
+        return self._tasks.add(Task.loop(Task.sequence(Task.wait(seconds), Task.run(fn))))
+
+    # --- Listeners ------------------------------------------------------------
+
+    def _add_loop_listeners(self) -> None:
+        """Page 1: a loop's on/off parameter drives its pedal LED."""
+        def update_led(pedal: se.Pedal, parameter: DeviceParameter) -> None:
+            if DEBUG:
+                self.log_message(f"{parameter.name} changed, updating LED {pedal}")
+            self._loops_page.set_led(pedal, 127 if str(parameter) == "On" else 0)
+            if isinstance(self._mode, pages.FavoritesPage):
+                self._mira.page_2()
+            elif isinstance(self._mode, pages.ParameterControl):
+                self._mira.parameter_control()
+
+        for index, loop in enumerate(self.settings.LOOP_MAPPING):
+            pedal = se.Pedal(index)
+            parameter = self._loop(loop).parameters[0]
+            self._loops_page.leds[pedal] = 127 if parameter.value else 0
+            self._listeners.add(parameter, "value", partial(update_led, pedal, parameter))
+
+    def _on_is_playing_changed(self) -> None:
+        self._transport_page.set_led(se.Pedal.P1, 127 if self.song().is_playing else 0)
+
+    def _on_metronome_changed(self) -> None:
+        self._transport_page.set_led(se.Pedal.P6, 127 if self.song().metronome else 0)
+
+    def _on_selected_scene_changed(self) -> None:
+        if self._page < 2:
+            self._mira.scene_overview()
+
+    # --- Volume and tuner -----------------------------------------------------
+
+    def _volume_control(self, value: int) -> None:
+        if not self._has_pedalboard:
+            self._send_midi((0xB0, 0, value))
+            return
+        self._volume_param.value = value
+        self._volume = value
+
     def _display_tuner(self) -> None:
         if self._volume > 0:
             return
-        if self._favorite_parameter is not None or self._parameter_control is not None:
+        if not self._mode.shows_tuner:
             return
         note = int(self._tuner_device.parameters[2].value) % 12
         cents: float = int(self._tuner_device.parameters[1].value) - 50
         notes = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
         note_a = notes[note]
-        sharp = False 
+        sharp = False
         if len(note_a) == 2:
             note_a = note_a[0]
             sharp = True
@@ -199,7 +280,7 @@ class FC200(ControlSurface):
         offset = (float(self._tuner_rack.parameters[1].value) - 64) / 1.
         cents += offset
 
-        binary = 0 if sharp == False else 4 
+        binary = 0 if sharp == False else 4
         tolerance = 3
         if (tolerance * -1) < cents < tolerance:
             binary += 64
@@ -223,458 +304,10 @@ class FC200(ControlSurface):
         self._oscremote._send_osc(f"/remote/note/{self.settings.HIGHLIGHT_NOTES['tuner']}/1", 127)
         self._highlight_tuner_true = True
 
-
-    def leds_recall(self) -> None:
-        for i in self._led_status[self._page]:
-            self._hw.led(i, self._led_status[self._page][i])
-
-    def blink_leds(self) -> None:
-        # Pedals 1-4 and 6-9, as in parameter_control
-        for pedal in se.NUMBER_PEDALS:
-            if pedal in (se.Pedal.P5, se.Pedal.P10):
-                continue
-            if pedal == self._parameter_control_selected:
-                self._hw.led(pedal, 127)
-                continue
-            self._hw.led(pedal, self.blink_leds_value)
-        self.blink_leds_value = 0 if self.blink_leds_value == 127 else 127
-
-    def _expr_display(self, value: int, timeout: float = 1) -> None:
-        v = str(int(value / 127 * 99)).zfill(2)
-        self._hw.set_bank_display_temp(se.segments(v[0]), se.segments(v[1]), timeout)
-
-    def _add_loop_listeners(self) -> None:
-        """Page 1: a loop's on/off parameter drives its pedal LED."""
-        def update_led(pedal: se.Pedal, parameter: DeviceParameter) -> None:
-            if DEBUG:
-                self.log_message(f"{parameter.name} changed, updating LED {pedal}")
-            led_value = 127 if str(parameter) == "On" else 0
-            self._led_status[1][pedal] = led_value
-            if self._page == 2 and self._parameter_control is None:
-                self._mira.page_2()
-            if self._parameter_control is not None:
-                self._mira.parameter_control()
-
-            if self._page != 1:
-                return
-            self._hw.led(pedal, led_value)
-
-        for index, loop in enumerate(self.settings.LOOP_MAPPING):
-            parameter = self._loop(loop).parameters[0]
-            self._listeners.add(parameter, "value", partial(update_led, se.Pedal(index), parameter))
-
-    def _on_is_playing_changed(self) -> None:
-        is_playing = self.song().is_playing 
-        led_value = 127 if is_playing else 0
-        self._led_status[0][se.Pedal.P1] = led_value
-        if self._page != 0:
-            return
-        self._hw.led(se.Pedal.P1, led_value)
-        return
-
-    def _on_metronome_changed(self) -> None:
-        self._metronome_state = self.song().metronome
-        led_value = 127 if self._metronome_state else 0
-        self._led_status[0][se.Pedal.P6] = led_value
-        if self._page != 0:
-            return
-        self._hw.led(se.Pedal.P6, led_value)
-        return
-
-    def _on_selected_scene_changed(self) -> None:
-        if self._page < 2:
-            self._mira.scene_overview()
-
-    def _init_leds(self) -> None:
-        for index, loop in enumerate(self.settings.LOOP_MAPPING):
-            parameter = self._loop(loop).parameters[0]
-            value = parameter.value
-            led_value = 127 if value else 0
-            self._led_status[1][se.Pedal(index)] = led_value
-        return
-
-    def handle_sysex(self, midi_bytes: tuple[int, ...]) -> None:
-        body = se.parse(midi_bytes)
-        if DEBUG:
-            self.log_message(f"\nReceived SysEx: {midi_bytes}\nbody {body}")
-        if body is None:
-            return
-
-        if self.settings.FORCE_SYSEX and self._hw.force_exclusive_mode(body):
-            # Redraw LEDs and display for the current page
-            self._page_move(0)
-            if DEBUG:
-                self.log_message("Set to sysex mode")
-        if self._parameter_control is not None:
-            self.parameter_control(body)
-            return
-        if self._page == 0:
-            self.page_0(body)
-            return
-        if self._page == 1:
-            self.page_1(body)
-            return
-        if self._page == 2:
-            self.page_2(body)
-            return
-
-    def _page_move(self, direction: int) -> None:
-        if not self.settings.MIN_PAGE <= self._page + direction <= self.settings.MAX_PAGE:
-            return
-        self._page += direction
-        self._hw.leds_off()
-        self.leds_recall()
-        self._hw.set_bank_display(' ', self._page)
-        self.show_message(f"Page {self._page}")
-        if DEBUG:
-            self.log_message(f"Page changed to {self._page}")
-
-        if self._page < 2:
-            self._mira.scene_overview()
-            self._mira.highlight_parameter(-1)
-            return
-        if self._page == 2:
-            self._mira.page_2()
-            self._mira.highlight_parameter(-1)
-            return
-
-    def toggle_device(self, body: se.Body) -> None:
-        if body[1] >= len(self.settings.LOOP_MAPPING):
-            return
-        pedal_loop = self._loop(self.settings.LOOP_MAPPING[body[1]])
-        if pedal_loop.parameters[0].value == 0:
-            pedal_loop.parameters[0].value = 1 
-            return
-        pedal_loop.parameters[0].value = 0 
-        return
-
-    def volume_control(self, value: int) -> None:
-        if not self._has_pedalboard:
-            self._send_midi((0xB0, 0, value))
-            return
-        self._volume_param.value = value
-        self._volume = value
-
-    def freeze_control(self, value: int) -> None:
-        if not self._has_pedalboard:
-            return
-        parameters = self._loop(self.settings.LOOP_FREEZE).parameters
-        def parameter_1():
-            parameters[1].value = value
-        def parameter_2():
-            parameters[2].value = value
-        self._tasks.add(Task.sequence(Task.run(lambda: parameter_1()), Task.wait(0.5), Task.run(lambda: parameter_2())))
-
-    def favorite_parameter(self, body: se.Body) -> None:
-        pedal = se.Pedal(body[1])
-        parameter = self._loop(self.settings.LOOP_MAPPING[pedal]).parameters[self.settings.FAVORITE_PARAMETERS[pedal]]
-        self._favorite_parameter_pedal = pedal
-        self._favorite_parameter = parameter
-        self._hw.leds_off()
-        self._hw.led(pedal, 127)
-        return
-
-    def parameter_control(self, body: se.Body) -> None:
-        if self._parameter_control is None:
-            return
-        rack = self._loop(self._parameter_control)
-
-        # Map expression pedal to parameter_control selected parameter
-        if se.changed(body, se.Pedal.EXP) and self._parameter_control_selected_parameter is not None:
-            self._parameter_control_selected_parameter.value = body[2]
-            self._expr_display(body[2], 0.5)
-            return
-
-        # Map CTL pedal to exit parameter_control mode
-        if se.released(body, se.Pedal.CTL):
-            return
-        if se.pressed(body, se.Pedal.CTL) and self._parameter_control_blink is not None:
-            self._parameter_control = None
-            self._parameter_control_selected = None
-            self._parameter_control_selected_pedal = None
-            self._parameter_control_selected_parameter = None
-            self._parameter_control_chains = None
-            self._parameter_control_selected_chain = None
-            self._parameter_control_selected_chain_index = None
-            self._parameter_control_blink.kill()
-            self._parameter_control_blink = None
-            self._hw.leds_off()
-            self._hw.flash(se.Pedal.CTL)
-            self._hw.set_bank_display(' ', self._page)
-            self._mira.page_2()
-            self._mira.highlight_parameter(-1)
-            return
-
-        # Map bank up pedal to select different chains
-        if se.pressed(body, se.Pedal.UP) and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
-            if self._parameter_control_selected_chain_index <= 0:
-                return
-            rack.view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index - 1]
-            self._parameter_control_selected_chain_index -= 1
-            self._hw.flash(se.Pedal.UP)
-            return
-        # Map bank down pedal to select different chains
-        if se.pressed(body, se.Pedal.DOWN) and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
-            if self._parameter_control_selected_chain_index >= len(self._parameter_control_chains) - 1:
-                return
-            rack.view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index + 1]
-            self._parameter_control_selected_chain_index += 1
-            self._hw.flash(se.Pedal.DOWN)
-            return
-
-        # Initialize parameter_control mode with blinking
-        if not self._parameter_control_selected and self._parameter_control_blink is None:
-            self._favorite_parameter = None
-            self._favorite_parameter_pedal = None
-            self._parameter_control_chains = list(rack.chains)
-            self._parameter_control_selected_chain = rack.view.selected_chain
-            self._parameter_control_selected_chain_index = self._parameter_control_chains.index(rack.view.selected_chain)
-            self.blink_leds_value = 127
-            self.blink_leds()
-            v = str(self._parameter_control).rjust(2)
-            self._hw.set_bank_display(v[-2], v[-1])
-            self._parameter_control_blink = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.5), Task.run(self.blink_leds))))
-            self._mira.parameter_control()
-            self._mira.highlight_parameter(-1)
-            return
-
-        # Map pedals 1-4 and 6-9 to parameters (macros)
-        if se.number_pedal_pressed(body) and body[1] not in (se.Pedal.P5, se.Pedal.P10):
-            parameter_index = (body[1] - 4) if body[1] >= 5 else body[1] + 5
-            self._parameter_control_selected = se.Pedal(body[1])
-            self._parameter_control_selected_parameter = rack.parameters[parameter_index]
-
-            self.show_message(f"{rack.name} - {self._parameter_control_selected_parameter.name}")
-            self._hw.led(self._parameter_control_selected, 127)
-            self._mira.highlight_parameter(body[1])
-
-    def tap_tempo(self) -> None:
-        self.song().tap_tempo()
-
-    def start_button(self) -> None:
-        self.song().start_playing()
-
-    def stop_button(self) -> None:
-        self.song().stop_playing()
-
-    def stop_all(self) -> None:
-        self.song().stop_all_clips()
-
-    def start_scene(self) -> None:
-        scene = self._selected_scene
-        scene.fire()
-        self.move_scene(1)
-        self._fired_scene = scene
-        self._mira.scene_overview()
-        self.show_message(f"Fired: {scene.name}")
-
-    def move_scene(self, direction: int) -> None:
-        new_index = self._selected_scene_index + direction 
-        if 0 <= new_index < len(self._all_scenes):
-            self.song().view.selected_scene = self._all_scenes[new_index]
-            new_name = self._all_scenes[new_index].name
-            self.show_message(f"Scene: {new_name}")
-        return
-
-    def toggle_click(self) -> None:
-        self.song().metronome = not self.song().metronome
-        return
-
-    def page_0(self, body: se.Body) -> None:
-        # Page UP
-        if se.pressed(body, se.Pedal.UP):
-            self._page_move(1)
-            self._hw.flash(se.Pedal.UP)
-            if self._presets is not None:
-                self._presets.cancel()
-            return
-        # Page DOWN
-        if se.pressed(body, se.Pedal.DOWN):
-            self._page_move(-1)
-            self._hw.flash(se.Pedal.DOWN)
-            if self._presets is not None:
-                self._presets.cancel()
-            return
-        # Expression pedal calls volume_control
-        if se.changed(body, se.Pedal.EXP):
-            self.volume_control(body[2])
-            self._expr_display(body[2])
-            return
-        # CTL button calls tap_tempo
-        if se.pressed(body, se.Pedal.CTL):
-            if self._presets is not None and self._presets.cancel():
-                return
-            self.tap_tempo()
-            self._hw.flash(se.Pedal.CTL)
-            return
-        # Ableton "start" button
-        if se.pressed(body, se.Pedal.P1):
-            self.start_button()
-            return
-        # Ableton "stop" button and stop all clips
-        if se.pressed(body, se.Pedal.P2):
-            self.stop_button()
-            self.stop_all()
-            self._hw.flash(se.Pedal.P2)
-            return
-        # Ableton start scene
-        if se.pressed(body, se.Pedal.P3):
-            self.start_scene()
-            self._hw.flash(se.Pedal.P3)
-            return
-        # Ableton scene down
-        if se.pressed(body, se.Pedal.P4):
-            self.move_scene(1)
-            self._hw.flash(se.Pedal.P4)
-            return
-        # Ableton scene up
-        if se.pressed(body, se.Pedal.P5):
-            self.move_scene(-1)
-            self._hw.flash(se.Pedal.P5)
-            return
-        # Ableton click on/off
-        if se.pressed(body, se.Pedal.P6):
-            self.toggle_click()
-            return
-        # Start scene and stop immediately (recall preset)
-        if se.pressed(body, se.Pedal.P7):
-            if not self._has_pedalboard:
-                return
-            if self._metronome_state:
-                self.toggle_click()
-                self.start_scene()
-                self._tasks.add(
-                    Task.sequence(
-                        Task.wait(0.1),
-                        Task.run(self.stop_button),
-                        Task.run(self.stop_all),
-                        Task.run(self.toggle_click)
-                    )
-                )
-                return
-            self.start_scene()
-            self._tasks.add(
-                Task.sequence(
-                    Task.wait(0.1),
-                    Task.run(self.stop_button),
-                    Task.run(self.stop_all),
-                )
-            )
-            self._hw.flash(se.Pedal.P7)
-            return
-        # Store preset
-        if se.pressed(body, se.Pedal.P8):
-            if self._presets is None:
-                return
-            self._presets.store(self._selected_scene_index)
-            self._hw.flash(se.Pedal.P8)
-            return
-        # ForScore prev page
-        if se.pressed(body, se.Pedal.P9):
-            self._tasks.add(
-                Task.sequence(
-                    Task.run(lambda: self._oscremote._send_osc(f"/remote/pc/{self.settings.FORSCORE_PREV_PAGE}/2", 127)),
-                    Task.run(lambda: self._hw.flash(se.Pedal.P9))
-                )
-            )
-            return
-        # ForScore next page
-        if se.pressed(body, se.Pedal.P10):
-            self._tasks.add(
-                Task.sequence(
-                    Task.run(lambda: self._oscremote._send_osc(f"/remote/pc/{self.settings.FORSCORE_NEXT_PAGE}/2", 127)),
-                    Task.run(lambda: self._hw.flash(se.Pedal.P10))
-                )
-            )
-            return
-
-    def page_1(self, body: se.Body) -> None:
-        # Page UP
-        if se.pressed(body, se.Pedal.UP):
-            self._page_move(1)
-            self._hw.flash(se.Pedal.UP)
-            return
-        # Page DOWN
-        if se.pressed(body, se.Pedal.DOWN):
-            self._page_move(-1)
-            self._hw.flash(se.Pedal.DOWN)
-            return
-        # Expression pedal calls volume_control
-        if se.changed(body, se.Pedal.EXP):
-            self.volume_control(body[2])
-            self._expr_display(body[2])
-            return
-        # Pedal on the FOOT SW/EXP 1 jack calls freeze_control
-        if se.changed(body, se.Pedal.FOOT_SW_EXP_1):
-            self.freeze_control(body[2])
-            return
-        # CTL button calls tap_tempo
-        if se.pressed(body, se.Pedal.CTL):
-            self.tap_tempo()
-            self._hw.flash(se.Pedal.CTL)
-            return
-        # Toggle Device On/Off for pedals 1 thru 10
-        if se.number_pedal_pressed(body):
-            if not self._has_pedalboard:
-                return
-            self.toggle_device(body)
-            return
-
-    def page_2(self, body: se.Body) -> None:
-        # Page UP
-        if se.pressed(body, se.Pedal.UP):
-            self._favorite_parameter = None
-            self._favorite_parameter_pedal = None
-            self._page_move(1)
-            self._hw.flash(se.Pedal.UP)
-            return
-        # Page DOWN
-        if se.pressed(body, se.Pedal.DOWN):
-            self._favorite_parameter = None
-            self._favorite_parameter_pedal = None
-            self._page_move(-1)
-            self._hw.flash(se.Pedal.DOWN)
-            return
-        # Expression pedal calls volume_control
-        if se.changed(body, se.Pedal.EXP) and self._favorite_parameter is None and self._parameter_control is None:
-            self.volume_control(body[2])
-            self._expr_display(body[2])
-            return
-        # Device full parameter mode
-        if self._favorite_parameter and self._favorite_parameter_pedal is not None and se.pressed(body, self._favorite_parameter_pedal):
-            if not self._has_pedalboard:
-                return
-            self._parameter_control = self.settings.LOOP_MAPPING[body[1]]
-            self.parameter_control(body)
-            return
-        # Exit favorite parameter control
-        if se.pressed(body, se.Pedal.CTL) and self._favorite_parameter is not None:
-            if not self._has_pedalboard:
-                return
-            self._favorite_parameter = None
-            self._favorite_parameter_pedal = None
-            self._hw.leds_off()
-            self._hw.flash(se.Pedal.CTL)
-            self._mira.highlight_parameter(-1)
-            return
-        # Control favorite parameter when selected with pedal
-        if self._favorite_parameter and se.changed(body, se.Pedal.EXP):
-            if not self._has_pedalboard:
-                return
-            self._favorite_parameter.value = body[2]
-            self._expr_display(body[2])
-            return
-        # Device favorite parameter mode
-        if se.number_pedal_pressed(body):
-            if not self._has_pedalboard:
-                return
-            self.favorite_parameter(body)
-            self._mira.highlight_parameter(body[1])
-            return
-
     def disconnect(self) -> None:
         """Clean up when the script is unloaded."""
         self.log_message(f"Removing {len(self._listeners) + len(self._script_listeners)} listeners...")
+        self._mode.on_exit()
         if self._presets is not None:
             self._presets.disconnect()
         self._listeners.remove_all()
