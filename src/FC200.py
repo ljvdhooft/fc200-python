@@ -1,7 +1,8 @@
 from _Framework.ControlSurface import ControlSurface
 from _Framework import Task
 from . import config
-from .SegmentEncoder import SegmentEncoder
+from . import fc200_protocol as fc
+from .hardware import FC200Hardware
 from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
 
@@ -19,6 +20,7 @@ class FC200(ControlSurface):
     def __init__(self, c_instance):
         super(FC200, self).__init__(c_instance)
         self.settings = config.Settings()
+        self._hw = FC200Hardware(self._send_midi, self._tasks, self.log_message if DEBUG else None)
         self._setup_track()
         self._mira = MiraGUI(self, self._track_index, self._device_index)
         self._oscremote = OSCremote(self)
@@ -54,8 +56,7 @@ class FC200(ControlSurface):
         self._led_status = {}
         for p in range(self.settings.MIN_PAGE, self.settings.MAX_PAGE + 1):
             self._led_status[p] = {}
-        self.display(1, "")
-        self.display(0, self._page)
+        self._hw.show(' ', self._page)
 
         # Add listeners for page_0 (is_playing, metronome, current_scene)
         if not self.song().is_playing_has_listener(self._on_is_playing_changed):
@@ -73,7 +74,6 @@ class FC200(ControlSurface):
             if DEBUG:
                 self.log_message(f"Adding listener for selected scene")
 
-        self._display_recall_page = None
         self._fired_scene = None
         self._highlight_tuner_true = False
         self._preset_store_confirm = None
@@ -92,7 +92,7 @@ class FC200(ControlSurface):
         self._on_is_playing_changed()
         self._on_metronome_changed()
         self._on_selected_scene_changed()
-        self.leds_off()
+        self._hw.leds_off()
 
         if self._track is not None and self._board is not None:
             self._volume = self._board.devices[self.settings.LOOP_VOLUME].parameters[1].value
@@ -119,13 +119,6 @@ class FC200(ControlSurface):
                 self.log_message(f"{key}: {value}")
 
     def _display_tuner(self):
-        def kill_sequence():
-            self._display_recall_page.kill() 
-            self._display_recall_page = None
-        def recall_page():
-            self.display(1, " ")
-            self.display(0, self._page)
-
         if self._volume > 0:
             return
         if self._favorite_parameter is not None or self._parameter_control is not None:
@@ -152,18 +145,7 @@ class FC200(ControlSurface):
             binary += 1
         if cents >= tolerance:
             binary += 8
-        self.display(1, note_a) 
-        self.display_raw(0, binary)
-
-        if self._display_recall_page is not None:
-            kill_sequence()
-        self._display_recall_page = self._tasks.add(
-                Task.sequence(
-                    Task.wait(1), 
-                    Task.run(recall_page),
-                    Task.run(kill_sequence)
-                    )
-            )
+        self._hw.show_temporarily(fc.segments(note_a), binary, self._restore_display)
 
     def _highlight_tuner(self):
         parameter = self._board.devices[self.settings.LOOP_VOLUME].parameters[1]
@@ -263,8 +245,7 @@ class FC200(ControlSurface):
 
         if check_preset_exists(preset_file_path) and self._preset_store_confirm is None:
             self._preset_store_confirm = False
-            self.blink_led_value = 127
-            self._preset_store_blinking_led = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.3), Task.run(lambda: self.blink_led(7)))))
+            self._preset_store_blinking_led = self._hw.blink(7, 0.3)
             self.show_message(f"Overwrite reset {clip_name} ?")
             return
         else:
@@ -279,7 +260,7 @@ class FC200(ControlSurface):
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
-            self._tasks.add(Task.sequence(Task.wait(0.3), Task.run(lambda: self.flash_led(7)), Task.wait(0.1), Task.run(lambda: self.flash_led(7)), Task.run(lambda: self.flash_led(7)), Task.wait(0.1), Task.run(lambda: self.flash_led(7))))
+            self._tasks.add(Task.sequence(Task.wait(0.3), Task.run(lambda: self._hw.flash(7)), Task.wait(0.1), Task.run(lambda: self._hw.flash(7)), Task.run(lambda: self._hw.flash(7)), Task.wait(0.1), Task.run(lambda: self._hw.flash(7))))
 
     def _load_preset(self):
         def load_preset(clip_name):
@@ -324,96 +305,31 @@ class FC200(ControlSurface):
             return
         self._tasks.add(Task.run(lambda: apply_preset(preset)))
 
-    def _send_sysex(self, body):
-        sysex_msg = (
-                240, 
-                65, 
-                0,
-                114,
-                18,
-                body[0],
-                body[1],
-                body[2],
-                self._checksum(body),
-                247
-            )
-        if DEBUG:
-            self.log_message(f"\nsending out: {sysex_msg}")
-        self._send_midi(sysex_msg)
-        return
-
-    def _checksum(self, body):
-        return (128 - ((body[0] + body[1] + body[2]) % 128)) % 128
-
-    def display(self, number, character):
-        binary = SegmentEncoder.get_segments(character)
-        self._send_sysex([2, number, binary])
-
-    def display_raw(self, number, binary):
-        self._send_sysex([2, number, binary])
-
-    def leds_off(self):
-        for i in range(0, 9 + 1):
-            self.led_status(i, 0)
-        return
-
     def leds_recall(self):
         for i in self._led_status[self._page]:
-            self.led_status(i, self._led_status[self._page][i])
-
-    def led_status(self, pedal, value):
-        bank = 1
-        self._send_sysex([bank, pedal, value])
-        return
-
-    def flash_led(self, pedal_id):
-        # Turn LED ON
-        self.led_status(pedal_id, 127)
-
-        # Schedule the OFF command 100ms later
-        self._tasks.add(Task.sequence(
-            Task.wait(0.1), # 0.1 seconds = 100ms
-            Task.run(lambda: self.led_status(pedal_id, 0))
-        ))
-
-    def blink_led(self, led):
-        self.led_status(led, self.blink_led_value)
-        self.blink_led_value = 0 if self.blink_led_value == 127 else 127
+            self._hw.led(i, self._led_status[self._page][i])
 
     def blink_leds(self):
         for i in range(0, 9):
             if i == 4:
                 continue
             if i == self._parameter_control_selected:
-                self.led_status(self._parameter_control_selected, 127)
+                self._hw.led(self._parameter_control_selected, 127)
                 continue
-            self.led_status(i, self.blink_leds_value)
+            self._hw.led(i, self.blink_leds_value)
         self.blink_leds_value = 0 if self.blink_leds_value == 127 else 127
 
-    def _expr_display(self, value, recall_0=None, recall_1=None, timeout=1):
-        if recall_0 is None:
-            recall_0 = self._page
-        if recall_1 is None:
-            recall_1 = " "
-        def kill_sequence():
-            self._display_recall_page.kill() 
-            self._display_recall_page = None
-        def recall_page():
-            self.display(1, recall_1)
-            self.display(0, recall_0)
-        if self._display_recall_page is not None:
-            kill_sequence()
-        scaled = int(value / 127 * 99)
-        v = str(scaled).zfill(2)
-        self.display(0, v[1])
-        self.display(1, v[0])
-        self._display_recall_page = self._tasks.add(
-                Task.sequence(
-                    Task.wait(timeout), 
-                    Task.run(recall_page),
-                    Task.run(kill_sequence)
-                    )
-            )
+    def _restore_display(self):
+        """Show the device number in parameter control, otherwise the page."""
+        if self._parameter_control is not None:
+            v = str(self._parameter_control)
+            self._hw.show(v[-2] if len(v) > 1 else ' ', v[-1])
+            return
+        self._hw.show(' ', self._page)
+
+    def _expr_display(self, value, timeout=1):
+        v = str(int(value / 127 * 99)).zfill(2)
+        self._hw.show_temporarily(fc.segments(v[0]), fc.segments(v[1]), self._restore_display, timeout)
 
     def _listeners(self):
         def update_led(pedal, loop):
@@ -429,7 +345,7 @@ class FC200(ControlSurface):
 
             if self._page != 1:
                 return
-            self.led_status(pedal, led_value)
+            self._hw.led(pedal, led_value)
             return
 
         # Add listeners for page_1 (device on/off)
@@ -458,7 +374,7 @@ class FC200(ControlSurface):
         self._led_status[0][0] = led_value
         if self._page != 0:
             return
-        self.led_status(0, led_value)
+        self._hw.led(0, led_value)
         return
 
     def _on_metronome_changed(self):
@@ -467,7 +383,7 @@ class FC200(ControlSurface):
         self._led_status[0][5] = led_value
         if self._page != 0:
             return
-        self.led_status(5, led_value)
+        self._hw.led(5, led_value)
         return
 
     def _on_selected_scene_changed(self):
@@ -486,62 +402,39 @@ class FC200(ControlSurface):
         return
 
     def handle_sysex(self, midi_bytes):
-        if midi_bytes[0] != 240:        # SysEx start
-            return
-        if midi_bytes[1] != 65:         # Roland Manufacturer ID
-            return
-        if midi_bytes[2] != 0:          # Device ID
-            return
-        if midi_bytes[3] != 114:        # Model ID
-            return
-        if midi_bytes[4] != 18:         # Command ID
-            return
-
-        bank = midi_bytes[5]
-        pedal = midi_bytes[6]
-        value = midi_bytes[7]
-        body = [bank, pedal, value]
-
-        # Debug
+        body = fc.parse(midi_bytes)
         if DEBUG:
-            self.log_message(f"\nReceived SysEx: {midi_bytes}\nbank {bank}, pedal {pedal}, value {value}")
-
-        checksum = midi_bytes[-2]
-
-        check_checksum = (128 - ((bank + pedal + value) % 128)) % 128
-
-        if checksum != check_checksum:  # Checksum
+            self.log_message(f"\nReceived SysEx: {midi_bytes}\nbody {body}")
+        if body is None:
             return
 
-        if midi_bytes[-1] == 247:       # Return list at end of message
-            # Force FC200 to SysEx mode
-            if self.settings.FORCE_SYSEX:
-                if body[0] == 3 and body[1] == 0 and body[2] != 3:
-                    self._send_sysex([3, 1, 3])
-                    self._page_move(0)
-                    if DEBUG:
-                        self.log_message("Set to sysex mode")
-            if self._parameter_control is not None:
-                self.parameter_control(body)
-                return
-            if self._page == 0:
-                self.page_0(body)
-                return
-            if self._page == 1:
-                self.page_1(body)
-                return
-            if self._page == 2:
-                self.page_2(body)
-                return
+        # Force FC200 to SysEx mode
+        if self.settings.FORCE_SYSEX:
+            if body[0] == fc.BANK_MODE and body[1] == 0 and body[2] != 3:
+                self._hw.send([fc.BANK_MODE, 1, 3])
+                self._page_move(0)
+                if DEBUG:
+                    self.log_message("Set to sysex mode")
+        if self._parameter_control is not None:
+            self.parameter_control(body)
+            return
+        if self._page == 0:
+            self.page_0(body)
+            return
+        if self._page == 1:
+            self.page_1(body)
+            return
+        if self._page == 2:
+            self.page_2(body)
+            return
 
     def _page_move(self, direction):
         if not self.settings.MIN_PAGE <= self._page + direction <= self.settings.MAX_PAGE:
             return
         self._page += direction
-        self.leds_off()
+        self._hw.leds_off()
         self.leds_recall()
-        self.display(1, "")
-        self.display(0, self._page)
+        self._hw.show(' ', self._page)
         self.show_message(f"Page {self._page}")
         if DEBUG:
             self.log_message(f"Page changed to {self._page}")
@@ -589,16 +482,15 @@ class FC200(ControlSurface):
         parameter = self._board.devices[self.settings.LOOP_MAPPING[pedal]].parameters[self.settings.FAVORITE_PARAMETERS[pedal]]
         self._favorite_parameter_pedal = pedal
         self._favorite_parameter = parameter
-        self.leds_off()
-        self.led_status(pedal, 127)
+        self._hw.leds_off()
+        self._hw.led(pedal, 127)
         return
 
     def parameter_control(self, body):
         # Map expression pedal to parameter_control selected parameter
         if body[0] == 0 and body[1] == 13 and self._parameter_control_selected_parameter is not None:
             self._parameter_control_selected_parameter.value = body[2]
-            v = str(self._parameter_control)
-            self._expr_display(body[2], v[-1], v[-2] if len(v) > 1 else ' ', 0.5)
+            self._expr_display(body[2], 0.5)
             return
 
         # Map CTL pedal to exit parameter_control mode
@@ -614,10 +506,9 @@ class FC200(ControlSurface):
             self._parameter_control_selected_chain_index = None
             self._parameter_control_blink.kill()
             self._parameter_control_blink = None
-            self.leds_off()
-            self.flash_led(12)
-            self.display(1, " ")
-            self.display(0, self._page)
+            self._hw.leds_off()
+            self._hw.flash(12)
+            self._restore_display()
             self._mira.page_2()
             self._mira.highlight_parameter(-1)
             return
@@ -628,7 +519,7 @@ class FC200(ControlSurface):
                 return
             self._board.devices[self._parameter_control].view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index - 1]
             self._parameter_control_selected_chain_index -= 1
-            self.flash_led(10)
+            self._hw.flash(10)
             return
         # Map bank down pedal to select different chains
         if body == [0, 11, 127] and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
@@ -636,7 +527,7 @@ class FC200(ControlSurface):
                 return
             self._board.devices[self._parameter_control].view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index + 1]
             self._parameter_control_selected_chain_index += 1
-            self.flash_led(11)
+            self._hw.flash(11)
             return
 
         # Initialize parameter_control mode with blinking
@@ -648,9 +539,7 @@ class FC200(ControlSurface):
             self._parameter_control_selected_chain_index = self._parameter_control_chains.index(self._board.devices[self._parameter_control].view.selected_chain)
             self.blink_leds_value = 127
             self.blink_leds()
-            v = str(self._parameter_control)
-            self.display(0, v[-1])
-            self.display(1, v[-2] if len(v) > 1 else ' ')
+            self._restore_display()
             self._parameter_control_blink = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.5), Task.run(self.blink_leds))))
             self._mira.parameter_control()
             self._mira.highlight_parameter(-1)
@@ -663,7 +552,7 @@ class FC200(ControlSurface):
             self._parameter_control_selected_parameter = self._board.devices[self._parameter_control].parameters[parameter_index]
 
             self.show_message(f"{self._board.devices[self._parameter_control].name} - {self._parameter_control_selected_parameter.name}")
-            self.led_status(body[1], 127)
+            self._hw.led(body[1], 127)
             self._mira.highlight_parameter(body[1])
 
     def tap_tempo(self):
@@ -701,7 +590,7 @@ class FC200(ControlSurface):
         # Page UP
         if body == [0, 10, 127]:
             self._page_move(1)
-            self.flash_led(10)
+            self._hw.flash(10)
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
@@ -710,7 +599,7 @@ class FC200(ControlSurface):
         # Page DOWN
         if body == [0, 11, 127]:
             self._page_move(-1)
-            self.flash_led(11)
+            self._hw.flash(11)
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
@@ -729,10 +618,10 @@ class FC200(ControlSurface):
                 self._preset_store_blinking_led = None
                 self._preset_store_confirm = None
                 self.show_message("Cancelled saving preset!")
-                self.led_status(7, 0)
+                self._hw.led(7, 0)
                 return
             self.tap_tempo()
-            self.flash_led(12)
+            self._hw.flash(12)
             return
         # Ableton "start" button
         if body == [0, 0, 127]:
@@ -742,22 +631,22 @@ class FC200(ControlSurface):
         if body == [0, 1, 127]:
             self.stop_button()
             self.stop_all()
-            self.flash_led(1)
+            self._hw.flash(1)
             return
         # Ableton start scene
         if body == [0, 2, 127]:
             self.start_scene()
-            self.flash_led(2)
+            self._hw.flash(2)
             return
         # Ableton scene down
         if body == [0, 3, 127]:
             self.move_scene(1)
-            self.flash_led(3)
+            self._hw.flash(3)
             return
         # Ableton scene up
         if body == [0, 4, 127]:
             self.move_scene(-1)
-            self.flash_led(4)
+            self._hw.flash(4)
             return
         # Ableton click on/off
         if body == [0, 5, 127]:
@@ -787,21 +676,21 @@ class FC200(ControlSurface):
                     Task.run(self.stop_all),
                 )
             )
-            self.flash_led(6)
+            self._hw.flash(6)
             return
         # Store preset
         if body == [0, 7, 127]:
             if self._track is None or self._board is None:
                 return
             self._store_preset()
-            self.flash_led(7)
+            self._hw.flash(7)
             return
         # ForScore prev page
         if body == [0, 8, 127]:
             self._tasks.add(
                 Task.sequence(
                     Task.run(lambda: self._oscremote._send_osc(f"/remote/pc/{self.settings.FORSCORE_PREV_PAGE}/2", 127)),
-                    Task.run(lambda: self.flash_led(8))
+                    Task.run(lambda: self._hw.flash(8))
                 )
             )
             return
@@ -810,7 +699,7 @@ class FC200(ControlSurface):
             self._tasks.add(
                 Task.sequence(
                     Task.run(lambda: self._oscremote._send_osc(f"/remote/pc/{self.settings.FORSCORE_NEXT_PAGE}/2", 127)),
-                    Task.run(lambda: self.flash_led(9))
+                    Task.run(lambda: self._hw.flash(9))
                 )
             )
             return
@@ -819,12 +708,12 @@ class FC200(ControlSurface):
         # Page UP
         if body == [0, 10, 127]:
             self._page_move(1)
-            self.flash_led(10)
+            self._hw.flash(10)
             return
         # Page DOWN
         if body == [0, 11, 127]:
             self._page_move(-1)
-            self.flash_led(11)
+            self._hw.flash(11)
             return
         # Expression pedal calls volume_control
         if body[1] == 13:
@@ -838,7 +727,7 @@ class FC200(ControlSurface):
         # CTL button calls tap_tempo
         if body == [0, 12, 127]:
             self.tap_tempo()
-            self.flash_led(12)
+            self._hw.flash(12)
             return
         # Toggle Device On/Off for pedals 1 thru 10
         if body[0] == 0 and 0 <= body[1] < 10 and body[2] == 127:
@@ -853,14 +742,14 @@ class FC200(ControlSurface):
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
             self._page_move(1)
-            self.flash_led(10)
+            self._hw.flash(10)
             return
         # Page DOWN
         if body == [0, 11, 127]:
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
             self._page_move(-1)
-            self.flash_led(11)
+            self._hw.flash(11)
             return        
         # Expression pedal calls volume_control
         if body[1] == 13 and self._favorite_parameter is None and self._parameter_control is None:
@@ -880,8 +769,8 @@ class FC200(ControlSurface):
                 return
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
-            self.leds_off()
-            self.flash_led(12)
+            self._hw.leds_off()
+            self._hw.flash(12)
             self._mira.highlight_parameter(-1)
             return
         # Control favorite parameter when selected with pedal

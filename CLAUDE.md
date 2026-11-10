@@ -5,10 +5,11 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
   - MIDI Remote Script: `src/` (symlinked into Live User Library as `_FC200_SysEx_dev`; `_FC200_SysEx` points to the sibling `fc200-python-main` checkout)
   - M4L device: `virtual-pedal/FC200_virtual-pedal.maxpat` (built `FC200 Mira.amxd` symlinked at repo root)
 - Protocol: none yet
+- Unit tests: `python3.11 -m unittest discover -s tests` (Live-free modules only)
 - Integration tests: none yet
 
 ### What this does
-Roland FC200 floor pedal → MIDI SysEx → `src/FC200.py` (a `ControlSurface`) drives an audio effect rack (found by its device name, "FC200 Pedalboard", on any track) to emulate a pedalboard, plus transport/session control. `src/SegmentEncoder.py` encodes characters for the pedal's 7-segment display.
+Roland FC200 floor pedal → MIDI SysEx → `src/FC200.py` (a `ControlSurface`) drives an audio effect rack (found by its device name, "FC200 Pedalboard", on any track) to emulate a pedalboard, plus transport/session control. `src/fc200_protocol.py` (no Live imports) holds the SysEx format, pedal IDs and 7-segment encoding; `src/hardware.py` drives the LEDs and display.
 
 ### Preset system (shadow JSON + dummy clip)
 A dummy audio clip on the guitar track's clip slots doubles as a preset slot — its name is the preset name:
