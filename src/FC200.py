@@ -477,7 +477,7 @@ class FC200(ControlSurface):
 
     def parameter_control(self, body):
         # Map expression pedal to parameter_control selected parameter
-        if se.moved(body, se.EXP_PEDAL) and self._parameter_control_selected_parameter is not None:
+        if se.changed(body, se.EXP_PEDAL) and self._parameter_control_selected_parameter is not None:
             self._parameter_control_selected_parameter.value = body[2]
             self._expr_display(body[2], 0.5)
             return
@@ -597,7 +597,7 @@ class FC200(ControlSurface):
 
             return
         # Expression pedal calls volume_control
-        if se.moved(body, se.EXP_PEDAL):
+        if se.changed(body, se.EXP_PEDAL):
             self.volume_control(body[2])
             self._expr_display(body[2])
             return
@@ -706,12 +706,12 @@ class FC200(ControlSurface):
             self._hw.flash(se.PEDAL_DOWN)
             return
         # Expression pedal calls volume_control
-        if se.moved(body, se.EXP_PEDAL):
+        if se.changed(body, se.EXP_PEDAL):
             self.volume_control(body[2])
             self._expr_display(body[2])
             return
-        # Second expression pedal calls freeze_control
-        if se.moved(body, se.FOOT_SW_EXP_1):
+        # Pedal on the FOOT SW/EXP 1 jack calls freeze_control
+        if se.changed(body, se.FOOT_SW_EXP_1):
             self.freeze_control(body[2])
             return
         # CTL button calls tap_tempo
@@ -742,7 +742,7 @@ class FC200(ControlSurface):
             self._hw.flash(se.PEDAL_DOWN)
             return
         # Expression pedal calls volume_control
-        if se.moved(body, se.EXP_PEDAL) and self._favorite_parameter is None and self._parameter_control is None:
+        if se.changed(body, se.EXP_PEDAL) and self._favorite_parameter is None and self._parameter_control is None:
             self.volume_control(body[2])
             self._expr_display(body[2])
             return
@@ -764,7 +764,7 @@ class FC200(ControlSurface):
             self._mira.highlight_parameter(-1)
             return
         # Control favorite parameter when selected with pedal
-        if self._favorite_parameter and se.moved(body, se.EXP_PEDAL):
+        if self._favorite_parameter and se.changed(body, se.EXP_PEDAL):
             if self._track is None or self._board is None:
                 return
             self._favorite_parameter.value = body[2]

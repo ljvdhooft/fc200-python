@@ -22,7 +22,9 @@ PEDAL_UP = 0x0A
 PEDAL_DOWN = 0x0B
 PEDAL_CTL = 0x0C
 EXP_PEDAL = 0x0D
-FOOT_SW_EXP_1 = 0x0E
+# Extra pedals plugged into the FOOT SW/EXP 1-6 jacks on the back
+(FOOT_SW_EXP_1, FOOT_SW_EXP_2, FOOT_SW_EXP_3,
+ FOOT_SW_EXP_4, FOOT_SW_EXP_5, FOOT_SW_EXP_6) = range(0x0E, 0x14)
 
 # Bank Display Status: address LSB
 BANK_DISPLAY_RIGHT = 0x00
@@ -84,8 +86,8 @@ def number_pedal_pressed(body):
     return body[0] == PEDAL_STATUS and PEDAL_1 <= body[1] <= PEDAL_10 and body[2] == ON
 
 
-def moved(body, pedal):
-    """True if body is any value from the pedal, e.g. EXP_PEDAL."""
+def changed(body, pedal):
+    """True if body is a Pedal Status change of the pedal, with any value."""
     return body[0] == PEDAL_STATUS and body[1] == pedal
 
 

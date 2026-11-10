@@ -59,10 +59,14 @@ class PedalTest(unittest.TestCase):
         self.assertFalse(se.number_pedal_pressed([0, se.PEDAL_UP, 127]))
         self.assertFalse(se.number_pedal_pressed([0, se.PEDAL_1, 0]))
 
-    def test_moved(self):
-        self.assertTrue(se.moved([0, 13, 0], se.EXP_PEDAL))
-        self.assertTrue(se.moved([0, 13, 64], se.EXP_PEDAL))
-        self.assertFalse(se.moved([3, 13, 64], se.EXP_PEDAL))
+    def test_changed(self):
+        self.assertTrue(se.changed([0, 13, 0], se.EXP_PEDAL))
+        self.assertTrue(se.changed([0, 13, 64], se.EXP_PEDAL))
+        self.assertFalse(se.changed([3, 13, 64], se.EXP_PEDAL))
+
+    def test_foot_sw_exp_range(self):
+        self.assertEqual(se.FOOT_SW_EXP_1, 0x0E)
+        self.assertEqual(se.FOOT_SW_EXP_6, 0x13)
 
 
 class SegmentsTest(unittest.TestCase):
