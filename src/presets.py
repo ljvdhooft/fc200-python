@@ -13,7 +13,7 @@ from __future__ import annotations
 import gzip
 import json
 import os
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 
@@ -83,13 +83,13 @@ class Preset:
 
 
 class PresetStore:
-    """Preset files in one folder."""
+    """Preset files in one folder. File errors are logged, not raised."""
 
-    def __init__(self, folder: str) -> None:
+    def __init__(self, folder: str, log: Callable[[str], None]) -> None:
         self.folder = folder
-
-    def available(self) -> bool:
-        return os.path.isdir(self.folder)
+        self._log = log
+        if not os.path.isdir(folder):
+            log(f"Preset folder not found, it is created on the first save: {folder}")
 
     def json_path(self, name: str) -> str:
         return os.path.join(self.folder, "_json", f"{name}.json")
@@ -100,36 +100,40 @@ class PresetStore:
     def exists(self, name: str) -> bool:
         return os.path.exists(self.json_path(name))
 
-    def save(self, name: str, preset: Preset) -> None:
+    def save(self, name: str, preset: Preset) -> bool:
+        """Write the JSON file and the .alc clip. Return False if that failed (logged)."""
         path = self.json_path(name)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as f:
-            f.write(preset.to_json())
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                f.write(preset.to_json())
+            self._write_alc(name)
+        except OSError as e:
+            self._log(f"Error saving preset {name}: {e}")
+            return False
+        return True
 
     def load(self, name: str) -> Preset | None:
-        """Return the preset, or None if there is no file for it.
-
-        Raises ValueError if the file is not a valid preset.
-        """
+        """Return the preset; None if there is no file for it, or it can't be read (logged)."""
         path = self.json_path(name)
         if not os.path.exists(path):
             return None
-        with open(path) as f:
-            try:
+        try:
+            with open(path) as f:
                 return Preset.from_json(f.read())
-            except ValueError as e:
-                raise ValueError(f"{path}: {e}") from e
+        except (OSError, ValueError) as e:
+            self._log(f"Error reading preset {path}: {e}")
+            return None
 
-    def write_alc(self, name: str) -> bool:
-        """Write <name>.alc from template.alc.xml. Return False if there is no template."""
+    def _write_alc(self, name: str) -> None:
+        """Write <name>.alc from template.alc.xml; skipped if there is no template."""
         template_path = os.path.join(self.folder, "template.alc.xml")
         if not os.path.exists(template_path):
-            return False
+            return
         with open(template_path) as t:
             xml = alc_from_template(t.read(), name)
         with gzip.open(self.alc_path(name), "wb") as f:
             f.write(xml.encode("utf-8"))
-        return True
 
 
 def alc_from_template(template_xml: str, name: str) -> str:

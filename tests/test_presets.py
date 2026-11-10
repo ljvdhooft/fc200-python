@@ -70,33 +70,51 @@ class PresetTest(unittest.TestCase):
 class PresetStoreTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        self.store = presets.PresetStore(self._tmp.name)
+        self.log = []
+        self.store = presets.PresetStore(self._tmp.name, self.log.append)
 
     def tearDown(self):
         self._tmp.cleanup()
 
     def test_save_load(self):
-        self.store.save("Song A", PRESET)
+        self.assertTrue(self.store.save("Song A", PRESET))
         self.assertTrue(self.store.exists("Song A"))
         self.assertEqual(self.store.load("Song A"), PRESET)
+        self.assertEqual(self.log, [])
 
     def test_save_creates_json_folder(self):
         self.store.save("x", PRESET)
         self.assertTrue(os.path.isfile(os.path.join(self.store.folder, "_json", "x.json")))
 
+    def test_save_failure_is_logged(self):
+        # A file where the _json folder should be
+        open(os.path.join(self.store.folder, "_json"), "w").close()
+        self.assertFalse(self.store.save("x", PRESET))
+        self.assertEqual(len(self.log), 1)
+
     def test_load_missing(self):
         self.assertFalse(self.store.exists("nope"))
         self.assertIsNone(self.store.load("nope"))
+        self.assertEqual(self.log, [])
 
-    def test_available(self):
-        self.assertTrue(self.store.available())
-        self.assertFalse(presets.PresetStore(os.path.join(self.store.folder, "missing")).available())
+    def test_load_invalid_is_logged(self):
+        os.makedirs(os.path.join(self.store.folder, "_json"))
+        with open(self.store.json_path("bad"), "w") as f:
+            f.write('{"0": {"chain": "no parameters"}}')
+        self.assertIsNone(self.store.load("bad"))
+        self.assertEqual(len(self.log), 1)
 
-    def test_write_alc(self):
-        self.assertFalse(self.store.write_alc("Song A"))
+    def test_missing_folder_is_logged(self):
+        log = []
+        presets.PresetStore(os.path.join(self.store.folder, "missing"), log.append)
+        self.assertEqual(len(log), 1)
+
+    def test_save_writes_alc_when_template_exists(self):
+        self.store.save("Song A", PRESET)
+        self.assertFalse(os.path.exists(self.store.alc_path("Song A")))
         with open(os.path.join(self.store.folder, "template.alc.xml"), "w") as f:
             f.write(TEMPLATE)
-        self.assertTrue(self.store.write_alc("Song A"))
+        self.store.save("Song A", PRESET)
         with gzip.open(self.store.alc_path("Song A")) as f:
             self.assertIn(b'<Name Value="Song A">', f.read())
 

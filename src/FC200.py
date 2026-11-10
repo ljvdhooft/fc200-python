@@ -32,8 +32,7 @@ class FC200(ControlSurface):
     _board: Chain | None                    # chain 0 of the "FC200 Pedalboard" rack
     _led_status: dict[int, dict[se.Pedal, int]]   # page -> pedal -> LED value
     _fired_scene: Scene | None
-    _preset_store_confirm: bool | None
-    _preset_store_blinking_led: Task.Task | None
+    _preset_overwrite_blink: Task.Task | None   # running while an overwrite awaits confirmation
     _favorite_parameter: DeviceParameter | None
     _favorite_parameter_pedal: se.Pedal | None
     _parameter_control: int | None          # board device index
@@ -63,6 +62,42 @@ class FC200(ControlSurface):
         # Log to the Ableton Log.txt file
         self.log_message("--- FC200 Script Loaded ---")
 
+    # --- Pedalboard and scenes ------------------------------------------------
+
+    @property
+    def _has_pedalboard(self) -> bool:
+        return self._track is not None and self._board is not None
+
+    def _pedalboard(self) -> Chain:
+        """The pedalboard chain; only call once a pedalboard was found."""
+        assert self._board is not None, "no FC200 Pedalboard found"
+        return self._board
+
+    def _board_track(self) -> Track:
+        """The track holding the pedalboard; only call once a pedalboard was found."""
+        assert self._track is not None, "no FC200 Pedalboard found"
+        return self._track
+
+    def _loop(self, index: int) -> RackDevice:
+        """A loop (device) on the pedalboard. Loops are racks."""
+        return cast("RackDevice", self._pedalboard().devices[index])
+
+    # Scenes are read from the song on access, so they stay current when scenes
+    # are added or removed. MiraGUI reads these too.
+    @property
+    def _all_scenes(self) -> list[Scene]:
+        return list(self.song().scenes)
+
+    @property
+    def _selected_scene(self) -> Scene:
+        return self.song().view.selected_scene
+
+    @property
+    def _selected_scene_index(self) -> int:
+        return self._all_scenes.index(self._selected_scene)
+
+    # --- Setup ----------------------------------------------------------------
+
     def _setup_track(self) -> None:
         self._page = 0
         self._track = None
@@ -83,7 +118,7 @@ class FC200(ControlSurface):
                     break
 
     def _setup(self) -> None:
-        self._presets = presets.PresetStore(self.settings.PRESET_FOLDER)
+        self._presets = presets.PresetStore(self.settings.PRESET_FOLDER, self.log_message)
         self._led_status = {}
         for p in range(self.settings.MIN_PAGE, self.settings.MAX_PAGE + 1):
             self._led_status[p] = {}
@@ -107,8 +142,7 @@ class FC200(ControlSurface):
 
         self._fired_scene = None
         self._highlight_tuner_true = False
-        self._preset_store_confirm = None
-        self._preset_store_blinking_led = None
+        self._preset_overwrite_blink = None
         self._favorite_parameter = None
         self._favorite_parameter_pedal = None
         self._parameter_control = None
@@ -125,30 +159,22 @@ class FC200(ControlSurface):
         self._on_selected_scene_changed()
         self._hw.leds_off()
 
-        if self._track is not None and self._board is not None:
+        if self._has_pedalboard:
+            track = self._board_track()
             self._volume_param = self._loop(self.settings.LOOP_VOLUME).parameters[1]
-            self._tuner_rack = cast("RackDevice", self._track.devices[self.settings.TUNER_RACK])
+            self._tuner_rack = cast("RackDevice", track.devices[self.settings.TUNER_RACK])
             self._tuner_device = self._tuner_rack.chains[self.settings.TUNER_CHAIN].devices[self.settings.TUNER_DEVICE]
             self._volume = self._volume_param.value
             if not self._volume_param.value_has_listener(self._highlight_tuner):
                 self._volume_param.add_value_listener(self._highlight_tuner)
-            if not self._track.playing_slot_index_has_listener(self._load_preset):
-                self._track.add_playing_slot_index_listener(self._load_preset)
+            if not track.playing_slot_index_has_listener(self._load_preset):
+                track.add_playing_slot_index_listener(self._load_preset)
             if not self._tuner_device.parameters[1].value_has_listener(self._display_tuner):
                 self._tuner_device.parameters[1].add_value_listener(self._display_tuner)
 
             self._listeners()
             self._init_leds()
             self.leds_recall()
-
-    def _pedalboard(self) -> Chain:
-        """The pedalboard chain; only call once a pedalboard was found."""
-        assert self._board is not None, "no FC200 Pedalboard found"
-        return self._board
-
-    def _loop(self, index: int) -> RackDevice:
-        """A loop (device) on the pedalboard. Loops are racks."""
-        return cast("RackDevice", self._pedalboard().devices[index])
 
     def _reload_config(self) -> None:
         importlib.reload(config)
@@ -208,59 +234,41 @@ class FC200(ControlSurface):
         An existing preset asks for confirmation first: the store pedal blinks
         until it is pressed again (overwrite) or CTL cancels.
         """
-        if self._track is None:
-            return
-        slot = self._track.clip_slots[self._selected_scene_index]
+        track = self._board_track()
+        slot = track.clip_slots[self._selected_scene_index]
         if not slot.has_clip:
             # Copy the dummy clip from slot 0; rename it, then store again
-            if not self._track.clip_slots[0].has_clip:
+            if not track.clip_slots[0].has_clip:
                 self.show_message('No clip on selected slot')
                 return
-            self._track.clip_slots[0].duplicate_clip_to(slot)
+            track.clip_slots[0].duplicate_clip_to(slot)
             return
         name = slot.clip.name
 
-        if not self._presets.available():
-            return
-
-        if self._presets.exists(name) and self._preset_store_confirm is None:
-            self._preset_store_confirm = False
-            self._preset_store_blinking_led = self._hw.blink_loop(se.Pedal.P8, 0.3)
+        if self._presets.exists(name) and self._preset_overwrite_blink is None:
+            self._preset_overwrite_blink = self._hw.blink_loop(se.Pedal.P8, 0.3)
             self.show_message(f"Overwrite preset {name}?")
             return
 
-        try:
-            self._presets.save(name, presets.Preset.read(self._pedalboard(), self.settings.LOOP_MAPPING))
-            self._presets.write_alc(name)
-        except OSError as e:
-            self.log_message(f"Error saving preset {name}: {e}")
-            return
         self._cancel_preset_store()
-        self.show_message(f"Saved preset: {name}")
-        self._hw.flash_repeatedly(se.Pedal.P8, 3)
+        if self._presets.save(name, presets.Preset.read(self._pedalboard(), self.settings.LOOP_MAPPING)):
+            self.show_message(f"Saved preset: {name}")
+            self._hw.flash_repeatedly(se.Pedal.P8, 3)
 
     def _cancel_preset_store(self) -> bool:
         """Stop a pending overwrite confirmation. Return True if one was pending."""
-        if self._preset_store_blinking_led is None:
+        if self._preset_overwrite_blink is None:
             return False
-        self._preset_store_blinking_led.kill()
-        self._preset_store_blinking_led = None
-        self._preset_store_confirm = None
+        self._preset_overwrite_blink.kill()
+        self._preset_overwrite_blink = None
         return True
 
     def _load_preset(self) -> None:
         """Apply the preset named after the clip that just started playing, if any."""
-        if self._track is None:
+        track = self._board_track()
+        if track.playing_slot_index < 0:
             return
-        slot = self._track.playing_slot_index
-        if slot < 0:
-            return
-        name = self._track.clip_slots[slot].clip.name
-        try:
-            preset = self._presets.load(name)
-        except (OSError, ValueError) as e:
-            self.log_message(f"Error reading preset {name}: {e}")
-            return
+        preset = self._presets.load(track.clip_slots[track.playing_slot_index].clip.name)
         if preset is None:
             return
         self._tasks.add(Task.run(lambda: preset.apply(self._pedalboard())))
@@ -339,20 +347,6 @@ class FC200(ControlSurface):
         self._hw.led(se.Pedal.P6, led_value)
         return
 
-    # Scenes are read from the song on access, so they stay current when scenes
-    # are added or removed. MiraGUI reads these too.
-    @property
-    def _all_scenes(self) -> list[Scene]:
-        return list(self.song().scenes)
-
-    @property
-    def _selected_scene(self) -> Scene:
-        return self.song().view.selected_scene
-
-    @property
-    def _selected_scene_index(self) -> int:
-        return self._all_scenes.index(self._selected_scene)
-
     def _on_selected_scene_changed(self) -> None:
         if self._page < 2:
             self._mira.scene_overview()
@@ -421,14 +415,14 @@ class FC200(ControlSurface):
         return
 
     def volume_control(self, value: int) -> None:
-        if self._track is None or self._board is None:
+        if not self._has_pedalboard:
             self._send_midi((0xB0, 0, value))
             return
         self._volume_param.value = value
         self._volume = value
 
     def freeze_control(self, value: int) -> None:
-        if self._track is None or self._board is None:
+        if not self._has_pedalboard:
             return
         parameters = self._loop(self.settings.LOOP_FREEZE).parameters
         def parameter_1():
@@ -610,7 +604,7 @@ class FC200(ControlSurface):
             return
         # Start scene and stop immediately (recall preset)
         if se.pressed(body, se.Pedal.P7):
-            if self._track is None or self._board is None:
+            if not self._has_pedalboard:
                 return
             if self._metronome_state:
                 self.toggle_click()
@@ -636,7 +630,7 @@ class FC200(ControlSurface):
             return
         # Store preset
         if se.pressed(body, se.Pedal.P8):
-            if self._track is None or self._board is None:
+            if not self._has_pedalboard:
                 return
             self._store_preset()
             self._hw.flash(se.Pedal.P8)
@@ -687,7 +681,7 @@ class FC200(ControlSurface):
             return
         # Toggle Device On/Off for pedals 1 thru 10
         if se.number_pedal_pressed(body):
-            if self._track is None or self._board is None:
+            if not self._has_pedalboard:
                 return
             self.toggle_device(body)
             return
@@ -714,14 +708,14 @@ class FC200(ControlSurface):
             return
         # Device full parameter mode
         if self._favorite_parameter and self._favorite_parameter_pedal is not None and se.pressed(body, self._favorite_parameter_pedal):
-            if self._track is None or self._board is None:
+            if not self._has_pedalboard:
                 return
             self._parameter_control = self.settings.LOOP_MAPPING[body[1]]
             self.parameter_control(body)
             return
         # Exit favorite parameter control
         if se.pressed(body, se.Pedal.CTL) and self._favorite_parameter is not None:
-            if self._track is None or self._board is None:
+            if not self._has_pedalboard:
                 return
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
@@ -731,14 +725,14 @@ class FC200(ControlSurface):
             return
         # Control favorite parameter when selected with pedal
         if self._favorite_parameter and se.changed(body, se.Pedal.EXP):
-            if self._track is None or self._board is None:
+            if not self._has_pedalboard:
                 return
             self._favorite_parameter.value = body[2]
             self._expr_display(body[2])
             return
         # Device favorite parameter mode
         if se.number_pedal_pressed(body):
-            if self._track is None or self._board is None:
+            if not self._has_pedalboard:
                 return
             self.favorite_parameter(body)
             self._mira.highlight_parameter(body[1])
@@ -756,11 +750,12 @@ class FC200(ControlSurface):
         if self.song().view.selected_scene_has_listener(self._on_selected_scene_changed):
             self.song().view.remove_selected_scene_listener(self._on_selected_scene_changed)
 
-        if self._track is not None and self._board is not None:
+        if self._has_pedalboard:
             if self._volume_param.value_has_listener(self._highlight_tuner):
                 self._volume_param.remove_value_listener(self._highlight_tuner)
-            if self._track.playing_slot_index_has_listener(self._load_preset):
-                self._track.remove_playing_slot_index_listener(self._load_preset)
+            track = self._board_track()
+            if track.playing_slot_index_has_listener(self._load_preset):
+                track.remove_playing_slot_index_listener(self._load_preset)
             if self._tuner_device.parameters[1].value_has_listener(self._display_tuner):
                 self._tuner_device.parameters[1].remove_value_listener(self._display_tuner)
 
