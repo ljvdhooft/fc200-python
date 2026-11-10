@@ -5,11 +5,16 @@ byte: [address MSB, address LSB, data]. The address MSB selects an area of
 the parameter address map. No Live imports, so it can be unit-tested.
 """
 
+from collections.abc import Sequence
 from enum import IntEnum
+from typing import Final, TypeAlias
+
+# [address MSB, address LSB, data]
+Body: TypeAlias = list[int]
 
 # Exclusive status, Roland manufacturer ID, device ID, model ID (FC-200), DT1
-HEADER = (0xF0, 0x41, 0x00, 0x72, 0x12)
-EOX = 0xF7
+HEADER: Final = (0xF0, 0x41, 0x00, 0x72, 0x12)
+EOX: Final = 0xF7
 
 
 class Area(IntEnum):
@@ -61,11 +66,11 @@ class Mode(IntEnum):
     NOTE = 0x02
     EXCLUSIVE = 0x03
 
-ON = 0x7F
-OFF = 0x00
+ON: Final = 0x7F
+OFF: Final = 0x00
 
 # Bank display segment bitmasks per character
-SEGMENTS = {
+SEGMENTS: Final[dict[str, int]] = {
     '1': 48,  '2': 91,  '3': 121, '4': 116, '5': 109,
     '6': 111, '7': 56,  '8': 127, '9': 125, '0': 63,
     'A': 126, 'B': 103, 'C': 15,  'D': 115, 'E': 79,
@@ -77,17 +82,17 @@ SEGMENTS = {
 }
 
 
-def checksum(body):
+def checksum(body: Sequence[int]) -> int:
     return (128 - (sum(body) % 128)) % 128
 
 
-def build(body):
+def build(body: Sequence[int]) -> tuple[int, ...]:
     """Return the full DT1 message for an [address MSB, address LSB, data] body."""
     # Plain ints: Live's send_midi gets no IntEnum members
     return HEADER + tuple(int(b) for b in body) + (checksum(body), EOX)
 
 
-def parse(midi_bytes):
+def parse(midi_bytes: Sequence[int]) -> Body | None:
     """Return [address MSB, address LSB, data] for a valid FC-200 DT1, else None."""
     if len(midi_bytes) != len(HEADER) + 5:
         return None
@@ -99,26 +104,26 @@ def parse(midi_bytes):
     return body
 
 
-def pressed(body, pedal):
+def pressed(body: Body, pedal: Pedal) -> bool:
     """True if body is the pedal being pressed down (not released)."""
     return body == [Area.PEDAL_STATUS, pedal, ON]
 
 
-def released(body, pedal):
+def released(body: Body, pedal: Pedal) -> bool:
     return body == [Area.PEDAL_STATUS, pedal, OFF]
 
 
-def number_pedal_pressed(body):
+def number_pedal_pressed(body: Body) -> bool:
     """True if body is one of Pedals 1-10 being pressed down."""
     return body[0] == Area.PEDAL_STATUS and Pedal.P1 <= body[1] <= Pedal.P10 and body[2] == ON
 
 
-def changed(body, pedal):
+def changed(body: Body, pedal: Pedal) -> bool:
     """True if body is a Pedal Status change of the pedal, with any value."""
     return body[0] == Area.PEDAL_STATUS and body[1] == pedal
 
 
-def segments(char):
+def segments(char: str | int) -> int:
     """Return the bank display bitmask for a character; 0 (off) if unsupported."""
     key = str(char).upper()
     if key == "SPACE":
