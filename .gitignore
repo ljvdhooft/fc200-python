@@ -2,3 +2,4 @@ __pycache__/
 *Icon*
 .DS_Store
 fc200-python Project/Backup
+.mypy_cache/
