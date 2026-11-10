@@ -89,11 +89,13 @@ class FC200(ControlSurface):
         self._parameter_control_selected_chain_index = None
         self._parameter_control_blink = None
         self._observed_params = []
+        self._on_is_playing_changed()
         self._on_metronome_changed()
         self._on_selected_scene_changed()
         self.leds_off()
 
         if self._track is not None and self._board is not None:
+            self._volume = self._board.devices[self.settings.LOOP_VOLUME].parameters[1].value
             if not self._board.devices[self.settings.LOOP_VOLUME].parameters[1].value_has_listener(self._highlight_tuner):
                 self._board.devices[self.settings.LOOP_VOLUME].parameters[1].add_value_listener(self._highlight_tuner)
             if not self._track.playing_slot_index_has_listener(self._load_preset):
@@ -108,6 +110,7 @@ class FC200(ControlSurface):
     def _reload_config(self):
         importlib.reload(config)
         self.settings = config.Settings()
+        self._remove_loop_listeners()
         self._setup()
 
         self.log_message("Reloading config!")
@@ -193,6 +196,7 @@ class FC200(ControlSurface):
             if not source.has_clip:
                 return None
             source.duplicate_clip_to(self._track.clip_slots[selected_scene_index])
+            return True
 
         def get_parameter_values_for_preset():
             preset = {}
@@ -226,7 +230,7 @@ class FC200(ControlSurface):
 
             return
 
-        def store_preset(preset, path, name):
+        def store_preset(preset, preset_folder, name):
             preset_file_name = "{}.json".format(name)
             path = os.path.join(preset_folder, "_json", preset_file_name)
             try:
@@ -441,6 +445,13 @@ class FC200(ControlSurface):
             self.log_message(f"Added listeners for {len(self._observed_params)} devices")
         return
 
+    def _remove_loop_listeners(self):
+        # Remove listeners for page_1 (device_on)
+        for param, callback in self._observed_params:
+            if param.value_has_listener(callback):
+                param.remove_value_listener(callback)
+        self._observed_params = []
+
     def _on_is_playing_changed(self):
         is_playing = self.song().is_playing 
         led_value = 127 if is_playing else 0
@@ -621,7 +632,7 @@ class FC200(ControlSurface):
             return
         # Map bank down pedal to select different chains
         if body == [0, 11, 127] and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
-            if self._parameter_control_selected_chain_index >= len(self._parameter_control_chains):
+            if self._parameter_control_selected_chain_index >= len(self._parameter_control_chains) - 1:
                 return
             self._board.devices[self._parameter_control].view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index + 1]
             self._parameter_control_selected_chain_index += 1
@@ -905,15 +916,10 @@ class FC200(ControlSurface):
                 self._board.devices[self.settings.LOOP_VOLUME].parameters[1].remove_value_listener(self._highlight_tuner)
             if self._track.playing_slot_index_has_listener(self._load_preset):
                 self._track.remove_playing_slot_index_listener(self._load_preset)
-            if not self._track.devices[1].chains[1].devices[1].parameters[1].value_has_listener(self._display_tuner):
+            if self._track.devices[1].chains[1].devices[1].parameters[1].value_has_listener(self._display_tuner):
                 self._track.devices[1].chains[1].devices[1].parameters[1].remove_value_listener(self._display_tuner)
 
-            # Remove listeners for page_1 (device_on)
-            for param, callback in self._observed_params:
-                if param.value_has_listener(callback):
-                    param.remove_value_listener(callback)
-
-            self._observed_params = []
+            self._remove_loop_listeners()
 
         self.log_message("--- FC200 Script Unloaded ---")
         super(FC200, self).disconnect()
