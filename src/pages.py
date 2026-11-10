@@ -55,8 +55,9 @@ class Mode:
 
 
 class Page(Mode):
-    """Bank pedals change the page, the expression pedal sets the volume and
-    CTL taps the tempo. Pages override the hooks they need."""
+    """Bank pedals change the page, the expression pedal sets the volume, CTL
+    taps the tempo and a pedal on the FOOT SW/EXP 1 jack drives freeze. Pages
+    override the hooks they need."""
 
     def __init__(self, surface: FC200) -> None:
         super().__init__(surface)
@@ -95,7 +96,19 @@ class Page(Mode):
         pass
 
     def on_other(self, body: se.Body) -> None:
-        pass
+        if se.changed(body, se.Pedal.FOOT_SW_EXP_1):
+            self.on_freeze(body[2])
+
+    def on_freeze(self, value: int) -> None:
+        """Set freeze parameter 1 now and parameter 2 half a second later."""
+        if not self.s._has_pedalboard:
+            return
+        parameters = self.s._loop(self.s.settings.LOOP_FREEZE).parameters
+        parameters[1].value = value
+
+        def second() -> None:
+            parameters[2].value = value
+        self.s._after(0.5, second)
 
 
 class TransportPage(Page):
@@ -186,8 +199,8 @@ class TransportPage(Page):
 
 
 class LoopsPage(Page):
-    """Page 1: number pedals switch the loops on and off; a pedal on the
-    FOOT SW/EXP 1 jack drives freeze. LEDs follow the loops' on/off state."""
+    """Page 1: number pedals switch the loops on and off. LEDs follow the
+    loops' on/off state."""
 
     def on_enter(self) -> None:
         self.s._mira.scene_overview()
@@ -200,26 +213,12 @@ class LoopsPage(Page):
         on_off = self.s._loop(loops[pedal]).parameters[0]
         on_off.value = 1 if on_off.value == 0 else 0
 
-    def on_other(self, body: se.Body) -> None:
-        if se.changed(body, se.Pedal.FOOT_SW_EXP_1):
-            self._freeze(body[2])
-
-    def _freeze(self, value: int) -> None:
-        """Set freeze parameter 1 now and parameter 2 half a second later."""
-        if not self.s._has_pedalboard:
-            return
-        parameters = self.s._loop(self.s.settings.LOOP_FREEZE).parameters
-        parameters[1].value = value
-
-        def second() -> None:
-            parameters[2].value = value
-        self.s._after(0.5, second)
-
 
 class FavoritesPage(Page):
     """Page 2: a number pedal picks that loop's favorite parameter for the
     expression pedal. Pressing the same pedal again edits the whole loop
-    (ParameterControl); CTL drops the favorite."""
+    (ParameterControl); CTL drops the favorite. Freeze works only while no
+    favorite is picked."""
 
     def __init__(self, surface: FC200) -> None:
         super().__init__(surface)
@@ -244,6 +243,11 @@ class FavoritesPage(Page):
             return
         self.parameter.value = value
         self.show_value(value)
+
+    def on_freeze(self, value: int) -> None:
+        # Only while the expression pedal controls the volume
+        if self.parameter is None:
+            super().on_freeze(value)
 
     def on_ctl(self) -> None:
         if self.parameter is None:

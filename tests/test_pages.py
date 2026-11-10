@@ -154,6 +154,10 @@ class TransportPageTest(unittest.TestCase):
         self.page.handle(move(P.EXP, 64))
         self.assertEqual(self.s.volume, [64])
 
+    def test_freeze(self):
+        self.page.handle(move(P.FOOT_SW_EXP_1, 90))
+        self.assertEqual(self.s._racks[10].parameters[1].value, 90)
+
 
 class LoopsPageTest(unittest.TestCase):
     def setUp(self):
@@ -206,6 +210,13 @@ class FavoritesPageTest(unittest.TestCase):
         self.assertIsInstance(self.s._mode, pages.ParameterControl)
         self.assertEqual(self.s._mode.device_index, 1)
         self.assertIsNone(self.page.parameter)
+
+    def test_freeze_only_while_expression_controls_volume(self):
+        self.page.handle(move(P.FOOT_SW_EXP_1, 90))
+        self.assertEqual(self.s._racks[10].parameters[1].value, 90)
+        self.page.handle(press(P.P2))
+        self.page.handle(move(P.FOOT_SW_EXP_1, 20))
+        self.assertEqual(self.s._racks[10].parameters[1].value, 90)
 
     def test_leaving_drops_favorite(self):
         self.page.handle(press(P.P2))
