@@ -8,6 +8,7 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
 - Protocol: none yet
 - Unit tests: `python3.11 -m unittest discover -s tests` (Live-free modules only)
 - Type check: `mypy` (config in `mypy.ini`: Python 3.11 rules, skips vendored `xmltodict` and `MiraGUI`; mypy is installed system-wide, not in a venv)
+- Live types: partial `.pyi` stubs for `Live` and `_Framework` in `stubs/` (mypy-only). Import Live types under `if TYPE_CHECKING:` with `from __future__ import annotations`, so nothing type-only is imported at runtime. Add a stub member when the script starts using one.
 - Integration tests: none yet
 
 ### What this does
