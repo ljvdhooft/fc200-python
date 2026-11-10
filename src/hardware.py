@@ -1,25 +1,22 @@
+from __future__ import annotations
+
 import itertools
 from collections.abc import Callable, Sequence
-from typing import Any
 
 from _Framework import Task
 from . import roland_exclusive as se
-
-# Live's _Framework has no type stubs: a task group and the tasks it returns
-TaskGroup = Any
-TaskHandle = Any
 
 
 class FC200Hardware:
     """LEDs, bank display and mode of the FC-200, driven over Roland Exclusive."""
 
-    def __init__(self, send_midi: Callable[[tuple[int, ...]], None], tasks: TaskGroup,
+    def __init__(self, send_midi: Callable[[tuple[int, ...]], object], tasks: Task.TaskGroup,
                  log: Callable[[str], None] | None = None) -> None:
         self._send_midi = send_midi
         self._tasks = tasks
         self._log = log
         self._bank_display = (se.segments(' '), se.segments(' '))
-        self._restore_task: TaskHandle | None = None
+        self._restore_task: Task.Task | None = None
 
     def send(self, body: Sequence[int]) -> None:
         msg = se.build(body)
@@ -51,7 +48,7 @@ class FC200Hardware:
             Task.run(lambda: self.led(pedal, se.OFF))
         ))
 
-    def blink(self, pedal: se.Pedal, interval: float) -> TaskHandle:
+    def blink(self, pedal: se.Pedal, interval: float) -> Task.Task:
         """Blink one LED until the returned task is killed."""
         values = itertools.cycle((se.ON, se.OFF))
         return self._tasks.add(Task.loop(Task.sequence(

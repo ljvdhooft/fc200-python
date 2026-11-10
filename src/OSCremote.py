@@ -1,10 +1,8 @@
 import socket
 import struct
-from typing import Any
 
 class OSCremote:
-    def __init__(self, script: Any, ip: str, port: int) -> None:
-        self._script = script
+    def __init__(self, ip: str, port: int) -> None:
         self.ip = ip
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
