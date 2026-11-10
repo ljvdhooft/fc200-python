@@ -281,7 +281,7 @@ class FC200(ControlSurface):
         cents += offset
 
         binary = 0 if sharp == False else 4
-        tolerance = 3
+        tolerance = 2
         if (tolerance * -1) < cents < tolerance:
             binary += 64
         if cents <= (tolerance * -1):
