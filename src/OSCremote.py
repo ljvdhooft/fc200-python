@@ -1,10 +1,8 @@
-from . import config
 import socket
 import struct
 
 class OSCremote:
-    def __init__(self, script, ip="127.0.0.1", port=20022):
-        self.settings = config.Settings
+    def __init__(self, script, ip, port):
         self._script = script
         self.ip = ip
         self.port = port

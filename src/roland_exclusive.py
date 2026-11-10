@@ -15,7 +15,9 @@ LED_STATUS = 0x01
 BANK_DISPLAY_STATUS = 0x02
 MODE_STATUS = 0x03
 
-# Pedal Status / LED Status: address LSB; 0x00-0x09 are pedals 1-10
+# Pedal Status / LED Status: address LSB
+(PEDAL_1, PEDAL_2, PEDAL_3, PEDAL_4, PEDAL_5,
+ PEDAL_6, PEDAL_7, PEDAL_8, PEDAL_9, PEDAL_10) = range(0x0A)
 PEDAL_UP = 0x0A
 PEDAL_DOWN = 0x0B
 PEDAL_CTL = 0x0C
@@ -66,6 +68,25 @@ def parse(midi_bytes):
     if midi_bytes[8] != checksum(body):
         return None
     return body
+
+
+def pressed(body, pedal):
+    """True if body is the pedal being pressed down (not released)."""
+    return body == [PEDAL_STATUS, pedal, ON]
+
+
+def released(body, pedal):
+    return body == [PEDAL_STATUS, pedal, OFF]
+
+
+def number_pedal_pressed(body):
+    """True if body is one of Pedals 1-10 being pressed down."""
+    return body[0] == PEDAL_STATUS and PEDAL_1 <= body[1] <= PEDAL_10 and body[2] == ON
+
+
+def moved(body, pedal):
+    """True if body is any value from the pedal, e.g. EXP_PEDAL."""
+    return body[0] == PEDAL_STATUS and body[1] == pedal
 
 
 def segments(char):

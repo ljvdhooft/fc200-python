@@ -43,6 +43,28 @@ class BuildParseTest(unittest.TestCase):
         self.assertIsNone(se.parse(msg))
 
 
+class PedalTest(unittest.TestCase):
+    def test_pressed(self):
+        self.assertTrue(se.pressed([0, 10, 127], se.PEDAL_UP))
+        self.assertFalse(se.pressed([0, 10, 0], se.PEDAL_UP))
+        self.assertFalse(se.pressed([1, 10, 127], se.PEDAL_UP))
+
+    def test_released(self):
+        self.assertTrue(se.released([0, 12, 0], se.PEDAL_CTL))
+        self.assertFalse(se.released([0, 12, 127], se.PEDAL_CTL))
+
+    def test_number_pedal_pressed(self):
+        self.assertTrue(se.number_pedal_pressed([0, se.PEDAL_1, 127]))
+        self.assertTrue(se.number_pedal_pressed([0, se.PEDAL_10, 127]))
+        self.assertFalse(se.number_pedal_pressed([0, se.PEDAL_UP, 127]))
+        self.assertFalse(se.number_pedal_pressed([0, se.PEDAL_1, 0]))
+
+    def test_moved(self):
+        self.assertTrue(se.moved([0, 13, 0], se.EXP_PEDAL))
+        self.assertTrue(se.moved([0, 13, 64], se.EXP_PEDAL))
+        self.assertFalse(se.moved([3, 13, 64], se.EXP_PEDAL))
+
+
 class SegmentsTest(unittest.TestCase):
     def test_digit_and_letter(self):
         self.assertEqual(se.segments(8), 127)
