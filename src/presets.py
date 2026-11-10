@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 
 from . import xmltodict
+from .listeners import Listeners
 
 if TYPE_CHECKING:
     from Live.Chain import Chain
@@ -190,27 +191,27 @@ class PresetManager:
     """
 
     def __init__(self, store: PresetStore, track: Track, board: Chain, loops: Sequence[int],
-                 defer: Callable[[Callable[[], None]], object]) -> None:
-        """loops: board device indices to store. defer: runs a function on Live's next tick."""
+                 defer: Callable[[Callable[[], None]], object], listeners: Listeners) -> None:
+        """loops: board device indices to store. defer: runs a function on Live's next tick.
+        listeners: registry for the recall-on-clip-launch listener; its owner removes it."""
         self._store = store
         self._track = track
         self._board = board
         self._loops = loops
         self._defer = defer
-        self._listeners: list[PresetEvents] = []
+        self._subscribers: list[PresetEvents] = []
         self._pending_overwrite: str | None = None
-        track.add_playing_slot_index_listener(self._on_playing_slot_changed)
+        listeners.add(track, "playing_slot_index", self._on_playing_slot_changed)
 
     def subscribe(self, listener: PresetEvents) -> None:
-        self._listeners.append(listener)
+        self._subscribers.append(listener)
 
     def unsubscribe(self, listener: PresetEvents) -> None:
-        self._listeners.remove(listener)
+        self._subscribers.remove(listener)
 
     def disconnect(self) -> None:
+        """Cancel a pending overwrite. The Live listener goes with its registry."""
         self.cancel()
-        if self._track.playing_slot_index_has_listener(self._on_playing_slot_changed):
-            self._track.remove_playing_slot_index_listener(self._on_playing_slot_changed)
 
     @property
     def pending_overwrite(self) -> str | None:
@@ -226,11 +227,11 @@ class PresetManager:
         if not slot.has_clip:
             template = self._track.clip_slots[0]
             if not template.has_clip:
-                for listener in self._listeners:
+                for listener in self._subscribers:
                     listener.template_clip_missing()
                 return
             template.duplicate_clip_to(slot)
-            for listener in self._listeners:
+            for listener in self._subscribers:
                 listener.template_clip_copied(scene_index)
             return
         name = slot.clip.name
@@ -238,13 +239,13 @@ class PresetManager:
         if self._store.exists(name) and self._pending_overwrite != name:
             self.cancel()
             self._pending_overwrite = name
-            for listener in self._listeners:
+            for listener in self._subscribers:
                 listener.overwrite_pending(name)
             return
 
         self._pending_overwrite = None
         saved = self._store.save(name, Preset.read(self._board, self._loops))
-        for listener in self._listeners:
+        for listener in self._subscribers:
             if saved:
                 listener.saved(name)
             else:
@@ -256,7 +257,7 @@ class PresetManager:
         if name is None:
             return False
         self._pending_overwrite = None
-        for listener in self._listeners:
+        for listener in self._subscribers:
             listener.overwrite_cancelled(name)
         return True
 
@@ -268,7 +269,7 @@ class PresetManager:
 
         def apply() -> None:
             preset.apply(self._board)
-            for listener in self._listeners:
+            for listener in self._subscribers:
                 listener.recalled(name)
         # Live rejects changes made from inside a listener, so never apply directly
         self._defer(apply)

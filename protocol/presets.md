@@ -1,6 +1,11 @@
 # Presets protocol
 
-**Version 0.1.0**. Semver: minor for additions, major for breaking changes.
+**Version 0.2.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+
+| Version | Change                                                                          |
+|---------|---------------------------------------------------------------------------------|
+| 0.2.0   | `PresetManager` takes a `Listeners` registry; `disconnect()` only cancels       |
+| 0.1.0   | First version                                                                   |
 
 | Part                        | Status                                   |
 |-----------------------------|------------------------------------------|
@@ -63,7 +68,11 @@ thread only.
 | `preset_names() -> list`    | Stored preset names, sorted                                           |
 | `pending_overwrite`         | Name waiting for overwrite confirmation, or None                      |
 | `subscribe(listener)`       | Register a `PresetEvents` listener (any number)                       |
-| `disconnect()`              | Cancel, and remove the manager's own Live listener                    |
+| `disconnect()`              | Cancel a pending overwrite                                            |
+
+The manager's Live listener (recall on clip launch) is added to the `Listeners`
+registry passed to its constructor. Whoever owns that registry removes it with
+`remove_all()`.
 
 **Store flow:**
 1. **Empty slot:** the dummy clip in slot 0 is copied into it, and the store stops there. Rename the clip, then store again.

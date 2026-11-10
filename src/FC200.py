@@ -6,12 +6,13 @@ from . import config
 from . import presets
 from . import roland_exclusive as se
 from .hardware import FC200Hardware
+from .listeners import Listeners
 from .preset_feedback import PresetFeedback
 from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
 
 import importlib
-from collections.abc import Callable
+from functools import partial
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
@@ -45,7 +46,6 @@ class FC200(ControlSurface):
     _parameter_control_selected_chain_index: int | None
     _parameter_control_blink: Task.Task | None
     blink_leds_value: int
-    _observed_params: list[tuple[DeviceParameter, Callable[[], None]]]
 
     def __init__(self, c_instance: object) -> None:
         super(FC200, self).__init__(c_instance)
@@ -55,8 +55,11 @@ class FC200(ControlSurface):
         self._mira = MiraGUI(self, self._track_index, self._device_index)
         self._oscremote = OSCremote(self.settings.OSC_REMOTE_HOST, self.settings.OSC_REMOTE_PORT)
 
-        if not self.song().is_ableton_link_enabled_has_listener(self._reload_config):
-            self.song().add_is_ableton_link_enabled_listener(self._reload_config)
+        # Live for the whole script: toggling Link reloads the config
+        self._script_listeners = Listeners(self.log_message)
+        self._script_listeners.add(self.song(), "is_ableton_link_enabled", self._reload_config)
+        # Added by _setup; removed on config reload and unload
+        self._listeners = Listeners(self.log_message)
 
         self._setup()
 
@@ -125,21 +128,10 @@ class FC200(ControlSurface):
             self._led_status[p] = {}
         self._hw.set_bank_display(' ', self._page)
 
-        # Add listeners for page_0 (is_playing, metronome, current_scene)
-        if not self.song().is_playing_has_listener(self._on_is_playing_changed):
-            self.song().add_is_playing_listener(self._on_is_playing_changed)
-            self._led_status[0][se.Pedal.P1] = 127 if self.song().is_playing else 0
-            if DEBUG:
-                self.log_message(f"Adding listener for is_playing")
-        if not self.song().metronome_has_listener(self._on_metronome_changed):
-            self.song().add_metronome_listener(self._on_metronome_changed)
-            self._led_status[0][se.Pedal.P6] = 127 if self.song().metronome else 0
-            if DEBUG:
-                self.log_message(f"Adding listener for metronome state")
-        if not self.song().view.selected_scene_has_listener(self._on_selected_scene_changed):
-            self.song().view.add_selected_scene_listener(self._on_selected_scene_changed)
-            if DEBUG:
-                self.log_message(f"Adding listener for selected scene")
+        # Page 0: transport LEDs and the scene overview
+        self._listeners.add(self.song(), "is_playing", self._on_is_playing_changed)
+        self._listeners.add(self.song(), "metronome", self._on_metronome_changed)
+        self._listeners.add(self.song().view, "selected_scene", self._on_selected_scene_changed)
 
         self._fired_scene = None
         self._highlight_tuner_true = False
@@ -153,7 +145,6 @@ class FC200(ControlSurface):
         self._parameter_control_selected_chain = None
         self._parameter_control_selected_chain_index = None
         self._parameter_control_blink = None
-        self._observed_params = []
         self._on_is_playing_changed()
         self._on_metronome_changed()
         self._on_selected_scene_changed()
@@ -165,25 +156,23 @@ class FC200(ControlSurface):
             self._tuner_rack = cast("RackDevice", track.devices[self.settings.TUNER_RACK])
             self._tuner_device = self._tuner_rack.chains[self.settings.TUNER_CHAIN].devices[self.settings.TUNER_DEVICE]
             self._volume = self._volume_param.value
-            if not self._volume_param.value_has_listener(self._highlight_tuner):
-                self._volume_param.add_value_listener(self._highlight_tuner)
-            if not self._tuner_device.parameters[1].value_has_listener(self._display_tuner):
-                self._tuner_device.parameters[1].add_value_listener(self._display_tuner)
+            self._listeners.add(self._volume_param, "value", self._highlight_tuner)
+            self._listeners.add(self._tuner_device.parameters[1], "value", self._display_tuner)
             self._presets = presets.PresetManager(
                 presets.PresetStore(self.settings.PRESET_FOLDER, self.log_message),
                 track, self._pedalboard(), self.settings.LOOP_MAPPING,
-                lambda fn: self._tasks.add(Task.run(fn)))
+                lambda fn: self._tasks.add(Task.run(fn)), self._listeners)
             self._presets.subscribe(PresetFeedback(
                 self._hw, se.Pedal.P8, self.show_message, lambda: self._page, store_page=0))
 
-            self._listeners()
+            self._add_loop_listeners()
             self._init_leds()
             self.leds_recall()
 
     def _reload_config(self) -> None:
         importlib.reload(config)
         self.settings = config.Settings()
-        self._remove_loop_listeners()
+        self._listeners.remove_all()
         if self._presets is not None:
             self._presets.disconnect()
         self._setup()
@@ -254,13 +243,13 @@ class FC200(ControlSurface):
         v = str(int(value / 127 * 99)).zfill(2)
         self._hw.set_bank_display_temp(se.segments(v[0]), se.segments(v[1]), timeout)
 
-    def _listeners(self) -> None:
-        def update_led(pedal, loop):
+    def _add_loop_listeners(self) -> None:
+        """Page 1: a loop's on/off parameter drives its pedal LED."""
+        def update_led(pedal: se.Pedal, parameter: DeviceParameter) -> None:
             if DEBUG:
-                self.log_message(f"parameter {loop} changed, updating LED {pedal}")
-            value = self._observed_params[pedal][0]
-            led_value = 127 if str(value) == "On" else 0
-            self._led_status[1][pedal] = led_value 
+                self.log_message(f"{parameter.name} changed, updating LED {pedal}")
+            led_value = 127 if str(parameter) == "On" else 0
+            self._led_status[1][pedal] = led_value
             if self._page == 2 and self._parameter_control is None:
                 self._mira.page_2()
             if self._parameter_control is not None:
@@ -269,27 +258,10 @@ class FC200(ControlSurface):
             if self._page != 1:
                 return
             self._hw.led(pedal, led_value)
-            return
 
-        # Add listeners for page_1 (device on/off)
         for index, loop in enumerate(self.settings.LOOP_MAPPING):
             parameter = self._loop(loop).parameters[0]
-
-            callback = lambda i=se.Pedal(index), l=loop: update_led(i, l)
-
-            if not parameter.value_has_listener(callback):
-                parameter.add_value_listener(callback)
-                self._observed_params.append((parameter, callback))
-        if DEBUG:
-            self.log_message(f"Added listeners for {len(self._observed_params)} devices")
-        return
-
-    def _remove_loop_listeners(self) -> None:
-        # Remove listeners for page_1 (device_on)
-        for param, callback in self._observed_params:
-            if param.value_has_listener(callback):
-                param.remove_value_listener(callback)
-        self._observed_params = []
+            self._listeners.add(parameter, "value", partial(update_led, se.Pedal(index), parameter))
 
     def _on_is_playing_changed(self) -> None:
         is_playing = self.song().is_playing 
@@ -702,25 +674,10 @@ class FC200(ControlSurface):
 
     def disconnect(self) -> None:
         """Clean up when the script is unloaded."""
-        self.log_message("(FC200) Removing all listeners...")
-
-        # Remove listeners for page_0 (is_playing, metronome)
-        if self.song().is_playing_has_listener(self._on_is_playing_changed):
-            self.song().remove_is_playing_listener(self._on_is_playing_changed)
-        if self.song().metronome_has_listener(self._on_metronome_changed):
-            self.song().remove_metronome_listener(self._on_metronome_changed)
-        if self.song().view.selected_scene_has_listener(self._on_selected_scene_changed):
-            self.song().view.remove_selected_scene_listener(self._on_selected_scene_changed)
-
-        if self._has_pedalboard:
-            if self._volume_param.value_has_listener(self._highlight_tuner):
-                self._volume_param.remove_value_listener(self._highlight_tuner)
-            if self._presets is not None:
-                self._presets.disconnect()
-            if self._tuner_device.parameters[1].value_has_listener(self._display_tuner):
-                self._tuner_device.parameters[1].remove_value_listener(self._display_tuner)
-
-            self._remove_loop_listeners()
-
+        self.log_message(f"Removing {len(self._listeners) + len(self._script_listeners)} listeners...")
+        if self._presets is not None:
+            self._presets.disconnect()
+        self._listeners.remove_all()
+        self._script_listeners.remove_all()
         self.log_message("--- FC200 Script Unloaded ---")
         super(FC200, self).disconnect()

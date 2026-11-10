@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import support  # noqa: F401
 from fc200 import presets  # noqa: E402
+from fc200.listeners import Listeners  # noqa: E402
 from fc200.preset_feedback import PresetFeedback  # noqa: E402
 
 TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
@@ -198,7 +199,9 @@ class PresetManagerTest(unittest.TestCase):
         self.store = presets.PresetStore(self._tmp.name, lambda msg: None)
         self.track = FakeTrack(["template", "Song A", None, "Song B"])
         self.board = fake_board([fake_rack([1.0] * 8)])
-        self.manager = presets.PresetManager(self.store, self.track, self.board, [0], lambda fn: fn())
+        self.listeners = Listeners(lambda msg: None)
+        self.manager = presets.PresetManager(
+            self.store, self.track, self.board, [0], lambda fn: fn(), self.listeners)
         self.recorder = RecordingEvents()
         self.manager.subscribe(self.recorder)
 
@@ -275,9 +278,16 @@ class PresetManagerTest(unittest.TestCase):
         self.manager.store(1)
         self.assertEqual(self.manager.preset_names(), ["Song A", "Song B"])
 
-    def test_disconnect_removes_listener(self):
-        self.manager.disconnect()
+    def test_recall_listener_goes_with_the_registry(self):
+        self.assertEqual(len(self.track.listeners), 1)
+        self.listeners.remove_all()
         self.assertEqual(self.track.listeners, [])
+
+    def test_disconnect_cancels_pending_overwrite(self):
+        self.manager.store(1)
+        self.manager.store(1)       # asks
+        self.manager.disconnect()
+        self.assertIsNone(self.manager.pending_overwrite)
 
 
 class PresetFeedbackTest(unittest.TestCase):

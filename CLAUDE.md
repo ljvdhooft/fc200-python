@@ -5,9 +5,10 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
   - MIDI Remote Script: `src/` (symlinked into Live User Library as `_FC200_SysEx_dev`; `_FC200_SysEx` points to the sibling `fc200-python-main` checkout)
   - Virtual pedal: `virtual-pedal/FC200_virtual-pedal.maxpat`, an air-gapped Max patch that emulates the FC-200 in Exclusive (SysEx) mode, for testing without the hardware. MIDI only (no OSC): in Live, select the Remote Script with MIDI in/out "from Max 1" / "to Max 1"; the patch uses the same virtual MIDI ports.
   - M4L device: `FC200 Mira.amxd` (repo root), a GUI for the script; to be refactored later
-- Protocol: `protocol/presets.md` v0.1.0. Preset files and core API are implemented; the remote interface for a frontend is a **draft** (not implemented, needs approval). Change the spec first, then the code.
+- Protocol: `protocol/presets.md` v0.2.0. Preset files and core API are implemented; the remote interface for a frontend is a **draft** (not implemented, needs approval). Change the spec first, then the code.
 - Unit tests: `python3.11 -m unittest discover -s tests` (Live-free modules only)
 - Type check: `mypy` (config in `mypy.ini`: Python 3.11 rules, skips vendored `xmltodict` and `MiraGUI`; mypy is installed system-wide, not in a venv)
+- Live listeners: always add them through a `Listeners` registry (`src/listeners.py`): `listeners.add(subject, "<prop>", callback)`. FC200 keeps `_listeners` (added by `_setup`, removed on config reload and unload) and `_script_listeners` (the Link-toggle reload trigger, removed on unload). Callbacks are wrapped so exceptions are logged with a traceback.
 - Live types: partial `.pyi` stubs for `Live` and `_Framework` in `stubs/` (mypy-only). Import Live types under `if TYPE_CHECKING:` with `from __future__ import annotations`, so nothing type-only is imported at runtime. Add a stub member when the script starts using one.
 - Integration tests: none yet
 
