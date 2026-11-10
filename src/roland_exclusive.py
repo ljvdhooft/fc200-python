@@ -48,6 +48,10 @@ class Pedal(IntEnum):
     FOOT_SW_EXP_5 = 0x12
     FOOT_SW_EXP_6 = 0x13
 
+
+# Pedals 1-10
+NUMBER_PEDALS: Final = tuple(Pedal(p) for p in range(Pedal.P1, Pedal.P10 + 1))
+
 class BankDisplay(IntEnum):
     """Bank Display Status: address LSB."""
     RIGHT = 0x00
@@ -115,7 +119,7 @@ def released(body: Body, pedal: Pedal) -> bool:
 
 def number_pedal_pressed(body: Body) -> bool:
     """True if body is one of Pedals 1-10 being pressed down."""
-    return body[0] == Area.PEDAL_STATUS and Pedal.P1 <= body[1] <= Pedal.P10 and body[2] == ON
+    return body[0] == Area.PEDAL_STATUS and body[1] in NUMBER_PEDALS and body[2] == ON
 
 
 def changed(body: Body, pedal: Pedal) -> bool:
