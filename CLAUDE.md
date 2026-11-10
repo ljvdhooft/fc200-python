@@ -3,7 +3,7 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
 - Live version pinned: 12.4b14
 - Components:
   - MIDI Remote Script: `src/` (symlinked into Live User Library as `_FC200_SysEx_dev`; `_FC200_SysEx` points to the sibling `fc200-python-main` checkout)
-  - Virtual pedal: `virtual-pedal/FC200_virtual-pedal.maxpat`, a Max patch that emulates the FC-200 in Exclusive (SysEx) mode, for testing without the hardware
+  - Virtual pedal: `virtual-pedal/FC200_virtual-pedal.maxpat`, an air-gapped Max patch that emulates the FC-200 in Exclusive (SysEx) mode, for testing without the hardware. MIDI only (no OSC): in Live, select the Remote Script with MIDI in/out "from Max 1" / "to Max 1"; the patch uses the same virtual MIDI ports.
   - M4L device: `FC200 Mira.amxd` (repo root), a GUI for the script; to be refactored later
 - Protocol: none yet
 - Unit tests: `python3.11 -m unittest discover -s tests` (Live-free modules only)
@@ -20,4 +20,15 @@ A dummy audio clip on the guitar track's clip slots doubles as a preset slot —
 - The `.json` and `.alc` are a loosely coupled pair kept in sync only by this store flow; renaming a clip in Live does **not** rename its shadow file.
 
 ### OSC side-channel
-`src/OSCremote.py` and `src/MiraGUI.py` each open their own outbound UDP/OSC socket (hand-rolled OSC packing, no library) — `OSCremote` talks to a standalone Max/MSP patch (the M4L-adjacent `virtual-pedal/FC200_virtual-pedal.maxpat`, or a standalone Max app built from it) which re-emits MIDI to external gear, e.g. page-turn commands to ForScore on iPad. `MiraGUI` drives a Mira/touch-OSC-style display. Ports/IPs are hardcoded constructor defaults (127.0.0.1:20022 and :8001) — no `protocol/` spec exists for these messages yet.
+`src/OSCremote.py` and `src/MiraGUI.py` each open their own outbound UDP/OSC socket (hand-rolled OSC packing, no library). Ports/IPs are hardcoded constructor defaults (127.0.0.1:20022 and :8001) — no `protocol/` spec exists for these messages yet. `MiraGUI` drives a Mira/touch-OSC-style display.
+
+`OSCremote` (UDP 20022) is how the script gets MIDI to ForScore and back into Live:
+
+```
+FC200.py ─OSC/UDP 20022─► standalone Max patch (OSC → MIDI; not in this repo)
+  ─IAC "FC200 > Ableton"─► MIDI track in Live
+       ├─ M4L "page_turner" (MIDI middleware, e.g. makes automation possible)
+       └─ output → Network MIDI ─► ForScore on iPad
+```
+
+Why the detour: the Remote Script used to send this MIDI to Live directly, which caused feedback loops that crashed Live. Offloading the MIDI output to Max is the current fix — don't move it back into the Remote Script.
