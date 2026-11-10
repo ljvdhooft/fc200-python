@@ -7,6 +7,7 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
   - M4L device: `FC200 Mira.amxd` (repo root), a GUI for the script; to be refactored later
 - Protocol: none yet
 - Unit tests: `python3.11 -m unittest discover -s tests` (Live-free modules only)
+- Type check: `mypy` (config in `mypy.ini`: Python 3.11 rules, skips vendored `xmltodict` and `MiraGUI`; mypy is installed system-wide, not in a venv)
 - Integration tests: none yet
 
 ### What this does
