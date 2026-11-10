@@ -1,7 +1,7 @@
 from _Framework.ControlSurface import ControlSurface
 from _Framework import Task
 from . import config
-from . import roland_exclusive as rx
+from . import roland_exclusive as se
 from .hardware import FC200Hardware
 from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
@@ -145,7 +145,7 @@ class FC200(ControlSurface):
             binary += 1
         if cents >= tolerance:
             binary += 8
-        self._hw.set_bank_display_briefly(rx.segments(note_a), binary)
+        self._hw.set_bank_display_temp(se.segments(note_a), binary)
 
     def _highlight_tuner(self):
         parameter = self._board.devices[self.settings.LOOP_VOLUME].parameters[1]
@@ -321,7 +321,7 @@ class FC200(ControlSurface):
 
     def _expr_display(self, value, timeout=1):
         v = str(int(value / 127 * 99)).zfill(2)
-        self._hw.set_bank_display_briefly(rx.segments(v[0]), rx.segments(v[1]), timeout)
+        self._hw.set_bank_display_temp(se.segments(v[0]), se.segments(v[1]), timeout)
 
     def _listeners(self):
         def update_led(pedal, loop):
@@ -394,7 +394,7 @@ class FC200(ControlSurface):
         return
 
     def handle_sysex(self, midi_bytes):
-        body = rx.parse(midi_bytes)
+        body = se.parse(midi_bytes)
         if DEBUG:
             self.log_message(f"\nReceived SysEx: {midi_bytes}\nbody {body}")
         if body is None:

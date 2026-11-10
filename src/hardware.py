@@ -1,7 +1,7 @@
 import itertools
 
 from _Framework import Task
-from . import roland_exclusive as rx
+from . import roland_exclusive as se
 
 
 class FC200Hardware:
@@ -11,11 +11,11 @@ class FC200Hardware:
         self._send_midi = send_midi
         self._tasks = tasks
         self._log = log
-        self._bank_display = (rx.segments(' '), rx.segments(' '))
+        self._bank_display = (se.segments(' '), se.segments(' '))
         self._restore_task = None
 
     def send(self, body):
-        msg = rx.build(body)
+        msg = se.build(body)
         if self._log:
             self._log(f"\nsending out: {msg}")
         self._send_midi(msg)
@@ -25,39 +25,39 @@ class FC200Hardware:
 
         Return True if it switched.
         """
-        if body[:2] != [rx.MODE_STATUS, rx.MODE_CURRENT] or body[2] == rx.MODE_EXCLUSIVE:
+        if body[:2] != [se.MODE_STATUS, se.MODE_CURRENT] or body[2] == se.MODE_EXCLUSIVE:
             return False
-        self.send([rx.MODE_STATUS, rx.MODE_SET, rx.MODE_EXCLUSIVE])
+        self.send([se.MODE_STATUS, se.MODE_SET, se.MODE_EXCLUSIVE])
         return True
 
     def led(self, pedal, value):
-        self.send([rx.LED_STATUS, pedal, value])
+        self.send([se.LED_STATUS, pedal, value])
 
     def leds_off(self):
         for pedal in range(0, 9 + 1):
-            self.led(pedal, rx.OFF)
+            self.led(pedal, se.OFF)
 
     def flash(self, pedal):
-        self.led(pedal, rx.ON)
+        self.led(pedal, se.ON)
         self._tasks.add(Task.sequence(
             Task.wait(0.1),
-            Task.run(lambda: self.led(pedal, rx.OFF))
+            Task.run(lambda: self.led(pedal, se.OFF))
         ))
 
     def blink(self, pedal, interval):
         """Blink one LED until the returned task is killed."""
-        values = itertools.cycle((rx.ON, rx.OFF))
+        values = itertools.cycle((se.ON, se.OFF))
         return self._tasks.add(Task.loop(Task.sequence(
             Task.wait(interval),
             Task.run(lambda: self.led(pedal, next(values)))
         )))
 
     def set_bank_display(self, left, right):
-        """Show two characters; set_bank_display_briefly returns to this."""
-        self._bank_display = (rx.segments(left), rx.segments(right))
+        """Show two characters; set_bank_display_temp returns to this."""
+        self._bank_display = (se.segments(left), se.segments(right))
         self._write_bank_display(*self._bank_display)
 
-    def set_bank_display_briefly(self, left, right, timeout=1):
+    def set_bank_display_temp(self, left, right, timeout=1):
         """Show two raw segment bitmasks, then return to the last set_bank_display.
 
         A newer call replaces a pending return.
@@ -71,5 +71,5 @@ class FC200Hardware:
         ))
 
     def _write_bank_display(self, left, right):
-        self.send([rx.BANK_DISPLAY_STATUS, rx.BANK_DISPLAY_LEFT, left])
-        self.send([rx.BANK_DISPLAY_STATUS, rx.BANK_DISPLAY_RIGHT, right])
+        self.send([se.BANK_DISPLAY_STATUS, se.BANK_DISPLAY_LEFT, left])
+        self.send([se.BANK_DISPLAY_STATUS, se.BANK_DISPLAY_RIGHT, right])
