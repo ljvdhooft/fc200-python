@@ -48,10 +48,18 @@ class BankDisplay(IntEnum):
     RIGHT = 0x00
     LEFT = 0x01
 
-# Mode Status: address LSB, and the data value for Exclusive Mode
-MODE_CURRENT = 0x00         # sent by the FC-200 on power-up or mode change
-MODE_SET = 0x01             # DT1 to this address changes the mode
-MODE_EXCLUSIVE = 0x03
+class ModeStatus(IntEnum):
+    """Mode Status: address LSB."""
+    CURRENT = 0x00          # sent by the FC-200 on power-up or mode change
+    SET = 0x01              # DT1 to this address changes the mode
+
+
+class Mode(IntEnum):
+    """Mode Status: data value."""
+    PROGRAM = 0x00
+    CONTROL = 0x01
+    NOTE = 0x02
+    EXCLUSIVE = 0x03
 
 ON = 0x7F
 OFF = 0x00

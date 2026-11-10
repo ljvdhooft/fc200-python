@@ -25,9 +25,9 @@ class FC200Hardware:
 
         Return True if it switched.
         """
-        if body[:2] != [se.Area.MODE_STATUS, se.MODE_CURRENT] or body[2] == se.MODE_EXCLUSIVE:
+        if body[:2] != [se.Area.MODE_STATUS, se.ModeStatus.CURRENT] or body[2] == se.Mode.EXCLUSIVE:
             return False
-        self.send([se.Area.MODE_STATUS, se.MODE_SET, se.MODE_EXCLUSIVE])
+        self.send([se.Area.MODE_STATUS, se.ModeStatus.SET, se.Mode.EXCLUSIVE])
         return True
 
     def led(self, pedal, value):
