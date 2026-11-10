@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from _Framework.ControlSurface import ControlSurface
 from _Framework import Task
 from . import config
 from . import roland_exclusive as se
-from .hardware import FC200Hardware, TaskHandle
+from .hardware import FC200Hardware
 from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
 
@@ -13,41 +15,49 @@ import os
 import json
 import importlib
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    # Type-only: resolved from stubs/, never imported at runtime
+    from Live.Chain import Chain
+    from Live.Device import Device
+    from Live.DeviceParameter import DeviceParameter
+    from Live.RackDevice import RackDevice
+    from Live.Scene import Scene
+    from Live.Track import Track
 
 DEBUG = False
 
 
 class FC200(ControlSurface):
-    # Live objects (tracks, devices, parameters, chains, scenes) have no type stubs: Any
     _page: int
     # None when no pedalboard is found; handlers check that at runtime
-    _track: Any
-    _board: Any                             # chain 0 of the "FC200 Pedalboard" rack
+    _track: Track | None
+    _board: Chain | None                    # chain 0 of the "FC200 Pedalboard" rack
     _led_status: dict[int, dict[se.Pedal, int]]   # page -> pedal -> LED value
-    _fired_scene: Any | None
+    _fired_scene: Scene | None
     _preset_store_confirm: bool | None
-    _preset_store_blinking_led: TaskHandle | None
-    _favorite_parameter: Any | None
+    _preset_store_blinking_led: Task.Task | None
+    _favorite_parameter: DeviceParameter | None
     _favorite_parameter_pedal: se.Pedal | None
     _parameter_control: int | None          # board device index
     _parameter_control_selected: se.Pedal | None
     _parameter_control_selected_pedal: se.Pedal | None
-    _parameter_control_selected_parameter: Any | None
-    _parameter_control_chains: list[Any] | None
-    _parameter_control_selected_chain: Any | None
+    _parameter_control_selected_parameter: DeviceParameter | None
+    _parameter_control_chains: list[Chain] | None
+    _parameter_control_selected_chain: Chain | None
     _parameter_control_selected_chain_index: int | None
-    _parameter_control_blink: TaskHandle | None
+    _parameter_control_blink: Task.Task | None
     blink_leds_value: int
-    _observed_params: list[tuple[Any, Callable[[], None]]]
+    _observed_params: list[tuple[DeviceParameter, Callable[[], None]]]
 
-    def __init__(self, c_instance: Any) -> None:
+    def __init__(self, c_instance: object) -> None:
         super(FC200, self).__init__(c_instance)
         self.settings = config.Settings()
         self._hw = FC200Hardware(self._send_midi, self._tasks, self.log_message if DEBUG else None)
         self._setup_track()
         self._mira = MiraGUI(self, self._track_index, self._device_index)
-        self._oscremote = OSCremote(self, self.settings.OSC_REMOTE_HOST, self.settings.OSC_REMOTE_PORT)
+        self._oscremote = OSCremote(self.settings.OSC_REMOTE_HOST, self.settings.OSC_REMOTE_PORT)
 
         if not self.song().is_ableton_link_enabled_has_listener(self._reload_config):
             self.song().add_is_ableton_link_enabled_listener(self._reload_config)
@@ -70,9 +80,9 @@ class FC200(ControlSurface):
                     self.log_message(f"Found pedalboard at track {i+1} device {j+1}")
                     self._track = track
                     self._track_index = i
-                    self._device = device
+                    self._device = cast("RackDevice", device)
                     self._device_index = j
-                    self._board = device.chains[0]
+                    self._board = self._device.chains[0]
                     self._page = 1
                     break
 
@@ -119,8 +129,8 @@ class FC200(ControlSurface):
         self._hw.leds_off()
 
         if self._track is not None and self._board is not None:
-            self._volume_param = self._board.devices[self.settings.LOOP_VOLUME].parameters[1]
-            self._tuner_rack = self._track.devices[self.settings.TUNER_RACK]
+            self._volume_param = self._loop(self.settings.LOOP_VOLUME).parameters[1]
+            self._tuner_rack = cast("RackDevice", self._track.devices[self.settings.TUNER_RACK])
             self._tuner_device = self._tuner_rack.chains[self.settings.TUNER_CHAIN].devices[self.settings.TUNER_DEVICE]
             self._volume = self._volume_param.value
             if not self._volume_param.value_has_listener(self._highlight_tuner):
@@ -133,6 +143,15 @@ class FC200(ControlSurface):
             self._listeners()
             self._init_leds()
             self.leds_recall()
+
+    def _pedalboard(self) -> Chain:
+        """The pedalboard chain; only call once a pedalboard was found."""
+        assert self._board is not None, "no FC200 Pedalboard found"
+        return self._board
+
+    def _loop(self, index: int) -> RackDevice:
+        """A loop (device) on the pedalboard. Loops are racks."""
+        return cast("RackDevice", self._pedalboard().devices[index])
 
     def _reload_config(self) -> None:
         importlib.reload(config)
@@ -208,7 +227,7 @@ class FC200(ControlSurface):
             preset = {}
             for d in self.settings.LOOP_MAPPING:
                 preset[d] = {"parameters": []}
-                device = self._board.devices[d]
+                device = self._loop(d)
                 for i in range(0, 8):
                     parameter = device.parameters[i]
                     preset[d]["parameters"].append(parameter.value)
@@ -308,18 +327,20 @@ class FC200(ControlSurface):
                 d = preset[device]
                 parameters = d['parameters']
                 for p, v in enumerate(parameters):
-                    parameter = self._board.devices[int(device)].parameters[int(p)]
+                    parameter = self._loop(int(device)).parameters[int(p)]
                     if not parameter.is_enabled:
                         continue
                     parameter.value = v
                 if "chain" in d:
-                    chains = self._board.devices[int(device)].chains
+                    chains = self._loop(int(device)).chains
                     for c in chains:
                         if c.name == d["chain"]:
-                            self._board.devices[int(device)].view.selected_chain = c
+                            self._loop(int(device)).view.selected_chain = c
                             break 
             return
 
+        if self._track is None:
+            return
         slot = self._track.playing_slot_index
         if slot < 0:
             return
@@ -367,7 +388,7 @@ class FC200(ControlSurface):
 
         # Add listeners for page_1 (device on/off)
         for index, loop in enumerate(self.settings.LOOP_MAPPING):
-            parameter = self._board.devices[loop].parameters[0]
+            parameter = self._loop(loop).parameters[0]
 
             callback = lambda i=se.Pedal(index), l=loop: update_led(i, l)
 
@@ -412,7 +433,7 @@ class FC200(ControlSurface):
 
     def _init_leds(self) -> None:
         for index, loop in enumerate(self.settings.LOOP_MAPPING):
-            parameter = self._board.devices[loop].parameters[0]
+            parameter = self._loop(loop).parameters[0]
             value = parameter.value
             led_value = 127 if value else 0
             self._led_status[1][se.Pedal(index)] = led_value
@@ -464,10 +485,9 @@ class FC200(ControlSurface):
             return
 
     def toggle_device(self, body: se.Body) -> None:
-        pedal_loops = self._board.devices
         if body[1] >= len(self.settings.LOOP_MAPPING):
             return
-        pedal_loop = pedal_loops[self.settings.LOOP_MAPPING[body[1]]]
+        pedal_loop = self._loop(self.settings.LOOP_MAPPING[body[1]])
         if pedal_loop.parameters[0].value == 0:
             pedal_loop.parameters[0].value = 1 
             return
@@ -484,7 +504,7 @@ class FC200(ControlSurface):
     def freeze_control(self, value: int) -> None:
         if self._track is None or self._board is None:
             return
-        parameters = self._board.devices[self.settings.LOOP_FREEZE].parameters
+        parameters = self._loop(self.settings.LOOP_FREEZE).parameters
         def parameter_1():
             parameters[1].value = value
         def parameter_2():
@@ -493,7 +513,7 @@ class FC200(ControlSurface):
 
     def favorite_parameter(self, body: se.Body) -> None:
         pedal = se.Pedal(body[1])
-        parameter = self._board.devices[self.settings.LOOP_MAPPING[pedal]].parameters[self.settings.FAVORITE_PARAMETERS[pedal]]
+        parameter = self._loop(self.settings.LOOP_MAPPING[pedal]).parameters[self.settings.FAVORITE_PARAMETERS[pedal]]
         self._favorite_parameter_pedal = pedal
         self._favorite_parameter = parameter
         self._hw.leds_off()
@@ -501,6 +521,10 @@ class FC200(ControlSurface):
         return
 
     def parameter_control(self, body: se.Body) -> None:
+        if self._parameter_control is None:
+            return
+        rack = self._loop(self._parameter_control)
+
         # Map expression pedal to parameter_control selected parameter
         if se.changed(body, se.Pedal.EXP) and self._parameter_control_selected_parameter is not None:
             self._parameter_control_selected_parameter.value = body[2]
@@ -531,7 +555,7 @@ class FC200(ControlSurface):
         if se.pressed(body, se.Pedal.UP) and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
             if self._parameter_control_selected_chain_index <= 0:
                 return
-            self._board.devices[self._parameter_control].view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index - 1]
+            rack.view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index - 1]
             self._parameter_control_selected_chain_index -= 1
             self._hw.flash(se.Pedal.UP)
             return
@@ -539,7 +563,7 @@ class FC200(ControlSurface):
         if se.pressed(body, se.Pedal.DOWN) and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
             if self._parameter_control_selected_chain_index >= len(self._parameter_control_chains) - 1:
                 return
-            self._board.devices[self._parameter_control].view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index + 1]
+            rack.view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index + 1]
             self._parameter_control_selected_chain_index += 1
             self._hw.flash(se.Pedal.DOWN)
             return
@@ -548,9 +572,9 @@ class FC200(ControlSurface):
         if not self._parameter_control_selected and self._parameter_control_blink is None:
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
-            self._parameter_control_chains = list(self._board.devices[self._parameter_control].chains)
-            self._parameter_control_selected_chain = self._board.devices[self._parameter_control].view.selected_chain
-            self._parameter_control_selected_chain_index = self._parameter_control_chains.index(self._board.devices[self._parameter_control].view.selected_chain)
+            self._parameter_control_chains = list(rack.chains)
+            self._parameter_control_selected_chain = rack.view.selected_chain
+            self._parameter_control_selected_chain_index = self._parameter_control_chains.index(rack.view.selected_chain)
             self.blink_leds_value = 127
             self.blink_leds()
             v = str(self._parameter_control).rjust(2)
@@ -564,9 +588,9 @@ class FC200(ControlSurface):
         if se.number_pedal_pressed(body) and body[1] not in (se.Pedal.P5, se.Pedal.P10):
             parameter_index = (body[1] - 4) if body[1] >= 5 else body[1] + 5
             self._parameter_control_selected = se.Pedal(body[1])
-            self._parameter_control_selected_parameter = self._board.devices[self._parameter_control].parameters[parameter_index]
+            self._parameter_control_selected_parameter = rack.parameters[parameter_index]
 
-            self.show_message(f"{self._board.devices[self._parameter_control].name} - {self._parameter_control_selected_parameter.name}")
+            self.show_message(f"{rack.name} - {self._parameter_control_selected_parameter.name}")
             self._hw.led(self._parameter_control_selected, 127)
             self._mira.highlight_parameter(body[1])
 
