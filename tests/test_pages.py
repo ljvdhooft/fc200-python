@@ -237,6 +237,15 @@ class ParameterControlTest(unittest.TestCase):
         lit = [c[1] for c in self.s._hw.calls if c[0] == "led" and c[2] == 127]
         self.assertEqual(set(lit), set(pages.ParameterControl.MACRO_PEDALS))
 
+    def test_bank_display_shows_device_index_plus_one(self):
+        self.assertIn(("set_bank_display", " ", "2"), self.s._hw.calls)
+
+    def test_enter_turns_leds_off_before_blinking(self):
+        # Pedals 5 and 10 aren't blinked, so their LEDs must be cleared on enter
+        self.s._hw.calls.clear()
+        self.s._set_mode(pages.ParameterControl(self.s, 4))
+        self.assertEqual(self.s._hw.calls[0], ("leds_off",))
+
     def test_macro_mapping(self):
         self.mode.handle(press(P.P1))
         self.assertIs(self.mode.parameter, self.rack.parameters[5])

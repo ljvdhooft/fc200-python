@@ -298,8 +298,9 @@ class ParameterControl(Mode):
         self._chains = list(self.rack.chains)
         self._chain_index = self._chains.index(self.rack.view.selected_chain)
         self._blink_on = True
+        self.hw.leds_off()
         self._blink_leds()
-        v = str(self.device_index).rjust(2)
+        v = str(self.device_index + 1).rjust(2)
         self.hw.set_bank_display(v[-2], v[-1])
         self._blink = self.s._every(0.5, self._blink_leds)
         self.s._mira.parameter_control()
