@@ -19,8 +19,9 @@ A dummy audio clip on the guitar track's clip slots doubles as a preset slot —
 - `src/presets.py` (no runtime Live imports, tested with fake boards):
   - `Preset` (dataclass): board device index → `{parameters: [8 floats], chain: <selected chain name>}`; `Preset.read(board, indices)`, `preset.apply(board)`, `to_json`/`from_json`.
   - `PresetStore(folder)`: `exists`/`save`/`load` for `<PRESET_FOLDER>/_json/<clip name>.json`, and `write_alc` for the matching `.alc` clip (from `template.alc.xml`, patched via `xmltodict`) so the dummy clip is importable from Ableton's browser.
-- **Store** (`FC200._store_preset`): `Preset.read` from the board, then `save` + `write_alc`. Prompts for confirmation (blinking LED) if a preset with that name already exists; `_cancel_preset_store()` ends a pending confirmation.
-- **Recall** (`FC200._load_preset`): fires on the track's `playing_slot_index` listener — when a clip is launched, `load` looks up `<clip name>.json` and `apply`s it to the board. No-ops if no shadow file matches.
+  - `PresetManager`: the store/recall flow; FC200 only creates it (when a pedalboard is found) and forwards `store(scene_index)`, `cancel()` and `disconnect()`.
+- **Store** (`PresetManager.store`): `Preset.read` from the board, then `PresetStore.save` (JSON + `.alc`). Prompts for confirmation (blinking store-pedal LED) if a preset with that name already exists; `cancel()` ends a pending confirmation.
+- **Recall**: the manager listens to the track's `playing_slot_index` — when a clip is launched, `load` looks up `<clip name>.json` and `apply`s it to the board on the next tick. No-ops if no shadow file matches.
 - `PRESET_FOLDER` is set in `src/config.py` (`~/Music/Ableton/User Library/eGit presets`, expanded per user).
 - The `.json` and `.alc` are a loosely coupled pair kept in sync only by this store flow; renaming a clip in Live does **not** rename its shadow file.
 

@@ -119,6 +119,107 @@ class PresetStoreTest(unittest.TestCase):
             self.assertIn(b'<Name Value="Song A">', f.read())
 
 
+class FakeTrack:
+    def __init__(self, clip_names):
+        self.clip_slots = [self._slot(n) for n in clip_names]
+        self.playing_slot_index = -1
+        self.listeners = []
+
+    @staticmethod
+    def _slot(name):
+        slot = SimpleNamespace(has_clip=name is not None, clip=SimpleNamespace(name=name))
+
+        def duplicate_clip_to(target):
+            target.has_clip = True
+            target.clip = SimpleNamespace(name=slot.clip.name)
+        slot.duplicate_clip_to = duplicate_clip_to
+        return slot
+
+    def add_playing_slot_index_listener(self, f):
+        self.listeners.append(f)
+
+    def remove_playing_slot_index_listener(self, f):
+        self.listeners.remove(f)
+
+    def playing_slot_index_has_listener(self, f):
+        return f in self.listeners
+
+    def play(self, index):
+        self.playing_slot_index = index
+        for f in list(self.listeners):
+            f()
+
+
+class FakeHardware:
+    def __init__(self):
+        self.calls = []
+
+    def blink_loop(self, pedal, interval):
+        self.calls.append("blink")
+        return SimpleNamespace(kill=lambda: self.calls.append("kill"))
+
+    def flash_repeatedly(self, pedal, times):
+        self.calls.append("flash")
+
+    def led(self, pedal, value):
+        self.calls.append(("led", value))
+
+
+class PresetManagerTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.store = presets.PresetStore(self._tmp.name, lambda msg: None)
+        self.track = FakeTrack(["template", "Song A", None])
+        self.board = fake_board([fake_rack([1.0] * 8)])
+        self.hw = FakeHardware()
+        self.messages = []
+        self.manager = presets.PresetManager(
+            self.store, self.track, self.board, [0], self.hw, 7,
+            self.messages.append, lambda fn: fn())
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_store_new_preset(self):
+        self.manager.store(1)
+        self.assertTrue(self.store.exists("Song A"))
+        self.assertEqual(self.hw.calls, ["flash"])
+
+    def test_store_existing_asks_to_confirm(self):
+        self.manager.store(1)
+        self.hw.calls.clear()
+        self.board.devices[0].parameters[0].value = 2.0
+        self.manager.store(1)       # asks
+        self.assertEqual(self.hw.calls, ["blink"])
+        self.assertEqual(self.store.load("Song A").loops[0]["parameters"][0], 1.0)
+        self.manager.store(1)       # confirms
+        self.assertEqual(self.hw.calls, ["blink", "kill", "flash"])
+        self.assertEqual(self.store.load("Song A").loops[0]["parameters"][0], 2.0)
+
+    def test_cancel(self):
+        self.manager.store(1)
+        self.manager.store(1)       # asks
+        self.assertTrue(self.manager.cancel(announce=True))
+        self.assertEqual(self.hw.calls[-2:], ["kill", ("led", 0)])
+        self.assertFalse(self.manager.cancel())
+
+    def test_store_on_empty_slot_copies_template_clip(self):
+        self.manager.store(2)
+        self.assertEqual(self.track.clip_slots[2].clip.name, "template")
+        self.assertFalse(self.store.exists("template"))
+
+    def test_recall_on_play(self):
+        self.store.save("Song A", presets.Preset({0: {"parameters": [5.0] * 8, "chain": "B"}}))
+        self.track.play(1)
+        rack = self.board.devices[0]
+        self.assertEqual(rack.parameters[0].value, 5.0)
+        self.assertEqual(rack.view.selected_chain.name, "B")
+
+    def test_disconnect_removes_listener(self):
+        self.manager.disconnect()
+        self.assertEqual(self.track.listeners, [])
+
+
 class AlcTest(unittest.TestCase):
     def test_alc_from_template(self):
         xml = presets.alc_from_template(TEMPLATE, "Song A")
