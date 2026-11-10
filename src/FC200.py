@@ -245,7 +245,7 @@ class FC200(ControlSurface):
 
         if check_preset_exists(preset_file_path) and self._preset_store_confirm is None:
             self._preset_store_confirm = False
-            self._preset_store_blinking_led = self._hw.blink(se.PEDAL_8, 0.3)
+            self._preset_store_blinking_led = self._hw.blink(se.Pedal.P8, 0.3)
             self.show_message(f"Overwrite reset {clip_name} ?")
             return
         else:
@@ -260,7 +260,7 @@ class FC200(ControlSurface):
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
-            self._tasks.add(Task.sequence(Task.wait(0.3), Task.run(lambda: self._hw.flash(se.PEDAL_8)), Task.wait(0.1), Task.run(lambda: self._hw.flash(se.PEDAL_8)), Task.run(lambda: self._hw.flash(se.PEDAL_8)), Task.wait(0.1), Task.run(lambda: self._hw.flash(se.PEDAL_8))))
+            self._tasks.add(Task.sequence(Task.wait(0.3), Task.run(lambda: self._hw.flash(se.Pedal.P8)), Task.wait(0.1), Task.run(lambda: self._hw.flash(se.Pedal.P8)), Task.run(lambda: self._hw.flash(se.Pedal.P8)), Task.wait(0.1), Task.run(lambda: self._hw.flash(se.Pedal.P8))))
 
     def _load_preset(self):
         def load_preset(clip_name):
@@ -366,7 +366,7 @@ class FC200(ControlSurface):
         self._led_status[0][0] = led_value
         if self._page != 0:
             return
-        self._hw.led(se.PEDAL_1, led_value)
+        self._hw.led(se.Pedal.P1, led_value)
         return
 
     def _on_metronome_changed(self):
@@ -375,7 +375,7 @@ class FC200(ControlSurface):
         self._led_status[0][5] = led_value
         if self._page != 0:
             return
-        self._hw.led(se.PEDAL_6, led_value)
+        self._hw.led(se.Pedal.P6, led_value)
         return
 
     def _on_selected_scene_changed(self):
@@ -477,15 +477,15 @@ class FC200(ControlSurface):
 
     def parameter_control(self, body):
         # Map expression pedal to parameter_control selected parameter
-        if se.changed(body, se.EXP_PEDAL) and self._parameter_control_selected_parameter is not None:
+        if se.changed(body, se.Pedal.EXP) and self._parameter_control_selected_parameter is not None:
             self._parameter_control_selected_parameter.value = body[2]
             self._expr_display(body[2], 0.5)
             return
 
         # Map CTL pedal to exit parameter_control mode
-        if se.released(body, se.PEDAL_CTL):
+        if se.released(body, se.Pedal.CTL):
             return
-        if se.pressed(body, se.PEDAL_CTL) and self._parameter_control_blink is not None:
+        if se.pressed(body, se.Pedal.CTL) and self._parameter_control_blink is not None:
             self._parameter_control = None
             self._parameter_control_selected = None
             self._parameter_control_selected_pedal = None
@@ -496,27 +496,27 @@ class FC200(ControlSurface):
             self._parameter_control_blink.kill()
             self._parameter_control_blink = None
             self._hw.leds_off()
-            self._hw.flash(se.PEDAL_CTL)
+            self._hw.flash(se.Pedal.CTL)
             self._hw.set_bank_display(' ', self._page)
             self._mira.page_2()
             self._mira.highlight_parameter(-1)
             return
 
         # Map bank up pedal to select different chains
-        if se.pressed(body, se.PEDAL_UP) and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
+        if se.pressed(body, se.Pedal.UP) and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
             if self._parameter_control_selected_chain_index <= 0:
                 return
             self._board.devices[self._parameter_control].view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index - 1]
             self._parameter_control_selected_chain_index -= 1
-            self._hw.flash(se.PEDAL_UP)
+            self._hw.flash(se.Pedal.UP)
             return
         # Map bank down pedal to select different chains
-        if se.pressed(body, se.PEDAL_DOWN) and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
+        if se.pressed(body, se.Pedal.DOWN) and self._parameter_control_selected_chain_index is not None and self._parameter_control_chains is not None:
             if self._parameter_control_selected_chain_index >= len(self._parameter_control_chains) - 1:
                 return
             self._board.devices[self._parameter_control].view.selected_chain = self._parameter_control_chains[self._parameter_control_selected_chain_index + 1]
             self._parameter_control_selected_chain_index += 1
-            self._hw.flash(se.PEDAL_DOWN)
+            self._hw.flash(se.Pedal.DOWN)
             return
 
         # Initialize parameter_control mode with blinking
@@ -536,7 +536,7 @@ class FC200(ControlSurface):
             return
 
         # Map pedals 1-4 and 6-9 to parameters (macros)
-        if se.number_pedal_pressed(body) and body[1] not in (se.PEDAL_5, se.PEDAL_10):
+        if se.number_pedal_pressed(body) and body[1] not in (se.Pedal.P5, se.Pedal.P10):
             parameter_index = (body[1] - 4) if body[1] >= 5 else body[1] + 5
             self._parameter_control_selected = body[1]
             self._parameter_control_selected_parameter = self._board.devices[self._parameter_control].parameters[parameter_index]
@@ -578,18 +578,18 @@ class FC200(ControlSurface):
 
     def page_0(self, body):
         # Page UP
-        if se.pressed(body, se.PEDAL_UP):
+        if se.pressed(body, se.Pedal.UP):
             self._page_move(1)
-            self._hw.flash(se.PEDAL_UP)
+            self._hw.flash(se.Pedal.UP)
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
                 self._preset_store_confirm = None
             return
         # Page DOWN
-        if se.pressed(body, se.PEDAL_DOWN):
+        if se.pressed(body, se.Pedal.DOWN):
             self._page_move(-1)
-            self._hw.flash(se.PEDAL_DOWN)
+            self._hw.flash(se.Pedal.DOWN)
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
@@ -597,53 +597,53 @@ class FC200(ControlSurface):
 
             return
         # Expression pedal calls volume_control
-        if se.changed(body, se.EXP_PEDAL):
+        if se.changed(body, se.Pedal.EXP):
             self.volume_control(body[2])
             self._expr_display(body[2])
             return
         # CTL button calls tap_tempo
-        if se.pressed(body, se.PEDAL_CTL):
+        if se.pressed(body, se.Pedal.CTL):
             if self._preset_store_blinking_led is not None:
                 self._preset_store_blinking_led.kill()
                 self._preset_store_blinking_led = None
                 self._preset_store_confirm = None
                 self.show_message("Cancelled saving preset!")
-                self._hw.led(se.PEDAL_8, se.OFF)
+                self._hw.led(se.Pedal.P8, se.OFF)
                 return
             self.tap_tempo()
-            self._hw.flash(se.PEDAL_CTL)
+            self._hw.flash(se.Pedal.CTL)
             return
         # Ableton "start" button
-        if se.pressed(body, se.PEDAL_1):
+        if se.pressed(body, se.Pedal.P1):
             self.start_button()
             return
         # Ableton "stop" button and stop all clips
-        if se.pressed(body, se.PEDAL_2):
+        if se.pressed(body, se.Pedal.P2):
             self.stop_button()
             self.stop_all()
-            self._hw.flash(se.PEDAL_2)
+            self._hw.flash(se.Pedal.P2)
             return
         # Ableton start scene
-        if se.pressed(body, se.PEDAL_3):
+        if se.pressed(body, se.Pedal.P3):
             self.start_scene()
-            self._hw.flash(se.PEDAL_3)
+            self._hw.flash(se.Pedal.P3)
             return
         # Ableton scene down
-        if se.pressed(body, se.PEDAL_4):
+        if se.pressed(body, se.Pedal.P4):
             self.move_scene(1)
-            self._hw.flash(se.PEDAL_4)
+            self._hw.flash(se.Pedal.P4)
             return
         # Ableton scene up
-        if se.pressed(body, se.PEDAL_5):
+        if se.pressed(body, se.Pedal.P5):
             self.move_scene(-1)
-            self._hw.flash(se.PEDAL_5)
+            self._hw.flash(se.Pedal.P5)
             return
         # Ableton click on/off
-        if se.pressed(body, se.PEDAL_6):
+        if se.pressed(body, se.Pedal.P6):
             self.toggle_click()
             return
         # Start scene and stop immediately (recall preset)
-        if se.pressed(body, se.PEDAL_7):
+        if se.pressed(body, se.Pedal.P7):
             if self._track is None or self._board is None:
                 return
             if self._metronome_state:
@@ -666,58 +666,58 @@ class FC200(ControlSurface):
                     Task.run(self.stop_all),
                 )
             )
-            self._hw.flash(se.PEDAL_7)
+            self._hw.flash(se.Pedal.P7)
             return
         # Store preset
-        if se.pressed(body, se.PEDAL_8):
+        if se.pressed(body, se.Pedal.P8):
             if self._track is None or self._board is None:
                 return
             self._store_preset()
-            self._hw.flash(se.PEDAL_8)
+            self._hw.flash(se.Pedal.P8)
             return
         # ForScore prev page
-        if se.pressed(body, se.PEDAL_9):
+        if se.pressed(body, se.Pedal.P9):
             self._tasks.add(
                 Task.sequence(
                     Task.run(lambda: self._oscremote._send_osc(f"/remote/pc/{self.settings.FORSCORE_PREV_PAGE}/2", 127)),
-                    Task.run(lambda: self._hw.flash(se.PEDAL_9))
+                    Task.run(lambda: self._hw.flash(se.Pedal.P9))
                 )
             )
             return
         # ForScore next page
-        if se.pressed(body, se.PEDAL_10):
+        if se.pressed(body, se.Pedal.P10):
             self._tasks.add(
                 Task.sequence(
                     Task.run(lambda: self._oscremote._send_osc(f"/remote/pc/{self.settings.FORSCORE_NEXT_PAGE}/2", 127)),
-                    Task.run(lambda: self._hw.flash(se.PEDAL_10))
+                    Task.run(lambda: self._hw.flash(se.Pedal.P10))
                 )
             )
             return
 
     def page_1(self, body):
         # Page UP
-        if se.pressed(body, se.PEDAL_UP):
+        if se.pressed(body, se.Pedal.UP):
             self._page_move(1)
-            self._hw.flash(se.PEDAL_UP)
+            self._hw.flash(se.Pedal.UP)
             return
         # Page DOWN
-        if se.pressed(body, se.PEDAL_DOWN):
+        if se.pressed(body, se.Pedal.DOWN):
             self._page_move(-1)
-            self._hw.flash(se.PEDAL_DOWN)
+            self._hw.flash(se.Pedal.DOWN)
             return
         # Expression pedal calls volume_control
-        if se.changed(body, se.EXP_PEDAL):
+        if se.changed(body, se.Pedal.EXP):
             self.volume_control(body[2])
             self._expr_display(body[2])
             return
         # Pedal on the FOOT SW/EXP 1 jack calls freeze_control
-        if se.changed(body, se.FOOT_SW_EXP_1):
+        if se.changed(body, se.Pedal.FOOT_SW_EXP_1):
             self.freeze_control(body[2])
             return
         # CTL button calls tap_tempo
-        if se.pressed(body, se.PEDAL_CTL):
+        if se.pressed(body, se.Pedal.CTL):
             self.tap_tempo()
-            self._hw.flash(se.PEDAL_CTL)
+            self._hw.flash(se.Pedal.CTL)
             return
         # Toggle Device On/Off for pedals 1 thru 10
         if se.number_pedal_pressed(body):
@@ -728,21 +728,21 @@ class FC200(ControlSurface):
 
     def page_2(self, body):
         # Page UP
-        if se.pressed(body, se.PEDAL_UP):
+        if se.pressed(body, se.Pedal.UP):
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
             self._page_move(1)
-            self._hw.flash(se.PEDAL_UP)
+            self._hw.flash(se.Pedal.UP)
             return
         # Page DOWN
-        if se.pressed(body, se.PEDAL_DOWN):
+        if se.pressed(body, se.Pedal.DOWN):
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
             self._page_move(-1)
-            self._hw.flash(se.PEDAL_DOWN)
+            self._hw.flash(se.Pedal.DOWN)
             return
         # Expression pedal calls volume_control
-        if se.changed(body, se.EXP_PEDAL) and self._favorite_parameter is None and self._parameter_control is None:
+        if se.changed(body, se.Pedal.EXP) and self._favorite_parameter is None and self._parameter_control is None:
             self.volume_control(body[2])
             self._expr_display(body[2])
             return
@@ -754,17 +754,17 @@ class FC200(ControlSurface):
             self.parameter_control(body)
             return
         # Exit favorite parameter control
-        if se.pressed(body, se.PEDAL_CTL) and self._favorite_parameter is not None:
+        if se.pressed(body, se.Pedal.CTL) and self._favorite_parameter is not None:
             if self._track is None or self._board is None:
                 return
             self._favorite_parameter = None
             self._favorite_parameter_pedal = None
             self._hw.leds_off()
-            self._hw.flash(se.PEDAL_CTL)
+            self._hw.flash(se.Pedal.CTL)
             self._mira.highlight_parameter(-1)
             return
         # Control favorite parameter when selected with pedal
-        if self._favorite_parameter and se.changed(body, se.EXP_PEDAL):
+        if self._favorite_parameter and se.changed(body, se.Pedal.EXP):
             if self._track is None or self._board is None:
                 return
             self._favorite_parameter.value = body[2]

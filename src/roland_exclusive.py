@@ -19,16 +19,29 @@ class Area(IntEnum):
     BANK_DISPLAY_STATUS = 0x02
     MODE_STATUS = 0x03
 
-# Pedal Status / LED Status: address LSB
-(PEDAL_1, PEDAL_2, PEDAL_3, PEDAL_4, PEDAL_5,
- PEDAL_6, PEDAL_7, PEDAL_8, PEDAL_9, PEDAL_10) = range(0x0A)
-PEDAL_UP = 0x0A
-PEDAL_DOWN = 0x0B
-PEDAL_CTL = 0x0C
-EXP_PEDAL = 0x0D
-# Extra pedals plugged into the FOOT SW/EXP 1-6 jacks on the back
-(FOOT_SW_EXP_1, FOOT_SW_EXP_2, FOOT_SW_EXP_3,
- FOOT_SW_EXP_4, FOOT_SW_EXP_5, FOOT_SW_EXP_6) = range(0x0E, 0x14)
+class Pedal(IntEnum):
+    """Pedal Status / LED Status: address LSB."""
+    P1 = 0x00
+    P2 = 0x01
+    P3 = 0x02
+    P4 = 0x03
+    P5 = 0x04
+    P6 = 0x05
+    P7 = 0x06
+    P8 = 0x07
+    P9 = 0x08
+    P10 = 0x09
+    UP = 0x0A
+    DOWN = 0x0B
+    CTL = 0x0C
+    EXP = 0x0D
+    # Extra pedals plugged into the FOOT SW/EXP 1-6 jacks on the back
+    FOOT_SW_EXP_1 = 0x0E
+    FOOT_SW_EXP_2 = 0x0F
+    FOOT_SW_EXP_3 = 0x10
+    FOOT_SW_EXP_4 = 0x11
+    FOOT_SW_EXP_5 = 0x12
+    FOOT_SW_EXP_6 = 0x13
 
 # Bank Display Status: address LSB
 BANK_DISPLAY_RIGHT = 0x00
@@ -88,7 +101,7 @@ def released(body, pedal):
 
 def number_pedal_pressed(body):
     """True if body is one of Pedals 1-10 being pressed down."""
-    return body[0] == Area.PEDAL_STATUS and PEDAL_1 <= body[1] <= PEDAL_10 and body[2] == ON
+    return body[0] == Area.PEDAL_STATUS and Pedal.P1 <= body[1] <= Pedal.P10 and body[2] == ON
 
 
 def changed(body, pedal):

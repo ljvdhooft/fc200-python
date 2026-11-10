@@ -49,28 +49,28 @@ class BuildParseTest(unittest.TestCase):
 
 class PedalTest(unittest.TestCase):
     def test_pressed(self):
-        self.assertTrue(se.pressed([0, 10, 127], se.PEDAL_UP))
-        self.assertFalse(se.pressed([0, 10, 0], se.PEDAL_UP))
-        self.assertFalse(se.pressed([1, 10, 127], se.PEDAL_UP))
+        self.assertTrue(se.pressed([0, 10, 127], se.Pedal.UP))
+        self.assertFalse(se.pressed([0, 10, 0], se.Pedal.UP))
+        self.assertFalse(se.pressed([1, 10, 127], se.Pedal.UP))
 
     def test_released(self):
-        self.assertTrue(se.released([0, 12, 0], se.PEDAL_CTL))
-        self.assertFalse(se.released([0, 12, 127], se.PEDAL_CTL))
+        self.assertTrue(se.released([0, 12, 0], se.Pedal.CTL))
+        self.assertFalse(se.released([0, 12, 127], se.Pedal.CTL))
 
     def test_number_pedal_pressed(self):
-        self.assertTrue(se.number_pedal_pressed([0, se.PEDAL_1, 127]))
-        self.assertTrue(se.number_pedal_pressed([0, se.PEDAL_10, 127]))
-        self.assertFalse(se.number_pedal_pressed([0, se.PEDAL_UP, 127]))
-        self.assertFalse(se.number_pedal_pressed([0, se.PEDAL_1, 0]))
+        self.assertTrue(se.number_pedal_pressed([0, se.Pedal.P1, 127]))
+        self.assertTrue(se.number_pedal_pressed([0, se.Pedal.P10, 127]))
+        self.assertFalse(se.number_pedal_pressed([0, se.Pedal.UP, 127]))
+        self.assertFalse(se.number_pedal_pressed([0, se.Pedal.P1, 0]))
 
     def test_changed(self):
-        self.assertTrue(se.changed([0, 13, 0], se.EXP_PEDAL))
-        self.assertTrue(se.changed([0, 13, 64], se.EXP_PEDAL))
-        self.assertFalse(se.changed([3, 13, 64], se.EXP_PEDAL))
+        self.assertTrue(se.changed([0, 13, 0], se.Pedal.EXP))
+        self.assertTrue(se.changed([0, 13, 64], se.Pedal.EXP))
+        self.assertFalse(se.changed([3, 13, 64], se.Pedal.EXP))
 
     def test_foot_sw_exp_range(self):
-        self.assertEqual(se.FOOT_SW_EXP_1, 0x0E)
-        self.assertEqual(se.FOOT_SW_EXP_6, 0x13)
+        self.assertEqual(se.Pedal.FOOT_SW_EXP_1, 0x0E)
+        self.assertEqual(se.Pedal.FOOT_SW_EXP_6, 0x13)
 
 
 class SegmentsTest(unittest.TestCase):
