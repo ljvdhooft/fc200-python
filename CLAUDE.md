@@ -3,13 +3,14 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
 - Live version pinned: 12.4b14
 - Components:
   - MIDI Remote Script: `src/` (symlinked into Live User Library as `_FC200_SysEx_dev`; `_FC200_SysEx` points to the sibling `fc200-python-main` checkout)
-  - M4L device: `virtual-pedal/FC200_virtual-pedal.maxpat` (built `FC200 Mira.amxd` symlinked at repo root)
+  - Virtual pedal: `virtual-pedal/FC200_virtual-pedal.maxpat`, a Max patch that emulates the FC-200 in Exclusive (SysEx) mode, for testing without the hardware
+  - M4L device: `FC200 Mira.amxd` (repo root), a GUI for the script; to be refactored later
 - Protocol: none yet
 - Unit tests: `python3.11 -m unittest discover -s tests` (Live-free modules only)
 - Integration tests: none yet
 
 ### What this does
-Roland FC200 floor pedal → MIDI SysEx → `src/FC200.py` (a `ControlSurface`) drives an audio effect rack (found by its device name, "FC200 Pedalboard", on any track) to emulate a pedalboard, plus transport/session control. `src/fc200_protocol.py` (no Live imports) holds the SysEx format, pedal IDs and 7-segment encoding; `src/hardware.py` drives the LEDs and display.
+Roland FC200 floor pedal → MIDI SysEx → `src/FC200.py` (a `ControlSurface`) drives an audio effect rack (found by its device name, "FC200 Pedalboard", on any track) to emulate a pedalboard, plus transport/session control. `src/roland_exclusive.py` (no Live imports) holds the Roland Exclusive (DT1) format, the FC-200 address map and the bank display segment encoding; `src/hardware.py` drives the LEDs, bank display and mode. Names follow the FC-200 manual (pp. 39-44, `~/Documents/02 DEV - Max/FC200 Programming/FC-200 manual.pdf`).
 
 ### Preset system (shadow JSON + dummy clip)
 A dummy audio clip on the guitar track's clip slots doubles as a preset slot — its name is the preset name:

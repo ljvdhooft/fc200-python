@@ -1,7 +1,7 @@
 from _Framework.ControlSurface import ControlSurface
 from _Framework import Task
 from . import config
-from . import fc200_protocol as fc
+from . import roland_exclusive as rx
 from .hardware import FC200Hardware
 from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
@@ -56,7 +56,7 @@ class FC200(ControlSurface):
         self._led_status = {}
         for p in range(self.settings.MIN_PAGE, self.settings.MAX_PAGE + 1):
             self._led_status[p] = {}
-        self._hw.show(' ', self._page)
+        self._hw.set_bank_display(' ', self._page)
 
         # Add listeners for page_0 (is_playing, metronome, current_scene)
         if not self.song().is_playing_has_listener(self._on_is_playing_changed):
@@ -145,7 +145,7 @@ class FC200(ControlSurface):
             binary += 1
         if cents >= tolerance:
             binary += 8
-        self._hw.show_temporarily(fc.segments(note_a), binary, self._restore_display)
+        self._hw.set_bank_display_briefly(rx.segments(note_a), binary)
 
     def _highlight_tuner(self):
         parameter = self._board.devices[self.settings.LOOP_VOLUME].parameters[1]
@@ -319,17 +319,9 @@ class FC200(ControlSurface):
             self._hw.led(i, self.blink_leds_value)
         self.blink_leds_value = 0 if self.blink_leds_value == 127 else 127
 
-    def _restore_display(self):
-        """Show the device number in parameter control, otherwise the page."""
-        if self._parameter_control is not None:
-            v = str(self._parameter_control)
-            self._hw.show(v[-2] if len(v) > 1 else ' ', v[-1])
-            return
-        self._hw.show(' ', self._page)
-
     def _expr_display(self, value, timeout=1):
         v = str(int(value / 127 * 99)).zfill(2)
-        self._hw.show_temporarily(fc.segments(v[0]), fc.segments(v[1]), self._restore_display, timeout)
+        self._hw.set_bank_display_briefly(rx.segments(v[0]), rx.segments(v[1]), timeout)
 
     def _listeners(self):
         def update_led(pedal, loop):
@@ -402,19 +394,17 @@ class FC200(ControlSurface):
         return
 
     def handle_sysex(self, midi_bytes):
-        body = fc.parse(midi_bytes)
+        body = rx.parse(midi_bytes)
         if DEBUG:
             self.log_message(f"\nReceived SysEx: {midi_bytes}\nbody {body}")
         if body is None:
             return
 
-        # Force FC200 to SysEx mode
-        if self.settings.FORCE_SYSEX:
-            if body[0] == fc.BANK_MODE and body[1] == 0 and body[2] != 3:
-                self._hw.send([fc.BANK_MODE, 1, 3])
-                self._page_move(0)
-                if DEBUG:
-                    self.log_message("Set to sysex mode")
+        if self.settings.FORCE_SYSEX and self._hw.force_exclusive_mode(body):
+            # Redraw LEDs and display for the current page
+            self._page_move(0)
+            if DEBUG:
+                self.log_message("Set to sysex mode")
         if self._parameter_control is not None:
             self.parameter_control(body)
             return
@@ -434,7 +424,7 @@ class FC200(ControlSurface):
         self._page += direction
         self._hw.leds_off()
         self.leds_recall()
-        self._hw.show(' ', self._page)
+        self._hw.set_bank_display(' ', self._page)
         self.show_message(f"Page {self._page}")
         if DEBUG:
             self.log_message(f"Page changed to {self._page}")
@@ -508,7 +498,7 @@ class FC200(ControlSurface):
             self._parameter_control_blink = None
             self._hw.leds_off()
             self._hw.flash(12)
-            self._restore_display()
+            self._hw.set_bank_display(' ', self._page)
             self._mira.page_2()
             self._mira.highlight_parameter(-1)
             return
@@ -539,7 +529,8 @@ class FC200(ControlSurface):
             self._parameter_control_selected_chain_index = self._parameter_control_chains.index(self._board.devices[self._parameter_control].view.selected_chain)
             self.blink_leds_value = 127
             self.blink_leds()
-            self._restore_display()
+            v = str(self._parameter_control).rjust(2)
+            self._hw.set_bank_display(v[-2], v[-1])
             self._parameter_control_blink = self._tasks.add(Task.loop(Task.sequence(Task.wait(0.5), Task.run(self.blink_leds))))
             self._mira.parameter_control()
             self._mira.highlight_parameter(-1)
