@@ -1,16 +1,17 @@
 import socket
 import struct
+from typing import Any
 
 class OSCremote:
-    def __init__(self, script, ip, port):
+    def __init__(self, script: Any, ip: str, port: int) -> None:
         self._script = script
         self.ip = ip
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    def _send_osc(self, address, value):
+    def _send_osc(self, address: str, value: str | int | float) -> None:
         # Basic OSC string padding (must be multiple of 4 bytes)
-        def osc_string(s):
+        def osc_string(s: str) -> bytes:
             return s.encode('utf-8') + b'\x00' * (4 - len(s) % 4 or 4)
 
         # Build message: [Address][Type Tag][Value]
