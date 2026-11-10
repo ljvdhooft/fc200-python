@@ -71,5 +71,5 @@ class FC200Hardware:
         ))
 
     def _write_bank_display(self, left, right):
-        self.send([se.Area.BANK_DISPLAY_STATUS, se.BANK_DISPLAY_LEFT, left])
-        self.send([se.Area.BANK_DISPLAY_STATUS, se.BANK_DISPLAY_RIGHT, right])
+        self.send([se.Area.BANK_DISPLAY_STATUS, se.BankDisplay.LEFT, left])
+        self.send([se.Area.BANK_DISPLAY_STATUS, se.BankDisplay.RIGHT, right])

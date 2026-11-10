@@ -43,9 +43,10 @@ class Pedal(IntEnum):
     FOOT_SW_EXP_5 = 0x12
     FOOT_SW_EXP_6 = 0x13
 
-# Bank Display Status: address LSB
-BANK_DISPLAY_RIGHT = 0x00
-BANK_DISPLAY_LEFT = 0x01
+class BankDisplay(IntEnum):
+    """Bank Display Status: address LSB."""
+    RIGHT = 0x00
+    LEFT = 0x01
 
 # Mode Status: address LSB, and the data value for Exclusive Mode
 MODE_CURRENT = 0x00         # sent by the FC-200 on power-up or mode change
