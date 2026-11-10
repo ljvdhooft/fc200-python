@@ -288,7 +288,8 @@ class FC200(ControlSurface):
             binary += 1
         if cents >= tolerance:
             binary += 8
-        self._hw.set_bank_display_temp(se.segments(note_a), binary)
+        # Stays until the volume goes up again (see _highlight_tuner)
+        self._hw.set_bank_display_segments(se.segments(note_a), binary)
 
     def _highlight_tuner(self) -> None:
         if self._volume_param.value > 0:
@@ -297,6 +298,9 @@ class FC200(ControlSurface):
             # Select self._board (Note C#-2)
             self._oscremote._send_osc(f"/remote/note/{self.settings.HIGHLIGHT_NOTES['board']}/1", 127)
             self._highlight_tuner_true = False
+            # The tuner display no longer applies: show the page again
+            if self._mode.shows_tuner:
+                self._hw.set_bank_display(' ', self._page)
             return
         if self._highlight_tuner_true:
             return

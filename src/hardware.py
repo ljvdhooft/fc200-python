@@ -65,8 +65,12 @@ class FC200Hardware:
 
     def set_bank_display(self, left: str | int, right: str | int) -> None:
         """Show two characters; set_bank_display_temp returns to this."""
-        self._bank_display = (se.segments(left), se.segments(right))
-        self._write_bank_display(*self._bank_display)
+        self.set_bank_display_segments(se.segments(left), se.segments(right))
+
+    def set_bank_display_segments(self, left: int, right: int) -> None:
+        """Like set_bank_display, with raw segment bitmasks."""
+        self._bank_display = (left, right)
+        self._write_bank_display(left, right)
 
     def set_bank_display_temp(self, left: int, right: int, timeout: float = 1) -> None:
         """Show two raw segment bitmasks, then return to the last set_bank_display.
