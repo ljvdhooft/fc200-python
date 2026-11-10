@@ -1,7 +1,9 @@
 """Presets: the state of the pedalboard loops, stored as files.
 
-PresetManager is what the script uses: it stores on a pedal press (with
-overwrite confirmation) and recalls when a clip starts playing.
+PresetManager is the entry point for every consumer (the FC-200, later a
+frontend): it stores with overwrite confirmation, recalls by name and when a
+clip starts playing, and reports what happened as PresetEvents. It knows
+nothing about the hardware; see protocol/presets.md.
 
 A PresetStore keeps <folder>/_json/<name>.json per preset, plus a dummy clip
 <folder>/<name>.alc made from <folder>/template.alc.xml, so the preset can be
@@ -20,16 +22,12 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
 
-from . import roland_exclusive as se
 from . import xmltodict
 
 if TYPE_CHECKING:
-    from _Framework.Task import Task
     from Live.Chain import Chain
     from Live.RackDevice import RackDevice
     from Live.Track import Track
-
-    from .hardware import FC200Hardware
 
 CLIP_COLOR = 69
 PARAMETER_COUNT = 8     # parameters stored per loop
@@ -108,6 +106,13 @@ class PresetStore:
     def exists(self, name: str) -> bool:
         return os.path.exists(self.json_path(name))
 
+    def names(self) -> list[str]:
+        """Names of all stored presets, sorted."""
+        folder = os.path.join(self.folder, "_json")
+        if not os.path.isdir(folder):
+            return []
+        return sorted(f[:-len(".json")] for f in os.listdir(folder) if f.endswith(".json"))
+
     def save(self, name: str, preset: Preset) -> bool:
         """Write the JSON file and the .alc clip. Return False if that failed (logged)."""
         path = self.json_path(name)
@@ -144,83 +149,135 @@ class PresetStore:
             f.write(xml.encode("utf-8"))
 
 
+class PresetEvents:
+    """What a PresetManager reports. Subclass and override what you need;
+    the defaults do nothing. See protocol/presets.md."""
+
+    def overwrite_pending(self, name: str) -> None:
+        """store() found an existing preset: store again to overwrite, or cancel()."""
+
+    def overwrite_cancelled(self, name: str) -> None:
+        """A pending overwrite was cancelled."""
+
+    def saved(self, name: str) -> None:
+        """The preset was written."""
+
+    def save_failed(self, name: str) -> None:
+        """Writing the preset failed (details are logged)."""
+
+    def recalled(self, name: str) -> None:
+        """The preset was applied to the board."""
+
+    def template_clip_copied(self, scene_index: int) -> None:
+        """The selected slot was empty and got a copy of the dummy clip in slot 0.
+        Rename it, then store again."""
+
+    def template_clip_missing(self) -> None:
+        """The selected slot was empty and there is no dummy clip in slot 0 to copy."""
+
+
 class PresetManager:
-    """Store and recall presets for the pedalboard; the script only forwards events.
+    """Store and recall presets for the pedalboard. Consumers call the methods
+    and subscribe() to PresetEvents; nothing here knows about the hardware.
 
     Store: the preset is named after the clip on the selected scene. An empty
     slot gets a copy of the dummy clip in slot 0 (rename it, then store again).
-    Overwriting an existing preset takes a second press; the store pedal
-    blinks until then, or until cancel().
+    Overwriting an existing preset takes a second store() for the same name,
+    or cancel().
 
-    Recall: when a clip starts playing on the pedalboard track, the preset with
-    the clip's name is applied to the board.
+    Recall: by name with recall(), and automatically when a clip starts playing
+    on the pedalboard track (the preset with the clip's name).
     """
 
     def __init__(self, store: PresetStore, track: Track, board: Chain, loops: Sequence[int],
-                 hw: FC200Hardware, pedal: se.Pedal, show_message: Callable[[str], None],
                  defer: Callable[[Callable[[], None]], object]) -> None:
-        """loops: board device indices to store. pedal: the store pedal (LED feedback).
-        defer: runs a function on Live's next tick."""
+        """loops: board device indices to store. defer: runs a function on Live's next tick."""
         self._store = store
         self._track = track
         self._board = board
         self._loops = loops
-        self._hw = hw
-        self._pedal = pedal
-        self._show_message = show_message
         self._defer = defer
-        self._overwrite_blink: Task | None = None
+        self._listeners: list[PresetEvents] = []
+        self._pending_overwrite: str | None = None
         track.add_playing_slot_index_listener(self._on_playing_slot_changed)
+
+    def subscribe(self, listener: PresetEvents) -> None:
+        self._listeners.append(listener)
+
+    def unsubscribe(self, listener: PresetEvents) -> None:
+        self._listeners.remove(listener)
 
     def disconnect(self) -> None:
         self.cancel()
         if self._track.playing_slot_index_has_listener(self._on_playing_slot_changed):
             self._track.remove_playing_slot_index_listener(self._on_playing_slot_changed)
 
+    @property
+    def pending_overwrite(self) -> str | None:
+        """Name of the preset waiting for overwrite confirmation, if any."""
+        return self._pending_overwrite
+
+    def preset_names(self) -> list[str]:
+        return self._store.names()
+
     def store(self, scene_index: int) -> None:
-        """The store pedal was pressed with this scene selected."""
+        """Store the board as the preset named after the clip on this scene."""
         slot = self._track.clip_slots[scene_index]
         if not slot.has_clip:
             template = self._track.clip_slots[0]
             if not template.has_clip:
-                self._show_message('No clip on selected slot')
+                for listener in self._listeners:
+                    listener.template_clip_missing()
                 return
             template.duplicate_clip_to(slot)
+            for listener in self._listeners:
+                listener.template_clip_copied(scene_index)
             return
         name = slot.clip.name
 
-        if self._store.exists(name) and self._overwrite_blink is None:
-            self._overwrite_blink = self._hw.blink_loop(self._pedal, 0.3)
-            self._show_message(f"Overwrite preset {name}?")
+        if self._store.exists(name) and self._pending_overwrite != name:
+            self.cancel()
+            self._pending_overwrite = name
+            for listener in self._listeners:
+                listener.overwrite_pending(name)
             return
 
-        self.cancel()
-        if self._store.save(name, Preset.read(self._board, self._loops)):
-            self._show_message(f"Saved preset: {name}")
-            self._hw.flash_repeatedly(self._pedal, 3)
+        self._pending_overwrite = None
+        saved = self._store.save(name, Preset.read(self._board, self._loops))
+        for listener in self._listeners:
+            if saved:
+                listener.saved(name)
+            else:
+                listener.save_failed(name)
 
-    def cancel(self, announce: bool = False) -> bool:
-        """Stop a pending overwrite confirmation. Return True if one was pending.
-
-        announce: tell the user, and turn the store pedal LED off.
-        """
-        if self._overwrite_blink is None:
+    def cancel(self) -> bool:
+        """Cancel a pending overwrite. Return True if one was pending."""
+        name = self._pending_overwrite
+        if name is None:
             return False
-        self._overwrite_blink.kill()
-        self._overwrite_blink = None
-        if announce:
-            self._show_message("Cancelled saving preset!")
-            self._hw.led(self._pedal, se.OFF)
+        self._pending_overwrite = None
+        for listener in self._listeners:
+            listener.overwrite_cancelled(name)
+        return True
+
+    def recall(self, name: str) -> bool:
+        """Apply the preset on Live's next tick. Return False if there is no such preset."""
+        preset = self._store.load(name)
+        if preset is None:
+            return False
+
+        def apply() -> None:
+            preset.apply(self._board)
+            for listener in self._listeners:
+                listener.recalled(name)
+        # Live rejects changes made from inside a listener, so never apply directly
+        self._defer(apply)
         return True
 
     def _on_playing_slot_changed(self) -> None:
         index = self._track.playing_slot_index
-        if index < 0:
-            return
-        preset = self._store.load(self._track.clip_slots[index].clip.name)
-        if preset is not None:
-            # Live rejects changes made from inside a listener: apply on the next tick
-            self._defer(lambda: preset.apply(self._board))
+        if index >= 0:
+            self.recall(self._track.clip_slots[index].clip.name)
 
 
 def alc_from_template(template_xml: str, name: str) -> str:

@@ -6,6 +6,7 @@ from . import config
 from . import presets
 from . import roland_exclusive as se
 from .hardware import FC200Hardware
+from .preset_feedback import PresetFeedback
 from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
 
@@ -171,8 +172,9 @@ class FC200(ControlSurface):
             self._presets = presets.PresetManager(
                 presets.PresetStore(self.settings.PRESET_FOLDER, self.log_message),
                 track, self._pedalboard(), self.settings.LOOP_MAPPING,
-                self._hw, se.Pedal.P8, self.show_message,
                 lambda fn: self._tasks.add(Task.run(fn)))
+            self._presets.subscribe(PresetFeedback(
+                self._hw, se.Pedal.P8, self.show_message, lambda: self._page, store_page=0))
 
             self._listeners()
             self._init_leds()
@@ -528,7 +530,7 @@ class FC200(ControlSurface):
             return
         # CTL button calls tap_tempo
         if se.pressed(body, se.Pedal.CTL):
-            if self._presets is not None and self._presets.cancel(announce=True):
+            if self._presets is not None and self._presets.cancel():
                 return
             self.tap_tempo()
             self._hw.flash(se.Pedal.CTL)

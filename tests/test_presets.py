@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import support  # noqa: F401
 from fc200 import presets  # noqa: E402
+from fc200.preset_feedback import PresetFeedback  # noqa: E402
 
 TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <Ableton><LiveSet><Tracks><AudioTrack><DeviceChain><MainSequencer>
@@ -165,17 +166,41 @@ class FakeHardware:
         self.calls.append(("led", value))
 
 
+class RecordingEvents(presets.PresetEvents):
+    def __init__(self):
+        self.events = []
+
+    def overwrite_pending(self, name):
+        self.events.append(("overwrite_pending", name))
+
+    def overwrite_cancelled(self, name):
+        self.events.append(("overwrite_cancelled", name))
+
+    def saved(self, name):
+        self.events.append(("saved", name))
+
+    def save_failed(self, name):
+        self.events.append(("save_failed", name))
+
+    def recalled(self, name):
+        self.events.append(("recalled", name))
+
+    def template_clip_copied(self, scene_index):
+        self.events.append(("template_clip_copied", scene_index))
+
+    def template_clip_missing(self):
+        self.events.append(("template_clip_missing",))
+
+
 class PresetManagerTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.store = presets.PresetStore(self._tmp.name, lambda msg: None)
-        self.track = FakeTrack(["template", "Song A", None])
+        self.track = FakeTrack(["template", "Song A", None, "Song B"])
         self.board = fake_board([fake_rack([1.0] * 8)])
-        self.hw = FakeHardware()
-        self.messages = []
-        self.manager = presets.PresetManager(
-            self.store, self.track, self.board, [0], self.hw, 7,
-            self.messages.append, lambda fn: fn())
+        self.manager = presets.PresetManager(self.store, self.track, self.board, [0], lambda fn: fn())
+        self.recorder = RecordingEvents()
+        self.manager.subscribe(self.recorder)
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -183,30 +208,60 @@ class PresetManagerTest(unittest.TestCase):
     def test_store_new_preset(self):
         self.manager.store(1)
         self.assertTrue(self.store.exists("Song A"))
-        self.assertEqual(self.hw.calls, ["flash"])
+        self.assertEqual(self.recorder.events, [("saved", "Song A")])
 
     def test_store_existing_asks_to_confirm(self):
         self.manager.store(1)
-        self.hw.calls.clear()
         self.board.devices[0].parameters[0].value = 2.0
         self.manager.store(1)       # asks
-        self.assertEqual(self.hw.calls, ["blink"])
+        self.assertEqual(self.manager.pending_overwrite, "Song A")
         self.assertEqual(self.store.load("Song A").loops[0]["parameters"][0], 1.0)
         self.manager.store(1)       # confirms
-        self.assertEqual(self.hw.calls, ["blink", "kill", "flash"])
+        self.assertIsNone(self.manager.pending_overwrite)
         self.assertEqual(self.store.load("Song A").loops[0]["parameters"][0], 2.0)
+        self.assertEqual(self.recorder.events, [
+            ("saved", "Song A"), ("overwrite_pending", "Song A"), ("saved", "Song A")])
+
+    def test_confirm_only_for_the_same_preset(self):
+        self.manager.store(1)
+        self.manager.store(3)
+        self.recorder.events.clear()
+        self.manager.store(1)       # asks for Song A
+        self.manager.store(3)       # other preset: asks again instead of saving
+        self.assertEqual(self.recorder.events, [
+            ("overwrite_pending", "Song A"),
+            ("overwrite_cancelled", "Song A"),
+            ("overwrite_pending", "Song B")])
 
     def test_cancel(self):
         self.manager.store(1)
         self.manager.store(1)       # asks
-        self.assertTrue(self.manager.cancel(announce=True))
-        self.assertEqual(self.hw.calls[-2:], ["kill", ("led", 0)])
+        self.assertTrue(self.manager.cancel())
+        self.assertEqual(self.recorder.events[-1], ("overwrite_cancelled", "Song A"))
         self.assertFalse(self.manager.cancel())
+
+    def test_save_failed(self):
+        open(os.path.join(self.store.folder, "_json"), "w").close()
+        self.manager.store(1)
+        self.assertEqual(self.recorder.events, [("save_failed", "Song A")])
 
     def test_store_on_empty_slot_copies_template_clip(self):
         self.manager.store(2)
         self.assertEqual(self.track.clip_slots[2].clip.name, "template")
         self.assertFalse(self.store.exists("template"))
+        self.assertEqual(self.recorder.events, [("template_clip_copied", 2)])
+
+    def test_store_without_template_clip(self):
+        self.track.clip_slots[0].has_clip = False
+        self.manager.store(2)
+        self.assertEqual(self.recorder.events, [("template_clip_missing",)])
+
+    def test_recall_by_name(self):
+        self.store.save("Song A", presets.Preset({0: {"parameters": [5.0] * 8, "chain": "B"}}))
+        self.assertTrue(self.manager.recall("Song A"))
+        self.assertEqual(self.board.devices[0].parameters[0].value, 5.0)
+        self.assertEqual(self.recorder.events, [("recalled", "Song A")])
+        self.assertFalse(self.manager.recall("nope"))
 
     def test_recall_on_play(self):
         self.store.save("Song A", presets.Preset({0: {"parameters": [5.0] * 8, "chain": "B"}}))
@@ -215,9 +270,36 @@ class PresetManagerTest(unittest.TestCase):
         self.assertEqual(rack.parameters[0].value, 5.0)
         self.assertEqual(rack.view.selected_chain.name, "B")
 
+    def test_preset_names(self):
+        self.manager.store(3)
+        self.manager.store(1)
+        self.assertEqual(self.manager.preset_names(), ["Song A", "Song B"])
+
     def test_disconnect_removes_listener(self):
         self.manager.disconnect()
         self.assertEqual(self.track.listeners, [])
+
+
+class PresetFeedbackTest(unittest.TestCase):
+    def setUp(self):
+        self.hw = FakeHardware()
+        self.messages = []
+        self.page = 0
+        self.feedback = PresetFeedback(self.hw, 7, self.messages.append, lambda: self.page, store_page=0)
+
+    def test_blink_until_saved(self):
+        self.feedback.overwrite_pending("Song A")
+        self.feedback.saved("Song A")
+        self.assertEqual(self.hw.calls, ["blink", "kill", "flash"])
+
+    def test_cancel_turns_led_off_on_store_page_only(self):
+        self.feedback.overwrite_pending("Song A")
+        self.feedback.overwrite_cancelled("Song A")
+        self.assertEqual(self.hw.calls, ["blink", "kill", ("led", 0)])
+        self.page = 1
+        self.feedback.overwrite_pending("Song A")
+        self.feedback.overwrite_cancelled("Song A")
+        self.assertEqual(self.hw.calls[-1], "kill")
 
 
 class AlcTest(unittest.TestCase):
