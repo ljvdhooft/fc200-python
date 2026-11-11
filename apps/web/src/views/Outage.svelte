@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { lost, retry } from "../lib/state";
+  import { outage, retry } from "../lib/state";
 
-  let what = $derived($lost ?? "connecting");
+  let what = $derived($outage ?? "connecting");
 
   // Countdown to the next reconnect
   let now = $state(Date.now());
@@ -11,7 +11,7 @@
   let seconds = $derived($retry ? Math.max(0, Math.ceil(($retry.at - now) / 1000)) : 0);
 </script>
 
-<div class="lost {what}" role="alert">
+<div class="outage {what}" role="alert">
   <svg viewBox="0 0 24 24" aria-hidden="true">
     {#if what === "pedalboard"}
       <!-- Lucide "search-x" (ISC): looked for the pedalboard, didn't find it -->
@@ -19,8 +19,8 @@
       <path d="m8.5 8.5 5 5" />
       <circle cx="11" cy="11" r="8" />
       <path d="m21 21-4.3-4.3" />
-    {:else if what === "live"}
-      <!-- Lucide "unplug" (ISC): the hub is up, Live isn't plugged in -->
+    {:else if what === "ableton"}
+      <!-- Lucide "unplug" (ISC): the hub is up, Ableton Live isn't plugged in -->
       <path d="m19 5 3-3" />
       <path d="m2 22 3-3" />
       <path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z" />
@@ -52,8 +52,8 @@
   {:else if what === "pedalboard"}
     <h1>Pedalboard not found</h1>
     <p>No <span class="device">FC200 Pedalboard</span> device in this set</p>
-  {:else if what === "live"}
-    <h1>Live offline</h1>
+  {:else if what === "ableton"}
+    <h1>Ableton Live offline</h1>
     <p>Remote Script not responding</p>
   {:else}
     <h1>Connecting…</h1>
@@ -61,7 +61,7 @@
 </div>
 
 <style>
-  .lost {
+  .outage {
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -83,7 +83,7 @@
     stroke-linejoin: round;
     color: var(--status-reconnecting);
   }
-  .live svg {
+  .ableton svg {
     color: var(--status-error);
   }
   .connecting svg {

@@ -12,7 +12,7 @@
   /* accents */
   --accent-on: #f29d38; /* on / active */
   --accent-select: #5aa9e6; /* selected / focus */
-  --link: #4fd3e0; /* follow linked (cyan) */
+  --follow: #4fd3e0; /* follow linked (cyan) */
 
   /* status (muted); red only for errors and overwrite-pending */
   --status-live: #5bb974;

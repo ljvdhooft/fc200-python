@@ -1,4 +1,4 @@
-export type LinkStatus = "connecting" | "open" | "closed";
+export type SocketStatus = "connecting" | "open" | "closed";
 
 export interface RequestError {
   code: string;
@@ -48,10 +48,10 @@ export class Connection {
   private stopped = true;
   private pending = new Map<number, Pending>();
   private handlers = new Map<string, Set<EventHandler>>();
-  private statusHandlers = new Set<(s: LinkStatus) => void>();
+  private statusHandlers = new Set<(s: SocketStatus) => void>();
   private retryHandlers = new Set<(r: Retry | null) => void>();
   private opts: Required<Omit<ConnectionOptions, "url">> & { url: string };
-  status: LinkStatus = "closed";
+  status: SocketStatus = "closed";
 
   constructor(opts: ConnectionOptions = {}) {
     this.opts = {
@@ -90,7 +90,7 @@ export class Connection {
     return () => this.retryHandlers.delete(handler);
   }
 
-  onStatus(handler: (s: LinkStatus) => void): () => void {
+  onStatus(handler: (s: SocketStatus) => void): () => void {
     this.statusHandlers.add(handler);
     return () => this.statusHandlers.delete(handler);
   }
@@ -116,7 +116,7 @@ export class Connection {
     this.request(method, params).catch(() => {});
   }
 
-  private setStatus(s: LinkStatus): void {
+  private setStatus(s: SocketStatus): void {
     this.status = s;
     this.statusHandlers.forEach((h) => h(s));
   }

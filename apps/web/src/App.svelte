@@ -1,16 +1,14 @@
 <script lang="ts">
-  import { appState, health, lost } from "./lib/state";
+  import { appState, outage } from "./lib/state";
   import { interactive } from "./lib/touch";
   import { follow, localPage, PAGES, shownPage } from "./lib/pages";
   import { fade, fly } from "svelte/transition";
   import { ease, FADE, MOTION } from "./lib/motion";
   import NowPlaying from "./views/NowPlaying.svelte";
   import Scenes from "./views/Scenes.svelte";
-  import Lost from "./views/Lost.svelte";
+  import Outage from "./views/Outage.svelte";
 
   let showJson = $state(false);
-
-  const labels = { live: "live", reconnecting: "reconnecting", offline: "Live offline" } as const;
 
   let tempo = $derived($appState.tempo === undefined ? "–" : String(Math.round($appState.tempo)));
 
@@ -44,16 +42,17 @@
   }
 </script>
 
-{#if $lost}
-  <!-- Unhealthy: nothing else on screen, just what is down -->
-  <Lost />
+{#if $outage}
+  <!-- Something is down: nothing else on screen, just what -->
+  <Outage />
 {:else}
 <div class="shell">
   <!-- Landscape: a rail in the strip next to the Dynamic Island. Portrait: a bar along
        the top, health on the left, page and follow on the right -->
   <aside class="rail">
-    <div class="status" title={labels[$health]}>
-      <span class="dot {$health}"></span>
+    <!-- Only shown while everything is connected (otherwise the Outage screen) -->
+    <div class="status" title="hub and Ableton Live connected">
+      <span class="dot"></span>
       <span class="tempo">{tempo}</span>
       <span class="unit">bpm</span>
     </div>
@@ -184,17 +183,8 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
-    background: var(--text-muted);
-  }
-  .dot.live {
     background: var(--status-live);
     animation: breathe 4s ease-in-out infinite;
-  }
-  .dot.reconnecting {
-    background: var(--status-reconnecting);
-  }
-  .dot.offline {
-    background: var(--status-error);
   }
   /* Slow, calm "all good"; a static dot means something needs attention */
   @keyframes breathe {
@@ -209,7 +199,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .dot.live {
+    .dot {
       animation: none;
     }
   }
@@ -287,7 +277,7 @@
     color: var(--status-error);
   }
   .follow.on {
-    color: var(--link);
+    color: var(--follow);
   }
   .follow svg {
     width: 24px;

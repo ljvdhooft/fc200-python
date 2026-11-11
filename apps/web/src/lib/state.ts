@@ -1,5 +1,5 @@
 import { derived, get, writable } from "svelte/store";
-import type { Connection, LinkStatus, Retry } from "./connection";
+import type { Connection, SocketStatus, Retry } from "./connection";
 
 /** The state tree of protocol/frontend.md section 3. Fields are optional: missing == null. */
 export interface FcState {
@@ -73,34 +73,29 @@ export function applyChanges(state: FcState, changes: Changes): void {
 }
 
 export const appState = writable<FcState>({});
-export const link = writable<LinkStatus>("closed");
+/** The WebSocket to the hub (not Ableton Link). */
+export const socket = writable<SocketStatus>("closed");
 /** The pending reconnect while the hub is unreachable. */
 export const retry = writable<Retry | null>(null);
 /** True once the first dump has arrived on the current connection. */
 export const synced = writable(false);
 
-export const liveConnected = derived(appState, ($s) => $s.hub?.live_connected === true);
+/** The hub's link to the Remote Script inside Ableton Live (protocol: hub.live_connected). */
+export const abletonConnected = derived(appState, ($s) => $s.hub?.live_connected === true);
 
-export type Health = "live" | "reconnecting" | "offline";
-/** live: hub and Live up; reconnecting: hub unreachable or no dump yet; offline: hub up but Live down. */
-export const health = derived([link, synced, liveConnected], ([$link, $synced, $live]): Health => {
-  if ($link === "open" && $synced) return $live ? "live" : "offline";
-  return "reconnecting";
-});
+export type Outage = "hub" | "ableton" | "connecting" | "pedalboard";
 
-export type Lost = "hub" | "live" | "connecting" | "pedalboard";
+/** Development: VITE_FORCE_OUTAGE=hub|ableton|connecting|pedalboard shows that warning regardless. */
+const forced = import.meta.env.VITE_FORCE_OUTAGE as Outage | undefined;
 
-/** Development: VITE_FORCE_LOST=hub|live|connecting|pedalboard shows that warning regardless. */
-const forced = import.meta.env.VITE_FORCE_LOST as Lost | undefined;
-
-/** What is down, or null when healthy: the hub (the WebSocket, so also Wi-Fi), Live
- *  behind a hub that is up, the first state hasn't arrived yet, or Live is up but the
- *  set has no pedalboard device. */
-export const lost = derived([link, synced, liveConnected, appState], ([$link, $synced, $live, $s]): Lost | null => {
+/** What is down, or null when healthy: the hub (the WebSocket, so also Wi-Fi), Ableton
+ *  Live behind a hub that is up, the first state hasn't arrived yet, or Ableton Live is
+ *  up but the set has no pedalboard device. */
+export const outage = derived([socket, synced, abletonConnected, appState], ([$socket, $synced, $ableton, $s]): Outage | null => {
   if (forced) return forced;
-  if ($link !== "open") return "hub";
+  if ($socket !== "open") return "hub";
   if (!$synced) return "connecting";
-  if (!$live) return "live";
+  if (!$ableton) return "ableton";
   return $s.pedalboard?.found === false ? "pedalboard" : null;
 });
 
@@ -130,7 +125,7 @@ export function applyStateChanged(changes: Changes): void {
 
 export function bind(conn: Connection): void {
   conn.onStatus((s) => {
-    link.set(s);
+    socket.set(s);
     if (s !== "open") synced.set(false);
   });
   conn.onRetry((r) => retry.set(r));

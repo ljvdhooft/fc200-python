@@ -1,6 +1,6 @@
 <script lang="ts">
   import { connection } from "../lib/client";
-  import { appState, liveConnected, type Scene } from "../lib/state";
+  import { appState, abletonConnected, type Scene } from "../lib/state";
   import { interactive, keepInteractive, session, wake } from "../lib/touch";
   import { fade } from "svelte/transition";
   import { ease, FADE, GLIDE } from "../lib/motion";
@@ -38,7 +38,7 @@
     }
   }
   $effect(() => {
-    if (count && $liveConnected) loadAll();
+    if (count && $abletonConnected) loadAll();
   });
   $effect(() => {
     if ($interactive) loadAll();
@@ -152,7 +152,7 @@
           class:selected={scene.index === selected}
           class:fired={scene.index === fired?.index}
           class:passive={!$interactive}
-          disabled={!$liveConnected || !$interactive}
+          disabled={!$abletonConnected || !$interactive}
           onclick={() => select(scene.index)}
         >
           <span class="strip" style:background={hex(scene.color)}></span>
@@ -168,11 +168,11 @@
        re-centres in the same motion instead of jumping when the slide ends -->
   <div class="drawer" class:open={$interactive} inert={!$interactive}>
   <div class="controls">
-    <button class="prev" disabled={!$liveConnected || selected <= 0} onclick={() => step(selected - 1)}>◀ prev</button>
-    <button class="fire" disabled={!$liveConnected || selected < 0} onclick={fire}>
+    <button class="prev" disabled={!$abletonConnected || selected <= 0} onclick={() => step(selected - 1)}>◀ prev</button>
+    <button class="fire" disabled={!$abletonConnected || selected < 0} onclick={fire}>
       fire
     </button>
-    <button class="next" disabled={!$liveConnected || selected >= count - 1} onclick={() => step(selected + 1)}>next ▶</button>
+    <button class="next" disabled={!$abletonConnected || selected >= count - 1} onclick={() => step(selected + 1)}>next ▶</button>
   </div>
   </div>
 </section>
