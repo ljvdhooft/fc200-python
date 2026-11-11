@@ -1,6 +1,7 @@
 # FC200 frontend architecture (draft)
 
-> Status: **proposal for review**. Nothing here is implemented. Annotate freely.
+> Status: **approved design** (2026-11-11). Not implemented yet. The build plan is in
+> `docs/frontend-build-plan.md`.
 
 ## 1. Goals
 
@@ -279,6 +280,9 @@ folding it in.
 
 ## 10. Phases
 
+0. **Network MIDI spike**: test the watchdog from section 6 first, because it is
+   the biggest pain on stage today. Verify: after toggling the hotspot, the
+   ForScore session comes back without touching the Mac or the iPad.
 1. **Spec**: write `protocol/frontend.md`, then get your approval.
    Verify: the spec has been reviewed.
 2. **Producer core**: build `ui_state.py` plus its unit tests (snapshot, dirty
@@ -311,8 +315,3 @@ folding it in.
 
 Svelte works fine in a native shell: the build is plain static HTML/JS that a
 WKWebView loads like any page.
-
-## 12. Open questions
-
-1. Network MIDI watchdog: should the spike from section 6 come before the frontend
-   work, since it is the biggest pain on stage today?
