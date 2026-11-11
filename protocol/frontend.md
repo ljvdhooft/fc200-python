@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.7.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.8.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -11,6 +11,7 @@
 | 0.5.0   | `presets.names` replaced by `presets.count`; names via `preset.list`   |
 | 0.6.0   | Presets are listed from the `.alc` files; `preset.list` adds `missing_json` |
 | 0.7.0   | `scene.list`: every scene in the set, for browsing                      |
+| 0.8.0   | `scene.fired` event; `scenes.fired` also follows launches in Ableton    |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -68,6 +69,7 @@ Same conventions as `presets.md` §3 (ableton-dev conventions):
 | `state.changed`      | `{"<path>": value, ...}`      | script, hub   | At most once per `update_display` tick, never empty |
 | `hub.status`         | `{"live_connected": bool}`    | hub           | On client connect, and when the Live link changes |
 | `preset.<event>`     | see below                     | script        | A `PresetEvents` call (transient, not in state)  |
+| `scene.fired`        | `{index, name, color}`        | script        | Every scene launch (pedal, `scene.fire`, Ableton) |
 
 `hub.status` and the `hub` node both carry `live_connected`: the event suits simple
 clients that only show a connection light, the node keeps a dump self-contained.
@@ -78,6 +80,11 @@ Preset events carry the arguments of the matching `PresetEvents` method
 `preset.template_clip_copied {"scene_index"}`, `preset.template_clip_missing {}`.
 The durable part (`pending_overwrite`, `count`, `last`) is also in the state tree, so
 a client that misses an event still converges.
+
+`scene.fired` comes from each scene's `Scene.is_triggered` listener, so it covers
+launches from the pedal, `scene.fire` and Ableton itself. Firing the same
+scene again leaves `scenes.fired` unchanged (so no `state.changed`), but it is still
+an event: a client that shows whether the fired scene is playing needs every fire.
 
 ## 3. State tree
 
@@ -129,7 +136,7 @@ are missing; methods that need it answer `unavailable`.
 |------------|-------------|----------------------------------------------------------|----------------------------------------|
 | `count`    | int         | Number of scenes in the set                              | `len(FC200._all_scenes)`               |
 | `selected` | int         | Index of the selected scene                              | `FC200._selected_scene_index` (`Song.view.selected_scene`) |
-| `fired`    | object/null | Scene last fired from the pedal: `{index, name, color}`  | `FC200._fired_scene` (`TransportPage._fire_scene`) |
+| `fired`    | object/null | Scene last launched (pedal, `scene.fire` or Ableton): `{index, name, color}` | `FC200._fired_scene` (`Scene.is_triggered` listener) |
 | `window`   | list        | Scenes `selected-3 .. selected+3`, clipped to existing scenes, in order | `Song.scenes` |
 
 A `window` / `fired` entry: `index` (int), `name` (string, `Scene.name`), `color`

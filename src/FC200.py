@@ -54,6 +54,8 @@ class FC200(ControlSurface):
         self._script_listeners.add(self.song(), "is_ableton_link_enabled", self._reload_config)
         # Added by _setup; removed on config reload and unload
         self._listeners = Listeners(self.log_message)
+        # One per scene, rebuilt when the scenes change (_watch_scenes)
+        self._scene_listeners = Listeners(self.log_message)
 
         # Frontend (protocol/frontend.md): the hub connects to the gateway
         ui_model = StateModel()
@@ -139,8 +141,10 @@ class FC200(ControlSurface):
         self._listeners.add(self.song(), "is_playing", self._on_is_playing_changed)
         self._listeners.add(self.song(), "metronome", self._on_metronome_changed)
         self._listeners.add(self.song().view, "selected_scene", self._on_selected_scene_changed)
+        self._listeners.add(self.song(), "scenes", self._watch_scenes)
 
         self._fired_scene = None
+        self._watch_scenes()
         self._highlight_tuner_true = False
         self._on_is_playing_changed()
         self._on_metronome_changed()
@@ -166,11 +170,25 @@ class FC200(ControlSurface):
         self._ui.setup(self._listeners)
         self._redraw()
 
+    def _watch_scenes(self) -> None:
+        """Notice every scene launch: from the pedal, the frontend or Ableton itself."""
+        self._scene_listeners.remove_all()
+        for scene in self._all_scenes:
+            self._scene_listeners.add(scene, "is_triggered", partial(self._on_scene_triggered, scene))
+
+    def _on_scene_triggered(self, scene: Scene) -> None:
+        if not scene.is_triggered:
+            return
+        self._fired_scene = scene
+        self._ui.scene_fired(self._all_scenes.index(scene))
+        self._mira.scene_overview()
+
     def _reload_config(self) -> None:
         importlib.reload(config)
         self.settings = config.Settings()
         self._mode.on_exit()
         self._listeners.remove_all()
+        self._scene_listeners.remove_all()
         if self._presets is not None:
             self._presets.disconnect()
         self._setup()
@@ -325,11 +343,12 @@ class FC200(ControlSurface):
 
     def disconnect(self) -> None:
         """Clean up when the script is unloaded."""
-        self.log_message(f"Removing {len(self._listeners) + len(self._script_listeners)} listeners...")
+        self.log_message(f"Removing {len(self._listeners) + len(self._scene_listeners) + len(self._script_listeners)} listeners...")
         self._mode.on_exit()
         if self._presets is not None:
             self._presets.disconnect()
         self._listeners.remove_all()
+        self._scene_listeners.remove_all()
         self._script_listeners.remove_all()
         self._ui_gateway.close()
         self.log_message("--- FC200 Script Unloaded ---")

@@ -82,6 +82,7 @@ class Mock:
         """Like pedal 3 on page 0: fire the selected scene, select the next."""
         fired = self.model.get("scenes.selected")
         self.model.set("scenes.fired", self._scene_entry(fired))
+        self.hub.on_event(proto.event("scene.fired", self._scene_entry(fired)))
         self._select_scene((fired + 1) % self.model.get("scenes.count"))
         return fired
 

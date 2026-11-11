@@ -115,6 +115,7 @@ class UiBindingsTest(unittest.TestCase):
         self.events = []
         self.listeners = FakeListeners()
         self.ui = UiBindings(self.s, self.model, self.events.append)
+        self.s._ui = self.ui
         self.ui.setup(self.listeners)
         self.model.flush()
         self.handlers = self.ui.handlers()
@@ -131,7 +132,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.7.0")
+        self.assertEqual(state["version"], "0.8.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -309,6 +310,12 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.s.fired, ["Scene 5"])
         self.assertEqual(self.model.get("scenes.fired.index"), 5)
         self.assertEqual(self.model.get("scenes.selected"), 6)
+
+    def test_every_fire_is_an_event_also_the_same_scene_again(self):
+        self.ui.scene_fired(5)
+        self.ui.scene_fired(5)
+        fired = [e["data"] for e in self.events if e["event"] == "scene.fired"]
+        self.assertEqual(fired, [{"index": 5, "name": "Scene 5", "color": 5}] * 2)
 
     def test_edit_open_select_close(self):
         self.s._show_page(0)

@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 
@@ -234,6 +234,10 @@ class UiBindings(presets.PresetEvents):
 
     def template_clip_missing(self) -> None:
         self._preset_event("template_clip_missing", {})
+
+    def scene_fired(self, index: int) -> None:
+        """TransportPage._fire_scene calls this on every fire, also of the same scene again."""
+        self._emit(proto.event("scene.fired", self._scene(index)))
 
     def _preset_event(self, name: str, data: dict[str, Any]) -> None:
         self._write_presets()
