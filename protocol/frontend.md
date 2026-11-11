@@ -1,10 +1,11 @@
 # Frontend protocol
 
-**Version 0.1.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.2.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
 | 0.1.0   | First version; folds in and supersedes `presets.md` §3                  |
+| 0.2.0   | `favorite` node: the picked favorite on page 2                          |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -78,7 +79,7 @@ of the `DeviceParameter`) and `display` is Live's string for it
 
 | Field       | Type   | Meaning                          | Source                                  |
 |-------------|--------|----------------------------------|-----------------------------------------|
-| `version`   | string | Protocol version, `"0.1.0"`      | constant in the script                  |
+| `version`   | string | Protocol version, `"0.2.0"`      | constant in the script                  |
 | `page`      | int    | Active page, `MIN_PAGE..MAX_PAGE` (0 transport, 1 loops, 2 favorites) | `FC200._page` |
 | `mode`      | string | `"transport"`, `"loops"`, `"favorites"` or `"parameter_control"` | class of `FC200._mode` (`TransportPage`, `LoopsPage`, `FavoritesPage`, `ParameterControl`) |
 | `tempo`     | float  | Song tempo in BPM                | `Song.tempo` (listener)                 |
@@ -129,6 +130,22 @@ is a rack on the pedalboard (`FC200._loop(index)`).
 | `value`     | float  | Normalised value                                             | `DeviceParameter.value`                     |
 | `display`   | string | Live's display string                                        | `DeviceParameter.str_for_value`             |
 | `picked`    | bool   | This favorite is the one the expression pedal controls       | `FavoritesPage.pedal` / `.parameter`        |
+
+### `favorite`
+
+The favorite the expression pedal controls on page 2 (`FavoritesPage`), between
+picking it with a number pedal and either dropping it (CTL, leaving the page) or
+pressing the same pedal again to enter `parameter_control`. Missing/`null` otherwise.
+
+| Field       | Type   | Meaning                                         | Source                                   |
+|-------------|--------|-------------------------------------------------|------------------------------------------|
+| `loop`      | int    | Board device index of the loop (`loops[].index`)| `LOOP_MAPPING[FavoritesPage.pedal]`      |
+| `pedal`     | int    | Number pedal that picked it (1-based)           | `FavoritesPage.pedal` + 1                |
+| `loop_name` | string | Loop name                                       | `RackDevice.name`                        |
+| `parameter` | int    | Parameter index within the loop                 | `FAVORITE_PARAMETERS[pedal]`             |
+| `name`, `value`, `display` | | As for `loops[].favorite`                | `FavoritesPage.parameter`                |
+
+`loops[].favorite.picked` marks the same loop in the list.
 
 ### `edit`
 

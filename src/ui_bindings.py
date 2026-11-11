@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 
@@ -103,10 +103,11 @@ class UiBindings(presets.PresetEvents):
             "window": window,
         })
 
-        favorites = s._favorites_page
+        favorite = self._favorite_state()
         for pos in range(self._loop_count):
-            picked = s._mode is favorites and favorites.pedal == pos
+            picked = favorite is not None and favorite["pedal"] == pos + 1
             self.model.set(f"loops.{pos}.favorite.picked", picked)
+        self.model.set("favorite", favorite)
         self.model.set("edit", self._edit_state())
 
     @property
@@ -137,6 +138,21 @@ class UiBindings(presets.PresetEvents):
             "chains": [c.name for c in rack.chains],
             "favorite": {"parameter": favorite, **_parameter(rack.parameters[favorite]),
                          "picked": False},
+        }
+
+    def _favorite_state(self) -> dict[str, Any] | None:
+        page = self.s._favorites_page
+        if self.s._mode is not page or page.pedal is None:
+            return None
+        pos = int(page.pedal)
+        index = self.s.settings.FAVORITE_PARAMETERS[pos]
+        rack = self._rack(pos)
+        return {
+            "loop": self.s.settings.LOOP_MAPPING[pos],
+            "pedal": pos + 1,
+            "loop_name": rack.name,
+            "parameter": index,
+            **_parameter(rack.parameters[index]),
         }
 
     def _edit_state(self) -> dict[str, Any] | None:
@@ -176,8 +192,11 @@ class UiBindings(presets.PresetEvents):
         if index == 0:
             self.model.set(f"loops.{pos}.on", p.value != 0)
         if index == self.s.settings.FAVORITE_PARAMETERS[pos]:
+            picked = self.model.get("favorite.pedal") == pos + 1
             for key, value in _parameter(p).items():
                 self.model.set(f"loops.{pos}.favorite.{key}", value)
+                if picked:
+                    self.model.set(f"favorite.{key}", value)
         edit = self.model.get("edit")
         if edit is not None and edit["loop"] == self.s.settings.LOOP_MAPPING[pos] and index in MACROS:
             for key, value in _parameter(p).items():

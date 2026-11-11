@@ -113,7 +113,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_snapshot(self):
         state = self.model.snapshot()
-        self.assertEqual(state["version"], "0.1.0")
+        self.assertEqual(state["version"], "0.2.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -162,7 +162,31 @@ class UiBindingsTest(unittest.TestCase):
     def test_picking_a_favorite(self):
         self.s._mode.handle(press(P.P2))
         self.ui.refresh()
-        self.assertEqual(self.model.flush(), {"loops.1.favorite.picked": True})
+        self.assertEqual(self.model.flush(), {
+            "loops.1.favorite.picked": True,
+            "favorite": {"loop": 1, "pedal": 2, "loop_name": "Loop 1", "parameter": 1,
+                         "name": "Loop 1 p1", "value": 0.0, "display": "0"},
+        })
+
+        # The expression pedal moves it: the node and the loop list both follow
+        parameter = self.s._racks[1].parameters[1]
+        parameter.value = 127
+        self.listeners.fire(parameter, "value")
+        patch = self.model.flush()
+        self.assertEqual(patch["favorite.value"], 1.0)
+        self.assertEqual(patch["loops.1.favorite.value"], 1.0)
+
+        # CTL drops it
+        self.s._mode.handle(press(P.CTL))
+        self.ui.refresh()
+        self.assertEqual(self.model.flush(), {"loops.1.favorite.picked": False, "favorite": None})
+
+    def test_favorite_gives_way_to_parameter_control(self):
+        self.s._mode.handle(press(P.P2))
+        self.s._mode.handle(press(P.P2))
+        self.ui.refresh()
+        self.assertIsNone(self.model.get("favorite"))
+        self.assertEqual(self.model.get("edit.loop"), 1)
 
     def test_parameter_control(self):
         self.s._mode.handle(press(P.P3))
