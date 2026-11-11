@@ -10,7 +10,7 @@ export interface FcState {
   pedalboard?: { found: boolean; track?: string; track_index?: number; device?: string; device_index?: number };
   transport?: { playing: boolean; metronome: boolean };
   scenes?: Scenes;
-  loops?: unknown[];
+  loops?: Loop[];
   edit?: Record<string, unknown>;
   presets?: Record<string, unknown>;
   hub?: { live_connected: boolean };
@@ -28,6 +28,23 @@ export interface Scenes {
   selected: number;
   fired: Scene | null;
   window: Scene[];
+}
+
+export interface Parameter {
+  parameter: number;
+  name: string;
+  value: number;
+  display: string;
+}
+
+export interface Loop {
+  index: number;
+  pedal: number;
+  name: string;
+  on: boolean;
+  chain: string;
+  chains: string[];
+  favorite: Parameter | null;
 }
 
 export type Changes = Record<string, unknown>;

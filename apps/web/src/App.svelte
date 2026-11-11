@@ -6,6 +6,7 @@
   import { ease, FADE, MOTION } from "./lib/motion";
   import NowPlaying from "./views/NowPlaying.svelte";
   import Scenes from "./views/Scenes.svelte";
+  import Loops from "./views/Loops.svelte";
   import Outage from "./views/Outage.svelte";
 
   let showJson = $state(false);
@@ -112,6 +113,8 @@
     <main>
       {#if $shownPage === 0}
         <Scenes />
+      {:else if $shownPage === 1}
+        <Loops />
       {:else}
         <div class="placeholder">
           <div class="label">page</div>
