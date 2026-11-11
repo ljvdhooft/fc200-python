@@ -1,24 +1,33 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { connection } from "../lib/client";
-  import { appState } from "../lib/state";
+  import { view, localFires } from "../lib/optimistic";
   import { hex, number } from "../lib/scene";
   import Lock from "../lib/Lock.svelte";
 
-  let fired = $derived($appState.scenes?.fired ?? null);
-  let playing = $derived($appState.transport?.playing ?? false);
+  // Ahead of Ableton: a fire or play/stop from this client shows at once
+  let fired = $derived($view.scenes?.fired ?? null);
+  let playing = $derived($view.transport?.playing ?? false);
 
   // "playing" while the fired scene is what's playing. Once the transport stops it
   // is the "last" scene, also when the transport starts again without firing a
   // scene; firing one makes it "playing" again.
-  let stopped = $state(!($appState.transport?.playing ?? false));
+  let stopped = $state(untrack(() => !playing)); // from here on, the effects below
   $effect(() => {
     if (!playing) stopped = true;
   });
   // Every fire, also of the same scene again, comes as a `scene.fired` event
   // (resuming the transport doesn't count). Firing starts the transport, so don't
   // wait for `playing`: it may arrive in a later change.
+  // A fire from this client counts at once.
   onMount(() => connection.on("scene.fired", () => (stopped = false)));
+  onMount(() => {
+    let first = true;
+    return localFires.subscribe(() => {
+      if (!first) stopped = false;
+      first = false;
+    });
+  });
 </script>
 
 <div class="now">

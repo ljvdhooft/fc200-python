@@ -5,6 +5,8 @@
   import { fade } from "svelte/transition";
   import { ease, FADE, GLIDE } from "../lib/motion";
   import { hex, number } from "../lib/scene";
+  import { expect, localFires, view } from "../lib/optimistic";
+  import Drawer from "../lib/Drawer.svelte";
 
   let scenes = $derived($appState.scenes);
   let serverSelected = $derived($appState.scenes?.selected ?? -1);
@@ -137,7 +139,51 @@
     connection.send("scene.select", { index });
   }
 
+  // Transport and preset store: the side column, like pedals 1/2 and 8 on page 0
+  // Ahead of Ableton (lib/optimistic): a tap shows at once
+  let playing = $derived($view.transport?.playing ?? false);
+  let metronome = $derived($view.transport?.metronome ?? false);
+  function play() {
+    expect("transport.playing", true);
+    connection.send("transport.play");
+  }
+  // Stop has no state of its own to show while already stopped: it flashes
+  let stopFlash = $state(0);
+  function stop() {
+    expect("transport.playing", false);
+    stopFlash++;
+    connection.send("transport.stop");
+  }
+  function toggleMetronome() {
+    const on = !metronome;
+    expect("transport.metronome", on);
+    connection.send("metronome.set", { on });
+  }
+  let pendingOverwrite = $derived(($appState.presets?.pending_overwrite as string | null | undefined) ?? null);
+  let canStore = $derived($appState.presets !== undefined);
+  function store() {
+    // a second store of the same scene confirms an overwrite
+    connection.send("preset.store", { scene_index: selected });
+  }
+
+  // Fire and stop: the scene's clips recall their presets without anything playing
+  // The selected scene becomes the fired one, ahead of Ableton
+  function expectFired(playing: boolean) {
+    const scene = rows.find((s) => s.index === selected);
+    if (scene) expect("scenes.fired", scene);
+    expect("transport.playing", playing);
+  }
+
+  function fireAndStop() {
+    expectFired(false);
+    browse = null;
+    if (selected + 1 < count) optimistic(selected + 1);
+    connection.send("scene.fire_and_stop");
+  }
+
   function fire() {
+    expectFired(true);
+    localFires.update((n) => n + 1);
     // Fire launches the selected scene and selects the next one
     browse = null;
     if (selected + 1 < count) optimistic(selected + 1);
@@ -145,8 +191,8 @@
   }
 </script>
 
-<section class="scenes">
-
+<section class="scenes" class:open={$interactive}>
+<div class="body">
   <ol class="list" bind:this={list} {onscroll} {ontouchmove} onwheel={ontouchmove}>
     {#each rows as scene (scene.index)}
       <li data-index={scene.index}>
@@ -169,23 +215,226 @@
 
   <!-- Always in the layout: its height animates with the slide, so the list
        re-centres in the same motion instead of jumping when the slide ends -->
-  <div class="drawer" class:open={$interactive} inert={!$interactive}>
+  <Drawer open={$interactive} edge="bottom">
   <div class="controls">
     <button class="prev" disabled={!$abletonConnected || selected <= 0} onclick={() => step(selected - 1)}>◀ prev</button>
     <button class="fire" disabled={!$abletonConnected || selected < 0} onclick={fire}>
       fire
     </button>
+    <button class="fire-stop" disabled={!$abletonConnected || selected < 0 || !canStore} onclick={fireAndStop}>fire &amp; stop</button>
     <button class="next" disabled={!$abletonConnected || selected >= count - 1} onclick={() => step(selected + 1)}>next ▶</button>
   </div>
-  </div>
+  </Drawer>
+</div>
+
+<!-- Beside the list in landscape (away from the island), above it in portrait.
+     Shown with touch mode, like the controls: it slides in the same way -->
+<aside class="side" class:open={$interactive}>
+<Drawer open={$interactive} edge="side">
+<div class="side-buttons">
+  <!-- top to bottom: store, metronome, play, stop (stop in the corner) -->
+  <button
+    class="store"
+    class:pending={pendingOverwrite !== null}
+    disabled={!$abletonConnected || !canStore || selected < 0}
+    onclick={store}
+  >
+    {pendingOverwrite !== null ? "overwrite?" : "store"}
+  </button>
+  <button
+    class="metronome"
+    class:on={metronome}
+    disabled={!$abletonConnected}
+    onclick={toggleMetronome}
+    aria-pressed={metronome}
+    aria-label="metronome"
+  >
+    <!-- Ableton's metronome: two dots side by side, the first open, the second filled -->
+    <svg class="outline" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="7" cy="12" r="3.6" />
+      <circle class="filled" cx="17" cy="12" r="3.6" />
+    </svg>
+  </button>
+  <button class="play" aria-label="play" class:on={playing} disabled={!$abletonConnected} onclick={play}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+  </button>
+  <button class="stop" aria-label="stop" disabled={!$abletonConnected} onclick={stop}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1" /></svg>
+    <!-- restarts on every tap -->
+    {#key stopFlash}{#if stopFlash}<span class="flash"></span>{/if}{/key}
+  </button>
+</div>
+</Drawer>
+</aside>
 </section>
 
 <style>
   .scenes {
+    --side: calc(var(--touch) + var(--space-3)); /* the side column's width */
+    position: relative; /* anchors the side column */
+    display: flex;
+    gap: var(--space-2);
+    height: 100%;
+  }
+  :global(:root[data-island="right"]) .scenes {
+    flex-direction: row-reverse;
+  }
+  .body {
+    --drawer-gap: var(--space-3);
+    flex: 1;
+    min-width: 0;
+    min-height: 0; /* portrait stacks it under the side row: don't grow past the screen */
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    height: 100%;
+  }
+
+  /* Landscape: the column floats over the list's outer edge and its buttons slide
+     in; the rows (not the list) make room for it. Narrowing the list itself would
+     change its width under the finger, and iOS cancels the scroll that the waking
+     touch is starting. */
+  .side {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: var(--side);
+    pointer-events: none; /* hidden: touches go through to the list under it */
+  }
+  .side-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  :global(:root[data-island="right"]) .side {
+    right: auto;
+    left: 0;
+  }
+  .list > li {
+    transition: padding var(--motion) var(--ease);
+  }
+  .scenes.open .list > li {
+    padding-right: calc(var(--side) + var(--space-2));
+  }
+  :global(:root[data-island="right"]) .scenes.open .list > li {
+    padding-right: 0;
+    padding-left: calc(var(--side) + var(--space-2));
+  }
+  /* the controls only show with the column, so they always leave it room */
+  .controls {
+    margin-right: calc(var(--side) + var(--space-2));
+  }
+  :global(:root[data-island="right"]) .controls {
+    margin-right: 0;
+    margin-left: calc(var(--side) + var(--space-2));
+  }
+  .side.open {
+    pointer-events: auto;
+  }
+  .side button {
+    width: calc(var(--touch) + var(--space-3));
+  }
+  .side button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    writing-mode: vertical-rl;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: var(--text-body);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition:
+      opacity var(--motion) var(--ease),
+      border-color var(--motion) var(--ease),
+      background var(--motion) var(--ease);
+  }
+  .side svg {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    fill: currentColor;
+  }
+  /* the icon buttons take their size, the labelled ones share the rest */
+  .side .play,
+  .side .stop {
+    flex: none;
+    height: calc(var(--touch) + var(--space-3));
+  }
+  /* level with the controls along the bottom */
+  .side .stop {
+    height: calc(var(--touch) * 1.5);
+  }
+  .side .stop {
+    position: relative;
+    overflow: hidden;
+  }
+  /* a tap on stop lights it briefly, then fades */
+  .flash {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--text) 30%, transparent);
+    animation: flash 500ms var(--ease) both;
+    pointer-events: none;
+  }
+  @keyframes flash {
+    to {
+      opacity: 0;
+    }
+  }
+  .play.on {
+    color: var(--status-live);
+    border-color: var(--status-live);
+    background: color-mix(in srgb, var(--status-live) 10%, var(--panel-2));
+  }
+  .side .metronome {
+    flex: none;
+    height: calc(var(--touch) + var(--space-3));
+  }
+  .side svg.outline {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .side svg .filled {
+    fill: currentColor;
+  }
+  .side .metronome svg {
+    width: 34px;
+    height: 34px;
+    stroke-width: 1.6;
+  }
+  /* like Ableton's own metronome button: lit orange, dark dots */
+  .metronome.on {
+    color: var(--bg);
+    border-color: var(--accent-on);
+    background: var(--accent-on);
+  }
+  /* waiting for a second store to confirm: the one blinking thing */
+  .store.pending {
+    color: var(--status-error);
+    border-color: var(--status-error);
+    animation: overwrite 1s steps(2, jump-none) infinite;
+  }
+  @keyframes overwrite {
+    50% {
+      border-color: var(--border);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .store.pending {
+      animation: none;
+    }
+  }
+  .side button:active:not(:disabled) {
+    filter: brightness(1.3);
   }
   .led {
     width: 8px;
@@ -280,29 +529,9 @@
     flex: 1;
   }
 
-  .drawer {
-    display: grid;
-    grid-template-rows: 0fr;
-    margin-top: calc(-1 * var(--space-3)); /* cancel the section gap while closed */
-    opacity: 0;
-    transform: translateY(16px);
-    transition:
-      grid-template-rows var(--motion) var(--ease),
-      margin-top var(--motion) var(--ease),
-      opacity var(--motion) var(--ease),
-      transform var(--motion) var(--ease);
-  }
-  .drawer.open {
-    grid-template-rows: 1fr;
-    margin-top: 0;
-    opacity: 1;
-    transform: none;
-  }
   .controls {
-    min-height: 0;
-    overflow: hidden;
     display: grid;
-    grid-template-columns: 1fr 2fr 1fr;
+    grid-template-columns: 1fr 2fr 1.5fr 1fr;
     gap: var(--space-2);
   }
   .controls button {
@@ -317,6 +546,10 @@
     border-color: var(--accent-on);
     background: color-mix(in srgb, var(--accent-on) 12%, var(--panel-2));
     font-size: var(--text-name);
+    letter-spacing: 0.04em;
+  }
+  .controls .fire-stop {
+    font-size: var(--text-label);
     letter-spacing: 0.04em;
   }
   .controls button:active:not(:disabled),
@@ -343,13 +576,48 @@
       border-bottom-right-radius: var(--corner-concentric);
     }
   }
-  /* Landscape phones: the outer bottom corner (away from the island) meets the screen corner */
+  /* Landscape phones: the side column meets the outer bottom corner (away from the island) */
   @media (orientation: landscape) and (max-height: 500px) {
-    :global(:root:not([data-island="right"])) .controls .next {
+    :global(:root:not([data-island="right"])) .stop {
       border-bottom-right-radius: var(--corner-concentric);
     }
-    :global(:root[data-island="right"]) .controls .prev {
+    :global(:root[data-island="right"]) .stop {
       border-bottom-left-radius: var(--corner-concentric);
+    }
+  }
+
+  /* Portrait: the side column becomes a row above the list */
+  @media (orientation: portrait) {
+    .scenes,
+    :global(:root[data-island="right"]) .scenes {
+      flex-direction: column-reverse;
+    }
+    .scenes {
+      --drawer-gap: var(--space-2);
+    }
+    .side,
+    :global(:root[data-island="right"]) .side {
+      position: static;
+      width: auto;
+    }
+    .scenes.open .list > li,
+    :global(:root[data-island="right"]) .scenes.open .list > li {
+      padding: 0;
+    }
+    .controls,
+    :global(:root[data-island="right"]) .controls {
+      margin: 0;
+    }
+    .side-buttons {
+      flex-direction: row;
+    }
+    .side button,
+    .side .play,
+    .side .stop,
+    .side .metronome {
+      width: auto;
+      height: var(--touch);
+      writing-mode: horizontal-tb;
     }
   }
 </style>
