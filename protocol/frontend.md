@@ -13,7 +13,7 @@
 | 0.7.0   | `scene.list`: every scene in the set, for browsing                      |
 | 0.8.0   | `scene.fired` event; `scenes.fired` also follows launches in Ableton    |
 | 0.9.0   | `transport.play`, `transport.stop`, `metronome.set`, `scene.fire_and_stop` |
-| 0.10.0  | `tuner` node: note and cents while the volume is 0                    |
+| 0.10.0  | `tuner` node: note, cents and tolerance while the volume is 0          |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -235,11 +235,12 @@ The pedalboard's tuner, present only while the volume (EXP, `LOOP_VOLUME`) is at
 which is when the FC-200 shows it on the bank display. Missing/`null` otherwise and
 without a pedalboard. Whether a client shows it, and how, is up to the client.
 
-| Field     | Type   | Meaning                                                   | Source                                            |
-|-----------|--------|-----------------------------------------------------------|---------------------------------------------------|
-| `note`    | string | Detected note: `"C"`, `"C#"` .. `"B"`                     | tuner device `parameters[2]` mod 12               |
-| `cents`   | float  | Deviation in cents, including the reference offset (~-50..50) | tuner `parameters[1]` - 50 + (rack `parameters[1]` - 64) |
-| `in_tune` | bool   | Within the bank display's tolerance (±2 cents)           | `FC200._tuner_reading`                            |
+| Field       | Type   | Meaning                                                       | Source                                                   |
+|-------------|--------|---------------------------------------------------------------|----------------------------------------------------------|
+| `note`      | string | Detected note: `"C"`, `"C#"` .. `"B"`                         | tuner device `parameters[2]` mod 12                      |
+| `cents`     | float  | Deviation in cents, including the reference offset (~-50..50) | tuner `parameters[1]` - 50 + (rack `parameters[1]` - 64) |
+| `in_tune`   | bool   | `abs(cents) < tolerance`, as on the bank display              | `FC200._tuner_reading`                                   |
+| `tolerance` | float  | Cents either side of 0 that count as in tune                  | `config.Settings.TUNER_TOLERANCE`                        |
 
 The tuner device is `track.devices[TUNER_RACK].chains[TUNER_CHAIN].devices[TUNER_DEVICE]`
 (`config.Settings`). The values follow its listeners, so they change often while a

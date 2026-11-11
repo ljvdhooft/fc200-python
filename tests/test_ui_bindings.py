@@ -162,13 +162,13 @@ class UiBindingsTest(unittest.TestCase):
         self.s.tuner = ("a#", -3.0)
         self.listeners.fire(self.s._volume_param, "value")
         self.assertEqual(self.model.flush(),
-                         {"tuner": {"note": "A#", "cents": -3.0, "in_tune": False}})
+                         {"tuner": {"note": "A#", "cents": -3.0, "in_tune": False, "tolerance": 2}})
 
         cents = self.s._tuner_device.parameters[1]
         self.s.tuner = ("a#", 1.0)
         self.listeners.fire(cents, "value")
         self.assertEqual(self.model.flush(),
-                         {"tuner": {"note": "A#", "cents": 1.0, "in_tune": True}})
+                         {"tuner": {"note": "A#", "cents": 1.0, "in_tune": True, "tolerance": 2}})
 
         self.s._volume_param.value = 64
         self.listeners.fire(cents, "value")

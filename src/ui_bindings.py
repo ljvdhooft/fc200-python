@@ -215,8 +215,9 @@ class UiBindings(presets.PresetEvents):
             self.model.set("tuner", None)
             return
         note, cents = self.s._tuner_reading()
+        tolerance = self.s.settings.TUNER_TOLERANCE
         self.model.set("tuner", {"note": note.upper(), "cents": cents,
-                                 "in_tune": abs(cents) < self.s.settings.TUNER_TOLERANCE})
+                                 "in_tune": abs(cents) < tolerance, "tolerance": tolerance})
 
     def _on_chain(self, pos: int) -> None:
         rack = self._rack(pos)
