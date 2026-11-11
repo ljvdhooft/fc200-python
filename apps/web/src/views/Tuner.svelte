@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Tuner } from "../lib/state";
-  import { hue, lightness, offset, TOLERANCE } from "../lib/tuner";
+  import { hue, lightness, offset } from "../lib/tuner";
 
   // A bar along the bottom while the volume is 0 (in a Drawer, see App.svelte). The needle is the edge of a fill
   // that grows from the middle; its colour goes from green (in tune) to red.
@@ -16,8 +16,8 @@
   <span class="note">{tuner.note}</span>
   <div class="track" role="meter" aria-label="tuning" aria-valuemin={-50} aria-valuemax={50} aria-valuenow={tuner.cents}>
     <span class="centre"></span>
-    <span class="tolerance" style:left={`${50 + offset(-TOLERANCE) * 50}%`}></span>
-    <span class="tolerance" style:left={`${50 + offset(TOLERANCE) * 50}%`}></span>
+    <span class="tolerance" style:left={`${50 + offset(-tuner.tolerance) * 50}%`}></span>
+    <span class="tolerance" style:left={`${50 + offset(tuner.tolerance) * 50}%`}></span>
     <span
       class="fill"
       style:left={share < 0 ? `${50 + share * 50}%` : "50%"}

@@ -23,6 +23,7 @@ export interface Tuner {
   note: string;
   cents: number;
   in_tune: boolean;
+  tolerance: number;
 }
 
 export interface Scene {
