@@ -125,8 +125,9 @@ script. It also means there is nothing to configure in Live.
 
 ### 4.2 Hub (`apps/hub`)
 
-- It is written in Python 3.14, independent of Live's runtime. It is managed with
-  `uv` (pinned in `.python-version`, with its own venv and lockfile) and uses
+- It is written in Python 3.14, independent of Live's runtime. It runs in its own
+  venv (`python3.14 -m venv apps/hub/.venv`, dependencies in `requirements.txt`)
+  and uses
   `aiohttp` for HTTP and WebSocket on one port.
 - Exception: the shared protocol module below runs inside Live too, so it must stay
   compatible with Python 3.11 and the stdlib. mypy checks it under the 3.11 rules.

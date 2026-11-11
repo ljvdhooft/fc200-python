@@ -47,7 +47,7 @@ WP1 spec ──► user approval ──┬─► WP2 shared protocol module
 ForScore automatically after the iPhone hotspot drops and comes back.
 
 - Write a throwaway script in `apps/hub/spikes/netmidi_watchdog.py` using PyObjC
-  (`pyobjc-framework-CoreMIDI`, added with `uv add` in `apps/hub`).
+  (`pyobjc-framework-CoreMIDI`, in the `apps/hub/.venv` venv, listed in `requirements.txt`).
 - It reads `MIDINetworkSession.defaultSession()`, logs its connections and hosts,
   browses Bonjour for `_apple-midi._udp`, and re-adds the ForScore host connection
   when it reappears.
@@ -123,9 +123,9 @@ ForScore automatically after the iPhone hotspot drops and comes back.
 
 **Goal:** `apps/hub`, a Python relay between the script and the web clients.
 
-- A `uv` project on Python 3.14: `apps/hub/pyproject.toml` with `aiohttp` and
-  `zeroconf`, plus `.python-version` and `uv.lock`. Entry point
-  `uv run python -m fc200_hub [--mock] [--port 20031]`. The symlinked
+- Python 3.14 with a plain venv: `python3.14 -m venv apps/hub/.venv`, with
+  `aiohttp` and `zeroconf` pinned in `apps/hub/requirements.txt` (no uv). Entry point
+  `apps/hub/.venv/bin/python -m fc200_hub [--mock] [--port 20031]`. The symlinked
   `ui_protocol.py` must stay 3.11-compatible; don't "modernise" it.
 - **Live link:** a TCP client to 127.0.0.1:20030 with reconnect and backoff. It
   caches the snapshot and applies patches with `ui_protocol.apply_patch`. It sets
