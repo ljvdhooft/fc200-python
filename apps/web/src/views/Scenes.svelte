@@ -93,10 +93,18 @@
     cancelAnimationFrame(gliding);
     gliding = 0;
   }
+  // Glide when the selection moves or browsing ends. Opening the page (or the list
+  // filling in from scene.list) jumps straight there: nothing moved, so a glide
+  // from the top would only distract.
+  let centred: number | null = null;
+  let wasBrowsing = false;
   $effect(() => {
-    selected;
     rows.length;
-    if (!browsing) centre(true);
+    const glide = centred !== null && (selected !== centred || wasBrowsing);
+    wasBrowsing = browsing;
+    if (browsing) return;
+    centre(glide);
+    if (target() !== null) centred = selected;
   });
   $effect(() => {
     // the controls opening/closing resizes the list: stay centred through it
