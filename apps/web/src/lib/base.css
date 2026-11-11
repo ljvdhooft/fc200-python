@@ -51,3 +51,45 @@ button:focus-visible {
   outline: 2px solid var(--accent-select);
   outline-offset: 1px;
 }
+
+/* The padlock (top bar / "now playing") locks once it has faded in: it starts
+   larger, with the shackle swung up off its right leg and the body tilted the
+   other way, then both turn into place as it shrinks to size. Everything stays
+   inside its own box: the top bar has no room above it. */
+.lock {
+  --lock-delay: 260ms; /* FADE in lib/motion.ts: lock after the fade */
+  --lock-time: 520ms;
+  /* the one place that overshoots: it snaps shut */
+  --lock-ease: cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: lock-shrink var(--lock-time) var(--lock-ease) var(--lock-delay) both;
+}
+.lock .shackle {
+  transform-origin: 17px 11px; /* the right leg's foot, in viewBox units */
+  animation: lock-shackle var(--lock-time) var(--lock-ease) var(--lock-delay) both;
+}
+.lock rect {
+  transform-origin: 12px 16px; /* the body's centre */
+  animation: lock-body var(--lock-time) var(--lock-ease) var(--lock-delay) both;
+}
+@keyframes lock-shrink {
+  from {
+    scale: 1.4;
+  }
+}
+@keyframes lock-shackle {
+  from {
+    rotate: 22deg; /* the left leg lifts out; the top stays inside the viewBox */
+  }
+}
+@keyframes lock-body {
+  from {
+    rotate: -10deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lock,
+  .lock .shackle,
+  .lock rect {
+    animation: none;
+  }
+}

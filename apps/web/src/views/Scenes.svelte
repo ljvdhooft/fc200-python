@@ -11,12 +11,15 @@
   let fired = $derived(scenes?.fired ?? null);
   let count = $derived(scenes?.count ?? 0);
 
-  // Show a tapped selection at once. It remembers the script's value it was based
-  // on, so any new `scenes.selected` from the script replaces it (or a timeout, if
-  // the request got lost).
-  let pending = $state<{ index: number; from: number } | null>(null);
+  // Optimistic: a tap or prev/next shows at once, and stays until Ableton reports
+  // that scene (in between, quick presses overtake Ableton's catching up). Without
+  // an answer in time, the list falls back to what Ableton says.
+  let pending = $state<number | null>(null);
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
-  let selected = $derived(pending && pending.from === serverSelected ? pending.index : serverSelected);
+  let selected = $derived(pending ?? serverSelected);
+  $effect(() => {
+    if (pending === serverSelected) pending = null; // confirmed
+  });
 
   // The user scrolling the list themselves. It holds for this touch session and the
   // selection it started on (or that they tapped since); prev/next/fire, the pedal or
@@ -114,9 +117,9 @@
   }
 
   function optimistic(index: number) {
-    pending = { index, from: serverSelected };
+    pending = index;
     clearTimeout(pendingTimer);
-    pendingTimer = setTimeout(() => (pending = null), 1000);
+    pendingTimer = setTimeout(() => (pending = null), 2000);
   }
 
   function select(index: number) {

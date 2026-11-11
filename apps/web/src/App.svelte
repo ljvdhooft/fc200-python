@@ -58,6 +58,16 @@
       <span class="unit">bpm</span>
     </div>
 
+    <!-- Portrait: the padlock sits in the middle of the bar (in landscape it's at
+         the end of "now playing": the rail is the Dynamic Island's) -->
+    {#if portrait && !$interactive}
+      <svg class="lock" viewBox="0 0 24 24" aria-label="locked: touch to wake" transition:fade={{ duration: FADE }}>
+        <!-- Lucide "lock" (ISC) -->
+        <rect x="3" y="11" width="18" height="11" rx="2" />
+        <path class="shackle" d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    {/if}
+
     <div class="pages">
       {#if !$follow}
         <!-- Persistent while not following: shows the page, opens the page menu -->
@@ -355,6 +365,27 @@
     }
     .dot {
       align-self: center;
+    }
+    .rail {
+      position: relative; /* anchors the padlock */
+    }
+    /* centred on the screen, whatever the widths on either side */
+    .lock {
+      position: absolute;
+      left: 50%;
+      /* the bar's padding box, vertically centred in it */
+      top: calc(var(--space-2) + var(--safe-top));
+      bottom: var(--space-1);
+      margin-block: auto;
+      translate: -50% 0;
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: var(--text-muted);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.6;
     }
     .tempo {
       margin-top: 0;
