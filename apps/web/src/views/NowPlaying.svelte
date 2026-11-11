@@ -1,9 +1,7 @@
 <script lang="ts">
   import { appState } from "../lib/state";
   import { hex, number } from "../lib/scene";
-  import { interactive } from "../lib/touch";
-  import { fade } from "svelte/transition";
-  import { FADE } from "../lib/motion";
+  import Lock from "../lib/Lock.svelte";
 
   let fired = $derived($appState.scenes?.fired ?? null);
 </script>
@@ -20,13 +18,7 @@
   {/if}
   <!-- Display mode: the first touch only wakes the page. Out here at the far end:
        the rail is the (expanded) Dynamic Island's and the page menu's -->
-  {#if !$interactive}
-    <svg class="lock" viewBox="0 0 24 24" aria-label="locked: touch to wake" transition:fade={{ duration: FADE }}>
-      <!-- Lucide "lock" (ISC) -->
-      <rect x="3" y="11" width="18" height="11" rx="2" />
-      <path class="shackle" d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </svg>
-  {/if}
+  <span class="lock"><Lock /></span>
 </div>
 
 <style>
@@ -77,14 +69,6 @@
   .lock {
     margin-left: auto;
     flex: none;
-    width: 20px;
-    height: 20px;
-    fill: none;
-    stroke: var(--text-muted);
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    opacity: 0.6;
   }
   /* portrait: in the middle of the top bar instead */
   @media (orientation: portrait) {
