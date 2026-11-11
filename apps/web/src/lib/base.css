@@ -1,0 +1,51 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  /* no rubber-banding / pull-to-refresh; the app scrolls inside its own areas */
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+  padding: var(--safe-left) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  min-height: var(--touch);
+  min-width: var(--touch);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-select);
+  outline-offset: 1px;
+}

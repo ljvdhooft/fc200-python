@@ -72,13 +72,21 @@ class Mock:
     def _scene_entry(self, i: int) -> dict[str, Any]:
         return {"index": i, "name": self._names[i], "color": 0x3366CC + i * 0x0A0A0A}
 
-    def _next_scene(self) -> None:
+    def _select_scene(self, selected: int) -> None:
         count = self.model.get("scenes.count")
-        selected = (self.model.get("scenes.selected") + 1) % count
         self.model.set("scenes.selected", selected)
-        self.model.set("scenes.fired", self._scene_entry(selected))
         window = [self._scene_entry(i) for i in range(max(0, selected - 3), min(count, selected + 4))]
         self.model.set("scenes.window", window)
+
+    def _fire_scene(self) -> int:
+        """Like pedal 3 on page 0: fire the selected scene, select the next."""
+        fired = self.model.get("scenes.selected")
+        self.model.set("scenes.fired", self._scene_entry(fired))
+        self._select_scene((fired + 1) % self.model.get("scenes.count"))
+        return fired
+
+    def _next_scene(self) -> None:
+        self._fire_scene()
 
     def _sweep(self) -> None:
         """Drive the Drive loop's favorite dial back and forth."""
@@ -103,6 +111,8 @@ class Mock:
             return proto.response(id_, handler(params))
         except KeyError as e:
             return proto.error_response(id_, "bad_params", f"missing {e}")
+        except PermissionError as e:
+            return proto.error_response(id_, "unavailable", str(e))
         except LookupError as e:
             return proto.error_response(id_, "not_found", str(e))
         except (TypeError, ValueError) as e:
@@ -115,7 +125,18 @@ class Mock:
         self.model.set("page", page)
         self.model.set("mode", ("transport", "loops", "favorites")[page])
         self.model.set("edit", None)
+        self.model.set("favorite", None)
         return {"page": page}
+
+    def _m_scene_select(self, p: dict[str, Any]) -> Any:
+        index = int(p["index"])
+        if not 0 <= index < self.model.get("scenes.count"):
+            raise LookupError(f"scene {index}")
+        self._select_scene(index)
+        return {"index": index}
+
+    def _m_scene_fire(self, p: dict[str, Any]) -> Any:
+        return {"index": self._fire_scene()}
 
     def _m_loop_set(self, p: dict[str, Any]) -> Any:
         pos = self._loop_position(p["loop"])
@@ -152,6 +173,42 @@ class Mock:
             self.model.set(f"{base}.value", value)
             self.model.set(f"{base}.display", display)
         return {"value": value, "display": display}
+
+    def _m_loop_param_select(self, p: dict[str, Any]) -> Any:
+        if self._loop_position(p["loop"]) is None:
+            raise LookupError("loop")
+        edit = self.model.get("edit")
+        if not edit or edit["loop"] != p["loop"]:
+            raise PermissionError(f"loop {p['loop']} is not being edited")
+        parameter = int(p["parameter"])
+        if not 1 <= parameter <= 8:
+            raise LookupError("parameter")
+        self.model.set("edit.selected", parameter - 1)
+        return {"parameter": parameter}
+
+    def _m_edit_open(self, p: dict[str, Any]) -> Any:
+        pos = self._loop_position(p["loop"])
+        if pos is None:
+            raise LookupError("loop")
+        self.model.set("page", 2)
+        self.model.set("mode", "parameter_control")
+        self.model.set("favorite", None)
+        edit = self.model.get("edit")
+        if not edit or edit["loop"] != p["loop"]:
+            # Macros 1-4 sit on pedals 6-9, macros 5-8 on pedals 1-4
+            macros = [
+                {"parameter": n, "pedal": n + 5 if n <= 4 else n - 4, "name": f"Macro {n}", "value": 0.0, "display": _pct(0)}
+                for n in range(1, 9)
+            ]
+            name = self.model.get(f"loops.{pos}.name")
+            self.model.set("edit", {"loop": p["loop"], "name": name, "selected": None, "macros": macros})
+        return {"loop": p["loop"]}
+
+    def _m_edit_close(self, p: dict[str, Any]) -> Any:
+        if self.model.get("mode") == "parameter_control":
+            self.model.set("mode", "favorites")
+            self.model.set("edit", None)
+        return {}
 
     def _m_preset_list(self, p: dict[str, Any]) -> Any:
         return {"names": sorted(self._presets), "missing_json": []}

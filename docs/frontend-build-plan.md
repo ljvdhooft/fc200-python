@@ -171,6 +171,28 @@ ForScore automatically after the iPhone hotspot drops and comes back.
   iPad landscape.
 - Dev: `npm run dev` proxies `/ws` to the hub on :20031; `npm run build` outputs to
   `dist/`, which the hub serves. Pin exact dependency versions.
+- **Visual design:** familiar to Ableton and live-event UIs (flat, dense, dark
+  grey panels, thin borders), but built for a browser, not copied from Live's
+  widgets. It's used on a dark stage, so it should stay discreet while still
+  drawing attention where it matters. It works from day one; polish comes later.
+  - Colors are CSS custom properties in one `tokens.css`:
+    - Background is near-black neutral (`#141414`) and panels are `#1e1e1e` /
+      `#262626`, with `#333` borders.
+    - Text is `#d0d0d0`, muted text `#8a8a8a`, and there is no pure white.
+    - One warm accent (`#f29d38`, close to Live's orange) means "on/active", for
+      example a loop that's on or a dial's value arc.
+    - One cool accent (`#5aa9e6`) means "selected/focus".
+    - Status colors are muted: live green `#5bb974`, reconnecting amber `#e0b341`
+      and errors red `#e5534b`. Red is used only for errors and the
+      overwrite-pending warning.
+  - No large saturated fills. An active state is an accent edge, an LED dot or a
+    dimly tinted fill, not a bright block. Live's scene colors show as a strip or
+    dot, never as a full-tile background.
+  - Typography is the system sans with tabular numbers for values. Names are
+    larger than labels and the current scene is the largest text on screen.
+  - Touch targets are at least 44 px. There are no hover-only affordances and
+    motion is short (≤150 ms), with no looping animation except the
+    overwrite-pending blink.
 - Tests: Vitest for the state store and the throttling.
 - Verify with `npm test` and `npm run build`. Then run against the mock hub and take
   screenshots at iPhone and iPad sizes. Device testing is done by the user.
