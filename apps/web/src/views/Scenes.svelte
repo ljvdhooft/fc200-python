@@ -1,31 +1,30 @@
 <script lang="ts">
   import { connection } from "../lib/client";
   import { appState, liveConnected, type Scene } from "../lib/state";
-  import { interactive, keepInteractive } from "../lib/touch";
+  import { interactive, keepInteractive, session, wake } from "../lib/touch";
   import { fade } from "svelte/transition";
   import { ease, FADE, GLIDE } from "../lib/motion";
   import { hex, number } from "../lib/scene";
 
   let scenes = $derived($appState.scenes);
-  // Show a tapped selection at once; the script's own `scenes.selected` replaces it
-  // as soon as it arrives (or after a second, if the request got lost).
-  let pending = $state<number | null>(null);
-  let pendingTimer: ReturnType<typeof setTimeout> | undefined;
   let serverSelected = $derived($appState.scenes?.selected ?? -1);
-  let selected = $derived(pending ?? serverSelected);
   let fired = $derived(scenes?.fired ?? null);
   let count = $derived(scenes?.count ?? 0);
 
+  // Show a tapped selection at once. It remembers the script's value it was based
+  // on, so any new `scenes.selected` from the script replaces it (or a timeout, if
+  // the request got lost).
+  let pending = $state<{ index: number; from: number } | null>(null);
+  let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+  let selected = $derived(pending && pending.from === serverSelected ? pending.index : serverSelected);
 
-  // True while the user scrolls the list themselves in touch mode
-  let browsing = false;
-
-  $effect(() => {
-    serverSelected;
-    // A change we didn't tap here came from the pedal (or Live): follow it
-    if (pending === null) browsing = false;
-    pending = null; // a new value from the script ends the optimistic one
-  });
+  // The user scrolling the list themselves. It holds for this touch session and the
+  // selection it started on (or that they tapped since); prev/next/fire, the pedal or
+  // the end of touch mode make it stale, and the list follows the selection again.
+  let browse = $state<{ session: number; at: number } | null>(null);
+  let browsing = $derived(
+    $interactive && browse !== null && browse.session === $session && (browse.at === selected || browse.at === serverSelected),
+  );
 
   // The full list comes from scene.list (it isn't in the state). Fetched again when
   // the scene count changes and whenever touch mode starts (catches renames);
@@ -92,7 +91,6 @@
   $effect(() => {
     selected;
     rows.length;
-    if (!$interactive) browsing = false;
     if (!browsing) centre(true);
   });
   $effect(() => {
@@ -110,19 +108,20 @@
   // (taps on rows still need touch mode, the waking touch never selects)
   function ontouchmove() {
     stopGlide(); // a finger on the list wins
-    if (!$interactive) interactive.set(true);
+    wake();
     keepInteractive();
-    browsing = true;
+    browse = { session: $session, at: selected };
   }
 
   function optimistic(index: number) {
-    pending = index;
+    pending = { index, from: serverSelected };
     clearTimeout(pendingTimer);
     pendingTimer = setTimeout(() => (pending = null), 1000);
   }
 
   function select(index: number) {
     if (index < 0 || index >= count || index === selected) return;
+    if (browsing) browse = { session: $session, at: index }; // a tap keeps the list where it is
     optimistic(index);
     connection.send("scene.select", { index });
   }
@@ -130,14 +129,14 @@
   // prev/next/fire: stepping through the set brings the list back to the selection
   function step(index: number) {
     if (index < 0 || index >= count) return;
-    browsing = false;
+    browse = null;
     optimistic(index);
     connection.send("scene.select", { index });
   }
 
   function fire() {
     // Fire launches the selected scene and selects the next one
-    browsing = false;
+    browse = null;
     if (selected + 1 < count) optimistic(selected + 1);
     connection.send("scene.fire");
   }

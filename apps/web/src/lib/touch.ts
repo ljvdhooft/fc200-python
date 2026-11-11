@@ -10,6 +10,17 @@ export const interactive = writable(false);
 
 export const IDLE = 3_000;
 
+/** Counts touch-mode sessions, so per-session state (like browsing) can tell it's stale. */
+export const session = writable(0);
+
+/** Enter touch mode (a no-op while already in it). */
+export function wake(): void {
+  if (get(interactive)) return;
+  session.update((n) => n + 1);
+  interactive.set(true);
+  keepInteractive();
+}
+
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 /** Restart the idle timer, e.g. while a list is being scrolled. */
@@ -33,7 +44,7 @@ export function trackTouch(): void {
       // acts on the first touch wakes the page only after its click went through
       wakeAfterClick = waking && always;
       if (swallowClick) {
-        interactive.set(true);
+        wake();
         e.preventDefault();
         e.stopPropagation();
       }
@@ -47,8 +58,7 @@ export function trackTouch(): void {
       if (wakeAfterClick) {
         wakeAfterClick = false;
         setTimeout(() => {
-          interactive.set(true);
-          keepInteractive();
+          wake();
         });
         return;
       }
