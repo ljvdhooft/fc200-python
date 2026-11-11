@@ -90,6 +90,9 @@ class FakePresets:
     def preset_names(self):
         return ["A", "B"]
 
+    def missing_json(self):
+        return ["B"]
+
     def get(self, name):
         return SimpleNamespace(to_json=lambda: '{"0": {"parameters": [], "chain": "A"}}') \
             if name == "A" else None
@@ -128,7 +131,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.5.0")
+        self.assertEqual(state["version"], "0.6.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -275,7 +278,7 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.error("loop.param.set", loop=0, parameter=0, value=0.5), "not_found")
 
     def test_presets(self):
-        self.assertEqual(self.call("preset.list"), {"names": ["A", "B"]})
+        self.assertEqual(self.call("preset.list"), {"names": ["A", "B"], "missing_json": ["B"]})
         self.assertEqual(self.call("preset.get", name="A"), {"0": {"parameters": [], "chain": "A"}})
         self.assertEqual(self.error("preset.get", name="Z"), "not_found")
         self.assertEqual(self.call("preset.store", scene_index=3), {})

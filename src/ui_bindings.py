@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 
@@ -344,7 +344,8 @@ class UiBindings(presets.PresetEvents):
         return {}
 
     def _preset_list(self, params: dict[str, Any]) -> Any:
-        return {"names": self._presets().preset_names()}
+        manager = self._presets()
+        return {"names": manager.preset_names(), "missing_json": manager.missing_json()}
 
     def _preset_get(self, params: dict[str, Any]) -> Any:
         name = _arg(params, "name", str)

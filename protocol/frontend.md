@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.5.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.6.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -9,6 +9,7 @@
 | 0.3.0   | Approved. `state.dump`/`state.changed`, loop-tree methods, scene and edit methods, `pedalboard` node |
 | 0.4.0   | `state.dump` method: ask for the full state again without reconnecting |
 | 0.5.0   | `presets.names` replaced by `presets.count`; names via `preset.list`   |
+| 0.6.0   | Presets are listed from the `.alc` files; `preset.list` adds `missing_json` |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -90,7 +91,7 @@ of the `DeviceParameter`) and `display` is Live's string for it
 
 | Field       | Type   | Meaning                          | Source                                  |
 |-------------|--------|----------------------------------|-----------------------------------------|
-| `version`   | string | Protocol version, `"0.5.0"`      | constant in the script                  |
+| `version`   | string | Protocol version, `"0.6.0"`      | constant in the script                  |
 | `page`      | int    | Active page, `MIN_PAGE..MAX_PAGE` (0 transport, 1 loops, 2 favorites) | `FC200._page` |
 | `mode`      | string | `"transport"`, `"loops"`, `"favorites"` or `"parameter_control"` | class of `FC200._mode` (`TransportPage`, `LoopsPage`, `FavoritesPage`, `ParameterControl`) |
 | `tempo`     | float  | Song tempo in BPM                | `Song.tempo` (listener)                 |
@@ -198,11 +199,17 @@ in `loops[]` (`chain`, `chains`), not repeated here.
 
 | Field               | Type        | Meaning                                              | Source                                           |
 |---------------------|-------------|------------------------------------------------------|--------------------------------------------------|
-| `count`             | int         | Number of stored presets                             | `len(PresetManager.preset_names())`              |
+| `count`             | int         | Number of presets (`.alc` files)                     | `len(PresetManager.preset_names())`              |
 | `pending_overwrite` | string/null | Preset waiting for overwrite confirmation            | `PresetManager.pending_overwrite`                |
 | `last`              | string/null | Name of the last preset saved or recalled            | `PresetEvents.saved` / `recalled` (subscriber)   |
 
 Missing when the script found no pedalboard (`PresetManager` is None).
+
+A preset is listed by its `.alc` file: that is the file the user sees and manages
+in Live's browser, so it leads. Its `.json` (the parameter values) is what a recall
+applies; an `.alc` without one can't be recalled, and `preset.list` reports it. A
+`.json` without an `.alc` is not listed (and left alone on disk). Names are matched
+by the file system, so as case-insensitively as macOS and Live.
 
 The names themselves are not in the state: the list can be long and every dump would
 carry it. A client that shows them asks `preset.list` and asks again when `count`
@@ -250,7 +257,7 @@ new state arrives as `state.changed` (the result does not replace it).
 | `loop.param.select`  | `{"loop": int, "parameter": int}`                 | `{"parameter": int}`            |
 | `edit.open`          | `{"loop": int}`                                   | `{"loop": int}`                 |
 | `edit.close`         | none                                              | `{}`                            |
-| `preset.list`        | none                                              | `{"names": [string]}`, sorted   |
+| `preset.list`        | none                                              | `{"names": [string], "missing_json": [string]}`, sorted |
 | `preset.get`         | `{"name": string}`                                | the preset object (`presets.md` §1) |
 | `preset.store`       | `{"scene_index": int}`                            | `{}`; outcome as `preset.*` event and `presets` state |
 | `preset.cancel`      | none                                              | `{"cancelled": bool}`           |

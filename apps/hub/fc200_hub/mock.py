@@ -154,7 +154,7 @@ class Mock:
         return {"value": value, "display": display}
 
     def _m_preset_list(self, p: dict[str, Any]) -> Any:
-        return {"names": sorted(self._presets)}
+        return {"names": sorted(self._presets), "missing_json": []}
 
     def _m_preset_get(self, p: dict[str, Any]) -> Any:
         if p["name"] not in self._presets:
