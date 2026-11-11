@@ -4,8 +4,9 @@
 Live state that changes on its own (tempo, transport, scenes, loop parameters
 and chains) is followed with listeners. State the pedals change (page, mode,
 picked favorite, edited loop, fired scene) is re-read by refresh(), which FC200
-calls after every pedal event and every method. The model drops values that
-didn't change, so refreshing too often costs nothing on the wire.
+calls on every update_display tick and the methods call when they're done. The
+model drops values that didn't change, so refreshing often costs nothing on the
+wire.
 
 Methods run the same code paths as the pedals. Like pages, this uses FC200's
 internals through `self.s` and has no Live imports at runtime.
