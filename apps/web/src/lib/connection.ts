@@ -34,6 +34,12 @@ export function defaultUrl(): string {
   return `${proto}//${location.host}/ws`;
 }
 
+/** A scheduled reconnect: the attempt number (from 1) and when it fires (ms epoch). */
+export interface Retry {
+  attempt: number;
+  at: number;
+}
+
 export class Connection {
   private ws: WebSocket | null = null;
   private nextId = 1;
@@ -43,6 +49,7 @@ export class Connection {
   private pending = new Map<number, Pending>();
   private handlers = new Map<string, Set<EventHandler>>();
   private statusHandlers = new Set<(s: LinkStatus) => void>();
+  private retryHandlers = new Set<(r: Retry | null) => void>();
   private opts: Required<Omit<ConnectionOptions, "url">> & { url: string };
   status: LinkStatus = "closed";
 
@@ -75,6 +82,12 @@ export class Connection {
     if (!set) this.handlers.set(event, (set = new Set()));
     set.add(handler);
     return () => set.delete(handler);
+  }
+
+  /** Reconnect schedule: a Retry while waiting to reconnect, null once connected. */
+  onRetry(handler: (r: Retry | null) => void): () => void {
+    this.retryHandlers.add(handler);
+    return () => this.retryHandlers.delete(handler);
   }
 
   onStatus(handler: (s: LinkStatus) => void): () => void {
@@ -114,6 +127,7 @@ export class Connection {
     this.ws = ws;
     ws.onopen = () => {
       this.attempt = 0;
+      this.retryHandlers.forEach((h) => h(null));
       this.setStatus("open");
     };
     ws.onmessage = (ev) => this.handle(String(ev.data));
@@ -130,6 +144,8 @@ export class Connection {
   private scheduleRetry(): void {
     const delay = Math.min(this.opts.minDelay * 2 ** this.attempt, this.opts.maxDelay);
     this.attempt++;
+    const retry = { attempt: this.attempt, at: Date.now() + delay };
+    this.retryHandlers.forEach((h) => h(retry));
     this.retry = setTimeout(() => {
       this.retry = null;
       if (!this.stopped) this.open();

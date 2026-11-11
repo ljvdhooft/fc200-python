@@ -1,20 +1,18 @@
 <script lang="ts">
-  import { appState, health, liveConnected, link, synced } from "./lib/state";
+  import { appState, health, lost } from "./lib/state";
   import { interactive } from "./lib/touch";
   import { follow, localPage, PAGES, shownPage } from "./lib/pages";
   import { fade, fly } from "svelte/transition";
   import { ease, FADE, MOTION } from "./lib/motion";
   import NowPlaying from "./views/NowPlaying.svelte";
   import Scenes from "./views/Scenes.svelte";
+  import Lost from "./views/Lost.svelte";
 
   let showJson = $state(false);
 
   const labels = { live: "live", reconnecting: "reconnecting", offline: "Live offline" } as const;
 
   let tempo = $derived($appState.tempo === undefined ? "–" : String(Math.round($appState.tempo)));
-  let banner = $derived(
-    $link !== "open" ? "Hub unreachable, reconnecting..." : $synced && !$liveConnected ? "Hub is up, but Live is disconnected. Showing last known state." : "",
-  );
 
   // Short names for the rail's page button
   const SHORT = { scenes: "scn", loops: "loop", favorites: "fav" } as const;
@@ -46,6 +44,10 @@
   }
 </script>
 
+{#if $lost}
+  <!-- Unhealthy: nothing else on screen, just what is down -->
+  <Lost />
+{:else}
 <div class="shell">
   <!-- Landscape: a rail in the strip next to the Dynamic Island. Portrait: a bar along
        the top, health on the left, page and follow on the right -->
@@ -107,10 +109,6 @@
   <div class="content">
     <NowPlaying />
 
-    {#if banner}
-      <div class="banner" class:amber={$link !== "open"} role="status">{banner}</div>
-    {/if}
-
     <main>
       {#if $shownPage === 0}
         <Scenes />
@@ -128,6 +126,7 @@
     </main>
   </div>
 </div>
+{/if}
 
 <style>
   .shell {
@@ -302,16 +301,6 @@
     transition: color var(--motion) var(--ease);
   }
 
-  .banner {
-    padding: var(--space-2) var(--space-3);
-    background: var(--panel-2);
-    border-left: 3px solid var(--status-error);
-    border-radius: var(--radius);
-    font-size: var(--text-label);
-  }
-  .banner.amber {
-    border-left-color: var(--status-reconnecting);
-  }
   main {
     flex: 1;
     min-height: 0;
