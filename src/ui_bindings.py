@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.8.0"
+VERSION = "0.9.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 
@@ -251,6 +251,10 @@ class UiBindings(presets.PresetEvents):
             "page.set": self._page_set,
             "scene.select": self._scene_select,
             "scene.fire": self._scene_fire,
+            "scene.fire_and_stop": self._scene_fire_and_stop,
+            "transport.play": self._play,
+            "transport.stop": self._stop,
+            "metronome.set": self._metronome_set,
             "scene.list": self._scene_list,
             "loop.set": self._loop_set,
             "loop.chain.select": self._chain_select,
@@ -293,6 +297,26 @@ class UiBindings(presets.PresetEvents):
     def _scene_fire(self, params: dict[str, Any]) -> Any:
         index = self.s._selected_scene_index
         self.s._transport_page._fire_scene()
+        return {"index": index}
+
+    def _play(self, params: dict[str, Any]) -> Any:
+        self.s._transport_page.play()
+        return {}
+
+    def _stop(self, params: dict[str, Any]) -> Any:
+        self.s._transport_page.stop()
+        return {}
+
+    def _metronome_set(self, params: dict[str, Any]) -> Any:
+        on = _arg(params, "on", bool)
+        self.s._transport_page.set_metronome(on)
+        return {"on": on}
+
+    def _scene_fire_and_stop(self, params: dict[str, Any]) -> Any:
+        if not self.s._has_pedalboard:
+            raise MethodError("unavailable", "no pedalboard")
+        index = self.s._selected_scene_index
+        self.s._transport_page.fire_and_stop()
         return {"index": index}
 
     def _loop_set(self, params: dict[str, Any]) -> Any:

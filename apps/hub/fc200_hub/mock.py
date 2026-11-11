@@ -142,6 +142,23 @@ class Mock:
     def _m_scene_fire(self, p: dict[str, Any]) -> Any:
         return {"index": self._fire_scene()}
 
+    def _m_scene_fire_and_stop(self, p: dict[str, Any]) -> Any:
+        index = self._fire_scene()
+        self.model.set("transport.playing", False)
+        return {"index": index}
+
+    def _m_transport_play(self, p: dict[str, Any]) -> Any:
+        self.model.set("transport.playing", True)
+        return {}
+
+    def _m_metronome_set(self, p: dict[str, Any]) -> Any:
+        self.model.set("transport.metronome", bool(p["on"]))
+        return {"on": bool(p["on"])}
+
+    def _m_transport_stop(self, p: dict[str, Any]) -> Any:
+        self.model.set("transport.playing", False)
+        return {}
+
     def _m_loop_set(self, p: dict[str, Any]) -> Any:
         pos = self._loop_position(p["loop"])
         if pos is None:

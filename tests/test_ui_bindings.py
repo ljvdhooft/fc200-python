@@ -132,7 +132,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.8.0")
+        self.assertEqual(state["version"], "0.9.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -310,6 +310,22 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.s.fired, ["Scene 5"])
         self.assertEqual(self.model.get("scenes.fired.index"), 5)
         self.assertEqual(self.model.get("scenes.selected"), 6)
+
+    def test_transport_play_and_stop_work_like_pedals_1_and_2(self):
+        self.assertEqual(self.call("transport.play"), {})
+        self.assertEqual(self.call("transport.stop"), {})
+        self.assertEqual(self.s.song_obj.calls, ["start", "stop", "stop_all"])
+
+    def test_metronome_set_works_like_pedal_6(self):
+        self.assertEqual(self.call("metronome.set", on=False), {"on": False})
+        self.assertFalse(self.s.song_obj.metronome)
+
+    def test_scene_fire_and_stop_works_like_pedal_7(self):
+        self.assertEqual(self.call("scene.fire_and_stop"), {"index": 5})
+        self.assertEqual(self.s.fired, ["Scene 5"])
+        for stop in self.s.pending:
+            stop()
+        self.assertEqual(self.s.song_obj.calls, ["stop", "stop_all"])
 
     def test_every_fire_is_an_event_also_the_same_scene_again(self):
         self.ui.scene_fired(5)

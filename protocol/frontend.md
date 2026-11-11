@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.8.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.9.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -12,6 +12,7 @@
 | 0.6.0   | Presets are listed from the `.alc` files; `preset.list` adds `missing_json` |
 | 0.7.0   | `scene.list`: every scene in the set, for browsing                      |
 | 0.8.0   | `scene.fired` event; `scenes.fired` also follows launches in Ableton    |
+| 0.9.0   | `transport.play`, `transport.stop`, `metronome.set`, `scene.fire_and_stop` |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -263,6 +264,10 @@ new state arrives as `state.changed` (the result does not replace it).
 | `page.set`           | `{"page": int}`                                   | `{"page": int}`                 |
 | `scene.select`       | `{"index": int}`                                  | `{"index": int}`                |
 | `scene.fire`         | none                                              | `{"index": int}` (fired scene)  |
+| `scene.fire_and_stop`| none                                              | `{"index": int}` (fired scene)  |
+| `transport.play`     | none                                              | `{}`                            |
+| `transport.stop`     | none                                              | `{}`                            |
+| `metronome.set`      | `{"on": bool}`                                    | `{"on": bool}`                  |
 | `scene.list`         | none                                              | `{"scenes": [{index, name, color}]}`, in set order |
 | `loop.set`           | `{"loop": int, "on": bool}`                       | `{"on": bool}`                  |
 | `loop.chain.select`  | `{"loop": int, "chain": string}`                  | `{"chain": string}`             |
@@ -280,6 +285,9 @@ new state arrives as `state.changed` (the result does not replace it).
 - `state.dump` sends the `state.dump` event again, to the requesting connection only, right after the response. A client resyncs without reconnecting (debugging with `nc`, an iPad waking from sleep). It is the one method the hub answers itself, from its cache (including the `hub` node), so it also works while `live_connected` is false. The method shares the event's name on purpose: whatever asks for a dump handles it in the same place as any other dump.
 - `page.set` calls `FC200._show_page`: it leaves `parameter_control` and drops a favorite or pending overwrite, like a bank pedal.
 - `scene.select` selects a scene without launching it (`Song.view.selected_scene`). `scene.fire` does what pedal 3 does on page 0 (`TransportPage._fire_scene`): it launches the selected scene and selects the next one. It works on any page.
+- `scene.fire_and_stop` does what pedal 7 does on page 0 (`TransportPage.fire_and_stop`): it fires the selected scene and stops right away, so its clips recall their presets without anything playing. Needs a pedalboard (`unavailable` otherwise).
+- `transport.play` / `transport.stop` do what pedals 1 and 2 do on page 0; stop also stops all clips. Both work on any page.
+- `metronome.set` switches the metronome on or off (`Song.metronome`), like pedal 6 on page 0. Works on any page.
 - `loop.set` switches the loop on or off (parameter 0), like a number pedal on page 1.
 - `loop.chain.select` matches the chain by name, like a preset recall. While the loop is being edited, the script keeps `ParameterControl`'s chain index in sync.
 - `loop.param.set` accepts the macros only, `parameter` 1..8 (a loop's favorite is one of its macros). It does **not** change what the expression pedal controls.

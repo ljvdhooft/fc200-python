@@ -132,10 +132,9 @@ class TransportPage(Page):
     def on_number_pedal(self, pedal: se.Pedal) -> None:
         song = self.s.song()
         if pedal == se.Pedal.P1:
-            song.start_playing()
+            self.play()
         elif pedal == se.Pedal.P2:
-            song.stop_playing()
-            song.stop_all_clips()
+            self.stop()
             self.hw.flash(pedal)
         elif pedal == se.Pedal.P3:
             self._fire_scene()
@@ -147,10 +146,10 @@ class TransportPage(Page):
             self._move_scene(-1)
             self.hw.flash(pedal)
         elif pedal == se.Pedal.P6:
-            song.metronome = not song.metronome
+            self.set_metronome(not song.metronome)
         elif pedal == se.Pedal.P7:
             if self.s._has_pedalboard:
-                self._recall_scene()
+                self.fire_and_stop()
                 self.hw.flash(pedal)
         elif pedal == se.Pedal.P8:
             if self.s._presets is not None:
@@ -160,6 +159,18 @@ class TransportPage(Page):
             self._forscore(self.s.settings.FORSCORE_PREV_PAGE, pedal)
         elif pedal == se.Pedal.P10:
             self._forscore(self.s.settings.FORSCORE_NEXT_PAGE, pedal)
+
+    def play(self) -> None:
+        self.s.song().start_playing()
+
+    def stop(self) -> None:
+        """Stop the transport and every clip."""
+        song = self.s.song()
+        song.stop_playing()
+        song.stop_all_clips()
+
+    def set_metronome(self, on: bool) -> None:
+        self.s.song().metronome = on
 
     def _fire_scene(self) -> None:
         """Launch the selected scene and select the next one."""
@@ -177,7 +188,7 @@ class TransportPage(Page):
             self.s.song().view.selected_scene = scenes[index]
             self.s.show_message(f"Scene: {scenes[index].name}")
 
-    def _recall_scene(self) -> None:
+    def fire_and_stop(self) -> None:
         """Launch the selected scene and stop right away: its clips recall their
         presets without anything playing. The metronome stays silent meanwhile."""
         song = self.s.song()
@@ -186,8 +197,7 @@ class TransportPage(Page):
         self._fire_scene()
 
         def stop() -> None:
-            song.stop_playing()
-            song.stop_all_clips()
+            self.stop()
             song.metronome = metronome
         self.s._after(0.1, stop)
 
