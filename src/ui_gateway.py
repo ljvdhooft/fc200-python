@@ -3,8 +3,8 @@ for the hub, and for `nc` while debugging.
 
 There are no threads: FC200 calls poll() from update_display, so requests run on
 Live's main thread like pedal events. One poll handles the requests that came in,
-sends the StateModel's patch to the connected clients and greets new clients
-with a snapshot. Sockets are non-blocking, and what a client can't take yet is
+sends the StateModel's changes to the connected clients and greets new clients
+with a dump. Sockets are non-blocking, and what a client can't take yet is
 queued per client.
 
 Handlers raise MethodError for an error response. Any other exception becomes
@@ -72,10 +72,10 @@ class UiGateway:
             return
         for client in list(self._clients):
             self._receive(client)
-        patch = self._model.flush()
-        if patch is not None:
+        changes = self._model.flush()
+        if changes is not None:
             for client in list(self._clients):
-                self._queue(client, proto.event("state.patch", patch))
+                self._queue(client, proto.event("state.changed", changes))
         self._accept()
         for client in list(self._clients):
             self._send(client)
@@ -103,7 +103,7 @@ class UiGateway:
             sock.setblocking(False)
             client = _Client(sock)
             self._clients.append(client)
-            self._queue(client, proto.event("state.snapshot", self._model.snapshot()))
+            self._queue(client, proto.event("state.dump", self._model.dump()))
 
     def _receive(self, client: _Client) -> None:
         while True:

@@ -111,9 +111,9 @@ class UiBindingsTest(unittest.TestCase):
 
     # --- State ---
 
-    def test_snapshot(self):
-        state = self.model.snapshot()
-        self.assertEqual(state["version"], "0.2.0")
+    def test_dump(self):
+        state = self.model.dump()
+        self.assertEqual(state["version"], "0.3.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -171,9 +171,9 @@ class UiBindingsTest(unittest.TestCase):
         parameter = self.s._racks[1].parameters[1]
         parameter.value = 127
         self.listeners.fire(parameter, "value")
-        patch = self.model.flush()
-        self.assertEqual(patch["favorite.value"], 1.0)
-        self.assertEqual(patch["loops.1.favorite.value"], 1.0)
+        changes = self.model.flush()
+        self.assertEqual(changes["favorite.value"], 1.0)
+        self.assertEqual(changes["loops.1.favorite.value"], 1.0)
 
         # CTL drops it
         self.s._mode.handle(press(P.CTL))
@@ -192,7 +192,7 @@ class UiBindingsTest(unittest.TestCase):
         self.s._mode.handle(press(P.P3))
         self.s._mode.handle(press(P.P6))   # selects parameter 1
         self.ui.refresh()
-        state = self.model.snapshot()
+        state = self.model.dump()
         self.assertEqual(state["mode"], "parameter_control")
         edit = state["edit"]
         self.assertEqual((edit["loop"], edit["selected"]), (2, 0))
@@ -245,19 +245,19 @@ class UiBindingsTest(unittest.TestCase):
         self.s._mode.handle(press(P.P1))
         mode = self.s._mode
         self.assertIsInstance(mode, pages.ParameterControl)
-        self.call("chain.select", loop=0, chain="A")
+        self.call("loop.chain.select", loop=0, chain="A")
         self.assertEqual(self.s._racks[0].view.selected_chain.name, "A")
         self.assertEqual(mode._chain_index, 0)
-        self.assertEqual(self.error("chain.select", loop=0, chain="Z"), "not_found")
+        self.assertEqual(self.error("loop.chain.select", loop=0, chain="Z"), "not_found")
 
     def test_param_set(self):
-        result = self.call("param.set", loop=0, parameter=2, value=0.5)
+        result = self.call("loop.param.set", loop=0, parameter=2, value=0.5)
         self.assertEqual(result, {"value": 0.5, "display": "64"})
         self.assertEqual(self.s._racks[0].parameters[2].value, 63.5)
-        self.call("param.set", loop=0, parameter=2, value=7)
+        self.call("loop.param.set", loop=0, parameter=2, value=7)
         self.assertEqual(self.s._racks[0].parameters[2].value, 127)     # clamped
-        self.assertEqual(self.error("param.set", loop=0, parameter=9, value=0.5), "not_found")
-        self.assertEqual(self.error("param.set", loop=0, parameter=0, value=0.5), "not_found")
+        self.assertEqual(self.error("loop.param.set", loop=0, parameter=9, value=0.5), "not_found")
+        self.assertEqual(self.error("loop.param.set", loop=0, parameter=0, value=0.5), "not_found")
 
     def test_presets(self):
         self.assertEqual(self.call("preset.list"), {"names": ["A", "B"]})

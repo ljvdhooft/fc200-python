@@ -75,22 +75,22 @@ class UiGatewayTest(unittest.TestCase):
         self.clients.append(client)
         return client
 
-    def test_snapshot_on_connect(self):
+    def test_dump_on_connect(self):
         client = self.connect()
-        self.assertEqual(client.read(), {"event": "state.snapshot",
+        self.assertEqual(client.read(), {"event": "state.dump",
                                          "data": {"tempo": 120.0, "page": 1}})
 
-    def test_patch_is_sent_to_every_client_once_per_poll(self):
+    def test_changes_is_sent_to_every_client_once_per_poll(self):
         a, b = self.connect(), self.connect()
         a.read(), b.read()
         self.model.set("tempo", 90.0)
         self.model.set("tempo", 95.0)
-        expected = {"event": "state.patch", "data": {"tempo": 95.0}}
+        expected = {"event": "state.changed", "data": {"tempo": 95.0}}
         self.assertEqual(a.read(), expected)
         self.assertEqual(b.read(), expected)
         a.nothing_more()
 
-    def test_new_client_gets_pending_changes_in_its_snapshot(self):
+    def test_new_client_gets_pending_changes_in_its_dump(self):
         self.model.set("tempo", 90.0)
         client = self.connect()
         self.assertEqual(client.read()["data"]["tempo"], 90.0)

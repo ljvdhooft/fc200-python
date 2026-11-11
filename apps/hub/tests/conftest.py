@@ -9,7 +9,7 @@ from fc200_hub import ui_protocol as proto
 from fc200_hub.app import attach_backend, make_app
 from fc200_hub.hub import Hub
 
-SNAPSHOT = json.loads((Path(__file__).resolve().parents[3] / "protocol/fixtures/snapshot.json").read_text())
+DUMP = json.loads((Path(__file__).resolve().parents[3] / "protocol/fixtures/dump.json").read_text())
 
 
 class FakeBackend:

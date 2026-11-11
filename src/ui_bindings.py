@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 
@@ -238,8 +238,8 @@ class UiBindings(presets.PresetEvents):
         methods: dict[str, Handler] = {
             "page.set": self._page_set,
             "loop.set": self._loop_set,
-            "chain.select": self._chain_select,
-            "param.set": self._param_set,
+            "loop.chain.select": self._chain_select,
+            "loop.param.set": self._param_set,
             "preset.list": self._preset_list,
             "preset.get": self._preset_get,
             "preset.store": self._preset_store,
@@ -284,9 +284,8 @@ class UiBindings(presets.PresetEvents):
     def _param_set(self, params: dict[str, Any]) -> Any:
         rack = self._loop_param(params)
         index = _arg(params, "parameter", int)
-        pos = self.s.settings.LOOP_MAPPING.index(params["loop"])
-        if index not in MACROS and index != self.s.settings.FAVORITE_PARAMETERS[pos]:
-            raise MethodError("not_found", f"parameter {index} is not a macro or the favorite")
+        if index not in MACROS:
+            raise MethodError("not_found", f"parameter {index} is not a macro")
         value = min(1.0, max(0.0, float(_arg(params, "value", (int, float)))))
         p = rack.parameters[index]
         p.value = p.min + value * (p.max - p.min)

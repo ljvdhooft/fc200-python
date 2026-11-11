@@ -154,7 +154,7 @@ ForScore automatically after the iPhone hotspot drops and comes back.
 
 **Goal:** `apps/web`, a TypeScript + Svelte + Vite PWA.
 
-- A store holds the state, applies patches and reconnects with backoff. It shows an
+- A store holds the state, applies `state.dump` / `state.changed` and reconnects with backoff. It shows an
   offline banner while the hub or Live is disconnected.
 - The views follow `page`/`mode`, with a pin toggle:
   - **Scenes:** prev3..next3, the current scene large, the fired scene marked, and
@@ -162,8 +162,8 @@ ForScore automatically after the iPhone hotspot drops and comes back.
   - **Loops:** an on/off grid with the active chain name.
   - **Favourites:** 10 dials with name and display value.
   - **Loop edit:** 8 macro dials and a chain picker.
-- Dials send `param.set` while dragging, throttled to about 30 Hz. They show the
-  server's value, not the optimistic local one, once the patch arrives.
+- Dials send `loop.param.set` while dragging, throttled to about 30 Hz. They show the
+  server's value, not the optimistic local one, once its `state.changed` arrives.
 - Presets: the store and recall actions, plus a visible overwrite-pending state
   with confirm and cancel.
 - PWA: a manifest (standalone, dark theme), a service worker for the app shell
@@ -171,7 +171,7 @@ ForScore automatically after the iPhone hotspot drops and comes back.
   iPad landscape.
 - Dev: `npm run dev` proxies `/ws` to the hub on :20031; `npm run build` outputs to
   `dist/`, which the hub serves. Pin exact dependency versions.
-- Tests: Vitest for the patch store and the throttling.
+- Tests: Vitest for the state store and the throttling.
 - Verify with `npm test` and `npm run build`. Then run against the mock hub and take
   screenshots at iPhone and iPad sizes. Device testing is done by the user.
 

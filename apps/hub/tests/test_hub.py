@@ -1,47 +1,47 @@
 import asyncio
 import copy
 
-from conftest import SNAPSHOT, recv
+from conftest import DUMP, recv
 
 
-async def test_snapshot_then_status_on_connect(env):
+async def test_dump_then_status_on_connect(env):
     hub, _, client = env
     hub.set_live(True)
-    hub.on_snapshot(SNAPSHOT)
+    hub.on_dump(DUMP)
     ws = await client.ws_connect("/ws")
     snap = await recv(ws)
-    assert snap["event"] == "state.snapshot"
+    assert snap["event"] == "state.dump"
     assert snap["data"]["hub"] == {"live_connected": True}
-    assert snap["data"]["loops"] == SNAPSHOT["loops"]
+    assert snap["data"]["loops"] == DUMP["loops"]
     assert await recv(ws) == {"event": "hub.status", "data": {"live_connected": True}}
 
 
-async def test_no_snapshot_means_status_only(env):
+async def test_no_dump_means_status_only(env):
     _, _, client = env
     ws = await client.ws_connect("/ws")
     assert await recv(ws) == {"event": "hub.status", "data": {"live_connected": False}}
 
 
-async def test_patch_updates_cache_and_fans_out(env):
+async def test_changes_updates_cache_and_fans_out(env):
     hub, _, client = env
     hub.set_live(True)
-    hub.on_snapshot(SNAPSHOT)
+    hub.on_dump(DUMP)
     a, b = await client.ws_connect("/ws"), await client.ws_connect("/ws")
     for ws in (a, b):
         await recv(ws), await recv(ws)
-    hub.on_patch({"tempo": 99.0, "loops.0.on": False})
+    hub.on_changes({"tempo": 99.0, "loops.0.on": False})
     for ws in (a, b):
-        assert await recv(ws) == {"event": "state.patch", "data": {"tempo": 99.0, "loops.0.on": False}}
+        assert await recv(ws) == {"event": "state.changed", "data": {"tempo": 99.0, "loops.0.on": False}}
     assert hub.state["tempo"] == 99.0 and hub.state["loops"][0]["on"] is False
     late = await client.ws_connect("/ws")
     assert (await recv(late))["data"]["tempo"] == 99.0
 
 
-async def test_bad_patch_is_ignored(env):
+async def test_bad_changes_is_ignored(env):
     hub, _, _ = env
-    hub.on_snapshot(copy.deepcopy(SNAPSHOT))
-    hub.on_patch({"loops.99.on": True})
-    assert hub.state["tempo"] == SNAPSHOT["tempo"]
+    hub.on_dump(copy.deepcopy(DUMP))
+    hub.on_changes({"loops.99.on": True})
+    assert hub.state["tempo"] == DUMP["tempo"]
 
 
 async def test_request_ids_rewritten_and_routed_back(env):
@@ -68,7 +68,7 @@ async def test_request_times_out(env):
     hub.set_live(True)
     ws = await client.ws_connect("/ws")
     await recv(ws)
-    await ws.send_json({"id": 7, "method": "param.set", "params": {}})
+    await ws.send_json({"id": 7, "method": "loop.param.set", "params": {}})
     reply = await recv(ws)
     assert reply["id"] == 7 and reply["error"]["code"] == "timeout"
 

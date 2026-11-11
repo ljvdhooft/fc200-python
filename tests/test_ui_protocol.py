@@ -28,8 +28,8 @@ class StateModelTest(unittest.TestCase):
         for i in range(100):
             self.model.set("loops.1.favorite.value", i / 100)
         self.model.set("tempo", 90.0)
-        patch = self.model.flush()
-        self.assertEqual(patch, {"loops.1.favorite.value": 0.99, "tempo": 90.0})
+        changes = self.model.flush()
+        self.assertEqual(changes, {"loops.1.favorite.value": 0.99, "tempo": 90.0})
         self.assertIsNone(self.model.flush())
 
     def test_unchanged_value_is_not_dirty(self):
@@ -49,9 +49,9 @@ class StateModelTest(unittest.TestCase):
 
     def test_list_append_sends_whole_list(self):
         self.model.set("loops.2", {"name": "Verb", "on": True})
-        patch = self.model.flush()
-        self.assertEqual(list(patch), ["loops"])
-        self.assertEqual(len(patch["loops"]), 3)
+        changes = self.model.flush()
+        self.assertEqual(list(changes), ["loops"])
+        self.assertEqual(len(changes["loops"]), 3)
 
     def test_list_replaced_with_other_length(self):
         self.model.set("loops", [{"name": "Only"}])
@@ -60,27 +60,27 @@ class StateModelTest(unittest.TestCase):
     def test_ancestor_swallows_descendants(self):
         self.model.set("loops.0.name", "X")
         self.model.set("loops.2", {"name": "Verb"})
-        patch = self.model.flush()
-        self.assertEqual(list(patch), ["loops"])
-        self.assertEqual(patch["loops"][0]["name"], "X")
+        changes = self.model.flush()
+        self.assertEqual(list(changes), ["loops"])
+        self.assertEqual(changes["loops"][0]["name"], "X")
 
     def test_null_deletes_key(self):
         self.model.set("presets.last", None)
         self.assertEqual(self.model.flush(), {"presets.last": None})
-        self.assertEqual(self.model.snapshot()["presets"], {})
+        self.assertEqual(self.model.dump()["presets"], {})
         self.model.set("presets.last", None)
         self.assertIsNone(self.model.flush())
 
     def test_creates_missing_dicts(self):
         self.model.set("edit.loop", 2)
-        self.assertEqual(self.model.snapshot()["edit"], {"loop": 2})
+        self.assertEqual(self.model.dump()["edit"], {"loop": 2})
 
     def test_index_past_end_raises(self):
         with self.assertRaises(IndexError):
             self.model.set("loops.5.name", "x")
 
-    def test_snapshot_is_deep_copy(self):
-        snap = self.model.snapshot()
+    def test_dump_is_deep_copy(self):
+        snap = self.model.dump()
         snap["loops"][0]["name"] = "changed"
         self.assertEqual(self.model.get("loops.0.name"), "Drive")
 
@@ -92,9 +92,9 @@ class StateModelTest(unittest.TestCase):
 
 
 class ReplicationTest(unittest.TestCase):
-    def test_snapshot_plus_patches_equals_model(self):
+    def test_dump_plus_changes_equals_model(self):
         model = p.StateModel(sample())
-        remote = model.snapshot()
+        remote = model.dump()
         steps = [
             lambda: model.set("loops.0.on", False),
             lambda: (model.set("loops.1.favorite.value", 0.9), model.set("tempo", 80.0)),
@@ -106,27 +106,27 @@ class ReplicationTest(unittest.TestCase):
         ]
         for step in steps:
             step()
-            patch = model.flush()
-            self.assertIsNotNone(patch)
+            changes = model.flush()
+            self.assertIsNotNone(changes)
             # Over the wire, as the hub would see it
-            p.apply_patch(remote, json.loads(json.dumps(patch)))
-            self.assertEqual(remote, model.snapshot())
+            p.apply_changes(remote, json.loads(json.dumps(changes)))
+            self.assertEqual(remote, model.dump())
 
-    def test_apply_patch_does_not_alias(self):
+    def test_apply_changes_does_not_alias(self):
         remote = {}
-        patch = {"a": {"b": 1}}
-        p.apply_patch(remote, patch)
+        changes = {"a": {"b": 1}}
+        p.apply_changes(remote, changes)
         remote["a"]["b"] = 2
-        self.assertEqual(patch, {"a": {"b": 1}})
+        self.assertEqual(changes, {"a": {"b": 1}})
 
 
 class CodecTest(unittest.TestCase):
     def test_round_trip(self):
         for message in (
-            p.request(1, "param.set", {"loop": 2, "value": 0.5}),
+            p.request(1, "loop.param.set", {"loop": 2, "value": 0.5}),
             p.response(1, {"ok": True}),
             p.error_response(1, "bad_params", "nope"),
-            p.event("state.patch", {"tempo": 90.0}),
+            p.event("state.changed", {"tempo": 90.0}),
         ):
             line = p.encode(message)
             self.assertTrue(line.endswith(b"\n"))

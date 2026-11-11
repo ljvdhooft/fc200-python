@@ -30,7 +30,7 @@ class Hub:
     def __init__(self, timeout: float = REQUEST_TIMEOUT) -> None:
         self.timeout = timeout
         self.backend: Backend | None = None
-        self.state: dict[str, Any] | None = None  # None until a snapshot arrived
+        self.state: dict[str, Any] | None = None  # None until a dump arrived
         self.live_connected = False
         self.clients: set[web.WebSocketResponse] = set()
         self._pending: dict[int, asyncio.Future[proto.Message]] = {}
@@ -38,20 +38,20 @@ class Hub:
 
     # --- feed from the backend -------------------------------------------------
 
-    def on_snapshot(self, snapshot: dict[str, Any]) -> None:
-        self.state = copy.deepcopy(snapshot)
+    def on_dump(self, dump: dict[str, Any]) -> None:
+        self.state = copy.deepcopy(dump)
         self._stamp_hub()
-        self._broadcast(proto.event("state.snapshot", self.state))
+        self._broadcast(proto.event("state.dump", self.state))
 
-    def on_patch(self, patch: proto.Patch) -> None:
+    def on_changes(self, changes: proto.Changes) -> None:
         if self.state is None:
             return
         try:
-            proto.apply_patch(self.state, patch)
+            proto.apply_changes(self.state, changes)
         except (KeyError, IndexError, ValueError, TypeError):
-            log.warning("patch does not apply, ignored: %r", patch)
+            log.warning("changes do not apply, ignored: %r", changes)
             return
-        self._broadcast(proto.event("state.patch", patch))
+        self._broadcast(proto.event("state.changed", changes))
 
     def on_event(self, message: proto.Message) -> None:
         self._broadcast(message)
@@ -116,7 +116,7 @@ class Hub:
         ws = web.WebSocketResponse(heartbeat=20)
         await ws.prepare(request)
         if self.state is not None:
-            await self._send(ws, proto.event("state.snapshot", self.state))
+            await self._send(ws, proto.event("state.dump", self.state))
         await self._send(ws, self._status())
         self.clients.add(ws)
         tasks: set[asyncio.Task[None]] = set()

@@ -15,7 +15,7 @@ from typing import Any
 from . import ui_protocol as proto
 from .hub import Hub
 
-FIXTURE = Path(__file__).resolve().parents[3] / "protocol" / "fixtures" / "snapshot.json"
+FIXTURE = Path(__file__).resolve().parents[3] / "protocol" / "fixtures" / "dump.json"
 TICK = 0.1
 SCENE_EVERY = 3.0  # seconds
 
@@ -49,7 +49,7 @@ class Mock:
 
     async def run(self) -> None:
         self.hub.set_live(True)
-        self.hub.on_snapshot(self.model.snapshot())
+        self.hub.on_dump(self.model.dump())
         scene_clock = 0.0
         while True:
             await asyncio.sleep(TICK)
@@ -61,8 +61,8 @@ class Mock:
                 scene_clock = 0.0
                 self._next_scene()
             self._sweep()
-            if patch := self.model.flush():
-                self.hub.on_patch(patch)
+            if changes := self.model.flush():
+                self.hub.on_changes(changes)
 
     # --- scripted behaviour --------------------------------------------------------
 
@@ -121,30 +121,33 @@ class Mock:
         self.model.set(f"loops.{pos}.on", bool(p["on"]))
         return {"on": bool(p["on"])}
 
-    def _m_chain_select(self, p: dict[str, Any]) -> Any:
+    def _m_loop_chain_select(self, p: dict[str, Any]) -> Any:
         pos = self._loop_position(p["loop"])
         if pos is None or p["chain"] not in self.model.get(f"loops.{pos}.chains"):
             raise LookupError("loop or chain")
         self.model.set(f"loops.{pos}.chain", p["chain"])
         return {"chain": p["chain"]}
 
-    def _m_param_set(self, p: dict[str, Any]) -> Any:
+    def _m_loop_param_set(self, p: dict[str, Any]) -> Any:
         pos = self._loop_position(p["loop"])
         if pos is None:
             raise LookupError("loop")
         value = min(1.0, max(0.0, float(p["value"])))
         display = _pct(value)
         parameter = p["parameter"]
-        favorite = self.model.get(f"loops.{pos}.favorite")
-        edit = self.model.get("edit")
-        if edit and edit["loop"] == p["loop"] and 1 <= parameter <= 8:
-            base = f"edit.macros.{parameter - 1}"
-        elif favorite and favorite["parameter"] == parameter:
-            base = f"loops.{pos}.favorite"
-        else:
+        if not 1 <= parameter <= 8:
             raise LookupError("parameter")
-        self.model.set(f"{base}.value", value)
-        self.model.set(f"{base}.display", display)
+        # Macros only; the mock tracks values where the state shows them
+        bases = []
+        edit = self.model.get("edit")
+        if edit and edit["loop"] == p["loop"]:
+            bases.append(f"edit.macros.{parameter - 1}")
+        favorite = self.model.get(f"loops.{pos}.favorite")
+        if favorite and favorite["parameter"] == parameter:
+            bases.append(f"loops.{pos}.favorite")
+        for base in bases:
+            self.model.set(f"{base}.value", value)
+            self.model.set(f"{base}.display", display)
         return {"value": value, "display": display}
 
     def _m_preset_list(self, p: dict[str, Any]) -> Any:

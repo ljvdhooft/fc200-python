@@ -7,8 +7,8 @@ Messages are JSON objects, one per line:
 
 StateModel is the producer's nested dict. Writers call set() with dotted paths
 ("loops.2.favorite.value"; an integer segment indexes a list). The model records
-which paths changed, and flush() turns them into one patch {path: value} that
-apply_patch() applies to a receiver's copy. Patch rules:
+which paths changed, and flush() turns them into one changes dict {path: value} that
+apply_changes() applies to a receiver's copy. Changes rules:
   - an unchanged value is never dirty;
   - when a list's length changes, the whole list is sent under its own path;
   - a value of null deletes the key.
@@ -24,7 +24,7 @@ import json
 from typing import Any
 
 Message = dict[str, Any]
-Patch = dict[str, Any]
+Changes = dict[str, Any]
 
 
 class ProtocolError(ValueError):
@@ -139,26 +139,26 @@ class StateModel:
             path = path.rpartition(".")[0]
         self._dirty.add(path)
 
-    def snapshot(self) -> dict[str, Any]:
+    def dump(self) -> dict[str, Any]:
         """A deep copy of the whole state, for a client that just connected."""
         return copy.deepcopy(self._state)
 
-    def flush(self) -> Patch | None:
+    def flush(self) -> Changes | None:
         """The changes since the last flush as {path: value}, or None if there are none."""
         if not self._dirty:
             return None
         paths = sorted(self._dirty, key=lambda p: p.count("."))
         self._dirty.clear()
-        patch: Patch = {}
+        changes: Changes = {}
         for path in paths:
             # A changed ancestor already carries this value
-            if any(path.startswith(sent + ".") for sent in patch):
+            if any(path.startswith(sent + ".") for sent in changes):
                 continue
-            patch[path] = copy.deepcopy(self.get(path))
-        return patch
+            changes[path] = copy.deepcopy(self.get(path))
+        return changes
 
 
-def apply_patch(state: dict[str, Any], patch: Patch) -> None:
-    """Apply a flushed patch to a receiver's state, in place."""
-    for path in sorted(patch, key=lambda p: p.count(".")):
-        _assign(state, path, copy.deepcopy(patch[path]))
+def apply_changes(state: dict[str, Any], changes: Changes) -> None:
+    """Apply flushed changes to a receiver's state, in place."""
+    for path in sorted(changes, key=lambda p: p.count(".")):
+        _assign(state, path, copy.deepcopy(changes[path]))
