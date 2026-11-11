@@ -9,12 +9,25 @@ export interface FcState {
   tempo?: number;
   pedalboard?: { found: boolean; track?: string; track_index?: number; device?: string; device_index?: number };
   transport?: { playing: boolean; metronome: boolean };
-  scenes?: Record<string, unknown>;
+  scenes?: Scenes;
   loops?: unknown[];
   edit?: Record<string, unknown>;
   presets?: Record<string, unknown>;
   hub?: { live_connected: boolean };
   [key: string]: unknown;
+}
+
+export interface Scene {
+  index: number;
+  name: string;
+  color: number;
+}
+
+export interface Scenes {
+  count: number;
+  selected: number;
+  fired: Scene | null;
+  window: Scene[];
 }
 
 export type Changes = Record<string, unknown>;

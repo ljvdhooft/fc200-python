@@ -135,6 +135,9 @@ class Mock:
         self._select_scene(index)
         return {"index": index}
 
+    def _m_scene_list(self, p: dict[str, Any]) -> Any:
+        return {"scenes": [self._scene_entry(i) for i in range(len(self._names))]}
+
     def _m_scene_fire(self, p: dict[str, Any]) -> Any:
         return {"index": self._fire_scene()}
 

@@ -2,14 +2,17 @@ import { mount } from "svelte";
 import "./lib/tokens.css";
 import "./lib/base.css";
 import App from "./App.svelte";
-import { Connection } from "./lib/connection";
+import { connection } from "./lib/client";
 import { bind } from "./lib/state";
 import { keepAwake } from "./lib/wakelock";
+import { trackIsland } from "./lib/island";
+import { trackTouch } from "./lib/touch";
 
-export const connection = new Connection();
 bind(connection);
 connection.start();
 keepAwake();
+trackIsland();
+trackTouch();
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register("/sw.js").catch(() => {});

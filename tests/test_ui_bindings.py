@@ -131,7 +131,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.6.0")
+        self.assertEqual(state["version"], "0.7.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -297,6 +297,12 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.model.get("scenes.selected"), 8)
         self.assertEqual(self.s.fired, [])
         self.assertEqual(self.error("scene.select", index=10), "not_found")
+
+    def test_scene_list(self):
+        scenes = self.call("scene.list")["scenes"]
+        self.assertEqual(len(scenes), self.model.get("scenes.count"))
+        for entry in self.model.get("scenes.window"):
+            self.assertEqual(scenes[entry["index"]], entry)
 
     def test_scene_fire_works_like_pedal_3_on_any_page(self):
         self.assertEqual(self.call("scene.fire"), {"index": 5})

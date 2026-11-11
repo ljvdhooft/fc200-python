@@ -27,6 +27,8 @@ async def test_mock_scene_and_edit_methods():
     task = asyncio.create_task(mock.run())
     try:
         await asyncio.sleep(0.05)
+        scenes = (await hub.request("scene.list", {}))["result"]["scenes"]
+        assert len(scenes) == hub.state["scenes"]["count"] and scenes[0]["index"] == 0
         assert (await hub.request("scene.select", {"index": 99}))["error"]["code"] == "not_found"
         assert (await hub.request("scene.select", {"index": 5}))["result"] == {"index": 5}
         assert (await hub.request("scene.fire", {}))["result"] == {"index": 5}

@@ -24,6 +24,9 @@ body {
   touch-action: manipulation;
 }
 
+/* Pinned page: iOS doesn't treat it as scrollable, so no status-bar blur on top and
+   the app gets the full screen height. (Rotating can still leave the page scrolled
+   by the status-bar height, which offsets touches; island.ts scrolls it back.) */
 body {
   position: fixed;
   inset: 0;
@@ -32,7 +35,6 @@ body {
 
 #app {
   height: 100%;
-  padding: var(--safe-left) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 
 button {

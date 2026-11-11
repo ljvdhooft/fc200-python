@@ -191,7 +191,8 @@ ForScore automatically after the iPhone hotspot drops and comes back.
   - Typography is the system sans with tabular numbers for values. Names are
     larger than labels and the current scene is the largest text on screen.
   - Touch targets are at least 44 px. There are no hover-only affordances and
-    motion is short (≤150 ms), with no looping animation except the
+    motion is smooth Apple-style (about 250–400 ms, a soft ease-out with no
+    overshoot, honouring Reduce Motion), with no looping animation except the slow "breathing" health dot and the
     overwrite-pending blink.
 - Tests: Vitest for the state store and the throttling.
 - Verify with `npm test` and `npm run build`. Then run against the mock hub and take

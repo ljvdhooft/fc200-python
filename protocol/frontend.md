@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.6.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.7.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -10,6 +10,7 @@
 | 0.4.0   | `state.dump` method: ask for the full state again without reconnecting |
 | 0.5.0   | `presets.names` replaced by `presets.count`; names via `preset.list`   |
 | 0.6.0   | Presets are listed from the `.alc` files; `preset.list` adds `missing_json` |
+| 0.7.0   | `scene.list`: every scene in the set, for browsing                      |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -135,6 +136,10 @@ A `window` / `fired` entry: `index` (int), `name` (string, `Scene.name`), `color
 (int, `Scene.color`, `0xRRGGBB`). The window replaces `MiraGUI.scene_overview`
 (`prev3..next3`, `cur`); the current scene is the entry whose `index` equals `selected`.
 Near the start or end of the set the window is shorter; clients lay it out by `index`.
+The full list isn't in the state (a set can have hundreds of scenes); a client that
+browses it asks `scene.list`, and asks again when `count` changes or when it starts
+browsing (a renamed or recoloured scene doesn't change `count`). Entries in `window`
+and `fired` are always current.
 
 ### `loops`
 
@@ -251,6 +256,7 @@ new state arrives as `state.changed` (the result does not replace it).
 | `page.set`           | `{"page": int}`                                   | `{"page": int}`                 |
 | `scene.select`       | `{"index": int}`                                  | `{"index": int}`                |
 | `scene.fire`         | none                                              | `{"index": int}` (fired scene)  |
+| `scene.list`         | none                                              | `{"scenes": [{index, name, color}]}`, in set order |
 | `loop.set`           | `{"loop": int, "on": bool}`                       | `{"on": bool}`                  |
 | `loop.chain.select`  | `{"loop": int, "chain": string}`                  | `{"chain": string}`             |
 | `loop.param.set`     | `{"loop": int, "parameter": int, "value": float}` | `{"value": float, "display": string}` |

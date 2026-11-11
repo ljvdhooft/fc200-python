@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 
@@ -247,6 +247,7 @@ class UiBindings(presets.PresetEvents):
             "page.set": self._page_set,
             "scene.select": self._scene_select,
             "scene.fire": self._scene_fire,
+            "scene.list": self._scene_list,
             "loop.set": self._loop_set,
             "loop.chain.select": self._chain_select,
             "loop.param.set": self._param_set,
@@ -281,6 +282,9 @@ class UiBindings(presets.PresetEvents):
             raise MethodError("not_found", f"no scene {index}")
         self.s.song().view.selected_scene = scenes[index]
         return {"index": index}
+
+    def _scene_list(self, params: dict[str, Any]) -> Any:
+        return {"scenes": [self._scene(i) for i in range(len(self.s._all_scenes))]}
 
     def _scene_fire(self, params: dict[str, Any]) -> Any:
         index = self.s._selected_scene_index
