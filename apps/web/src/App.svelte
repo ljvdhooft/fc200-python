@@ -75,7 +75,8 @@
           <!-- tapping anywhere else closes the menu -->
           <button class="backdrop" aria-label="close" onclick={() => (menuOpen = false)}></button>
           <div class="menu" role="menu" transition:fly={portrait ? { y: -8, duration: MOTION, easing: ease } : { x: -8, duration: MOTION, easing: ease }}>
-            {#each PAGES as name, page (name)}
+            <!-- page 0 at the bottom, like stepping up through the FC-200's pages -->
+            {#each [...PAGES.entries()].reverse() as [page, name] (name)}
               <button role="menuitem" class:current={$shownPage === page} onclick={() => choose(page)}>{name}</button>
             {/each}
           </div>
@@ -363,6 +364,9 @@
     /* smaller to the eye, still a 44 px touch target: the buttons overhang the bar */
     .rail button {
       margin-block: calc((var(--touch) - 32px) / -2);
+    }
+    .rail .menu button {
+      margin-block: 0; /* the overhang is for the bar, not the menu */
     }
     .rail .page {
       height: 32px;
