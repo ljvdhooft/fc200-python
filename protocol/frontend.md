@@ -5,7 +5,7 @@
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
 | 0.1.0   | First version; folds in and supersedes `presets.md` §3                  |
-| 0.2.0   | `favorite` node; `loops[].favorite.picked` renamed to `selected`        |
+| 0.2.0   | `favorite` node replaces `loops[].favorite.picked`                      |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -129,7 +129,8 @@ is a rack on the pedalboard (`FC200._loop(index)`).
 | `name`      | string | Parameter name                                               | `DeviceParameter.name`                      |
 | `value`     | float  | Normalised value                                             | `DeviceParameter.value`                     |
 | `display`   | string | Live's display string                                        | `DeviceParameter.str_for_value`             |
-| `selected`  | bool   | This favorite is the one the expression pedal controls       | `FavoritesPage.pedal` / `.parameter`        |
+
+Which favorite the expression pedal controls is page-wide state, in the `favorite` node.
 
 ### `favorite`
 
@@ -145,8 +146,8 @@ pressing the same pedal again to enter `parameter_control`. Missing/`null` other
 | `parameter` | int    | Parameter index within the loop                 | `FAVORITE_PARAMETERS[pedal]`             |
 | `name`, `value`, `display` | | As for `loops[].favorite`                | `FavoritesPage.parameter`                |
 
-`loops[].favorite.selected` marks the same loop in the list. The name follows
-`ParameterControl.selected`, which `edit.selected` mirrors.
+There is one selected favorite for the page (`FavoritesPage.pedal` / `.parameter`),
+so it is a single node rather than a flag per loop.
 
 ### `edit`
 
@@ -218,7 +219,7 @@ changes state; the new state arrives as a patch (the result does not replace it)
 
 - `loop` is a board device index (`loops[].index`), not a position. `value` is normalised 0..1; the script clamps it.
 - `page.set` calls `FC200._show_page`: it leaves `parameter_control` and drops a favorite or pending overwrite, like a bank pedal.
-- `param.set` accepts `parameter` 1..8 (macros) and the loop's favorite parameter. It does **not** change what the expression pedal controls (`selected`).
+- `param.set` accepts `parameter` 1..8 (macros) and the loop's favorite parameter. It does **not** change what the expression pedal controls (`favorite`, `edit.selected`).
 - `chain.select` matches the chain by name, like a preset recall. While the loop is being edited, the script keeps `ParameterControl`'s chain index in sync.
 - `preset.store` and `preset.recall` behave exactly as `PresetManager.store` / `recall`; a second `preset.store` for the same name confirms an overwrite, `preset.cancel` drops it.
 - `preset.state` from `presets.md` §3 is replaced by the `presets` state node.
@@ -265,7 +266,7 @@ the mock hub and for tests.
 
 1. **`hub.status` vs `hub` node:** both carry `live_connected`. Keep both, or drop the event and let the hub patch `hub.live_connected`?
 2. **Scene control:** no `scene.select` / `scene.fire` method in 0.1.0 (the brief names only `page.set`, `chain.select`, `param.set`, `preset.*`). Add them?
-3. **Entering edit mode:** no way yet to start `parameter_control` or to select the expression pedal's target (`selected`) from a client. Add `edit.open {loop}`, `edit.close`, `param.select`?
+3. **Entering edit mode:** no way yet to start `parameter_control` or to select the expression pedal's target (`favorite`, `edit.selected`) from a client. Add `edit.open {loop}`, `edit.close`, `param.select`?
 4. **`transport` node:** added beyond the brief's module list (playing/metronome are real LED state). Keep?
 5. **`presets.last`:** the script keeps no such value today; it would be set by the frontend `PresetEvents` subscriber (saved or recalled?).
 6. **`param.set` scope:** limited to macros and the favorite for now. Any parameter, or the loop on/off too?

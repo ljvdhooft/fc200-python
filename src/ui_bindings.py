@@ -103,11 +103,7 @@ class UiBindings(presets.PresetEvents):
             "window": window,
         })
 
-        favorite = self._favorite_state()
-        for pos in range(self._loop_count):
-            selected = favorite is not None and favorite["pedal"] == pos + 1
-            self.model.set(f"loops.{pos}.favorite.selected", selected)
-        self.model.set("favorite", favorite)
+        self.model.set("favorite", self._favorite_state())
         self.model.set("edit", self._edit_state())
 
     @property
@@ -136,8 +132,7 @@ class UiBindings(presets.PresetEvents):
             "on": rack.parameters[0].value != 0,
             "chain": rack.view.selected_chain.name,
             "chains": [c.name for c in rack.chains],
-            "favorite": {"parameter": favorite, **_parameter(rack.parameters[favorite]),
-                         "selected": False},
+            "favorite": {"parameter": favorite, **_parameter(rack.parameters[favorite])},
         }
 
     def _favorite_state(self) -> dict[str, Any] | None:
