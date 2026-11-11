@@ -9,6 +9,9 @@ from . import roland_exclusive as se
 from .hardware import FC200Hardware
 from .listeners import Listeners
 from .preset_feedback import PresetFeedback
+from .ui_bindings import UiBindings
+from .ui_gateway import UiGateway
+from .ui_protocol import StateModel
 from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
 
@@ -51,6 +54,11 @@ class FC200(ControlSurface):
         self._script_listeners.add(self.song(), "is_ableton_link_enabled", self._reload_config)
         # Added by _setup; removed on config reload and unload
         self._listeners = Listeners(self.log_message)
+
+        # Frontend (protocol/frontend.md): the hub connects to the gateway
+        ui_model = StateModel()
+        self._ui = UiBindings(self, ui_model, lambda message: self._ui_gateway.emit(message))
+        self._ui_gateway = UiGateway(ui_model, self._ui.handlers(), self.log_message)
 
         self._setup()
 
@@ -155,6 +163,7 @@ class FC200(ControlSurface):
 
             self._add_loop_listeners()
 
+        self._ui.setup(self._listeners)
         self._redraw()
 
     def _reload_config(self) -> None:
@@ -217,6 +226,12 @@ class FC200(ControlSurface):
         for pedal, value in self._pages[self._page].leds.items():
             self._hw.led(pedal, value)
         self._hw.set_bank_display(' ', self._page)
+
+    def update_display(self) -> None:
+        """Live's tick (about every 100 ms): sync the frontend state and serve the hub."""
+        super(FC200, self).update_display()
+        self._ui.refresh()
+        self._ui_gateway.poll()
 
     def _after(self, seconds: float, fn: Callable[[], None]) -> None:
         self._tasks.add(Task.sequence(Task.wait(seconds), Task.run(fn)))
@@ -316,5 +331,6 @@ class FC200(ControlSurface):
             self._presets.disconnect()
         self._listeners.remove_all()
         self._script_listeners.remove_all()
+        self._ui_gateway.close()
         self.log_message("--- FC200 Script Unloaded ---")
         super(FC200, self).disconnect()

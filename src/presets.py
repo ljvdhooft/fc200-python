@@ -221,6 +221,10 @@ class PresetManager:
     def preset_names(self) -> list[str]:
         return self._store.names()
 
+    def get(self, name: str) -> Preset | None:
+        """The stored preset with this name, without applying it."""
+        return self._store.load(name)
+
     def store(self, scene_index: int) -> None:
         """Store the board as the preset named after the clip on this scene."""
         slot = self._track.clip_slots[scene_index]

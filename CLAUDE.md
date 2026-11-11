@@ -42,3 +42,8 @@ FC200.py ─OSC/UDP 20022─► standalone Max patch (OSC → MIDI; not in this 
 ```
 
 Why the detour: the Remote Script used to send this MIDI to Live directly, which caused feedback loops that crashed Live. Offloading the MIDI output to Max is the current fix — don't move it back into the Remote Script.
+
+## Review workflow (revdiff)
+- After making changes, open them in revdiff for review.
+- Annotations that are questions or remarks without a change request: answer them in the terminal, not in revdiff. Put the answers at the end of the turn, just before re-opening revdiff, so they aren't buried under later tool output.
+- Annotations that suggest changes: commit the current state first, then address them, so each revision can be reviewed as its own diff.

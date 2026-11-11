@@ -1,11 +1,19 @@
 from collections.abc import Sequence
 
+from . import Listener
 from .Chain import Chain
 from .Device import Device
 
 class RackDevice(Device):
     class View:
         selected_chain: Chain
+        def add_selected_chain_listener(self, listener: Listener) -> None: ...
+        def remove_selected_chain_listener(self, listener: Listener) -> None: ...
+        def selected_chain_has_listener(self, listener: Listener) -> bool: ...
 
     view: View
     chains: Sequence[Chain]
+
+    def add_chains_listener(self, listener: Listener) -> None: ...
+    def remove_chains_listener(self, listener: Listener) -> None: ...
+    def chains_has_listener(self, listener: Listener) -> bool: ...
