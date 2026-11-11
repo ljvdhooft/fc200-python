@@ -141,6 +141,12 @@ class Hub:
             return
         if "method" not in message:
             return  # clients only send requests
+        if message["method"] == "state.dump":
+            # Answered from the cache, so it works while Live is offline
+            await self._send(ws, proto.response(message["id"], {}))
+            if self.state is not None:
+                await self._send(ws, proto.event("state.dump", self.state))
+            return
         reply = await self.request(message["method"], message.get("params", {}))
         reply["id"] = message["id"]  # route back under the client's own id
         await self._send(ws, reply)

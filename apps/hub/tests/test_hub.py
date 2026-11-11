@@ -118,3 +118,18 @@ async def test_placeholder_page(env):
     _, _, client = env
     resp = await client.get("/")
     assert resp.status == 200 and "FC200 hub" in await resp.text()
+
+
+async def test_state_dump_request_answered_from_cache_while_offline(env):
+    hub, backend, client = env
+    hub.set_live(True)
+    hub.on_dump(DUMP)
+    hub.set_live(False)
+    ws = await client.ws_connect("/ws")
+    await recv(ws), await recv(ws)      # dump + status on connect
+    await ws.send_json({"id": "d", "method": "state.dump"})
+    assert await recv(ws) == {"id": "d", "result": {}}
+    dump = await recv(ws)
+    assert dump["event"] == "state.dump"
+    assert dump["data"]["hub"] == {"live_connected": False}
+    assert dump["data"]["tempo"] == DUMP["tempo"]

@@ -1,12 +1,13 @@
 # Frontend protocol
 
-**Version 0.3.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.4.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
 | 0.1.0   | First version; folds in and supersedes `presets.md` §3                  |
 | 0.2.0   | `favorite` node replaces `loops[].favorite.picked`                      |
 | 0.3.0   | Approved. `state.dump`/`state.changed`, loop-tree methods, scene and edit methods, `pedalboard` node |
+| 0.4.0   | `state.dump` method: ask for the full state again without reconnecting |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -60,7 +61,7 @@ Same conventions as `presets.md` §3 (ableton-dev conventions):
 
 | Event                | Data                          | From          | When                                             |
 |----------------------|-------------------------------|---------------|--------------------------------------------------|
-| `state.dump`         | the full state tree           | script, hub   | On connect, and on every reconnect               |
+| `state.dump`         | the full state tree           | script, hub   | On connect, on every reconnect, and after a `state.dump` request |
 | `state.changed`      | `{"<path>": value, ...}`      | script, hub   | At most once per `update_display` tick, never empty |
 | `hub.status`         | `{"live_connected": bool}`    | hub           | On client connect, and when the Live link changes |
 | `preset.<event>`     | see below                     | script        | A `PresetEvents` call (transient, not in state)  |
@@ -88,7 +89,7 @@ of the `DeviceParameter`) and `display` is Live's string for it
 
 | Field       | Type   | Meaning                          | Source                                  |
 |-------------|--------|----------------------------------|-----------------------------------------|
-| `version`   | string | Protocol version, `"0.3.0"`      | constant in the script                  |
+| `version`   | string | Protocol version, `"0.4.0"`      | constant in the script                  |
 | `page`      | int    | Active page, `MIN_PAGE..MAX_PAGE` (0 transport, 1 loops, 2 favorites) | `FC200._page` |
 | `mode`      | string | `"transport"`, `"loops"`, `"favorites"` or `"parameter_control"` | class of `FC200._mode` (`TransportPage`, `LoopsPage`, `FavoritesPage`, `ParameterControl`) |
 | `tempo`     | float  | Song tempo in BPM                | `Song.tempo` (listener)                 |
@@ -234,6 +235,7 @@ new state arrives as `state.changed` (the result does not replace it).
 
 | Method               | Params                                            | Result                          |
 |----------------------|---------------------------------------------------|---------------------------------|
+| `state.dump`         | none                                              | `{}`, then a `state.dump` event |
 | `page.set`           | `{"page": int}`                                   | `{"page": int}`                 |
 | `scene.select`       | `{"index": int}`                                  | `{"index": int}`                |
 | `scene.fire`         | none                                              | `{"index": int}` (fired scene)  |
@@ -250,6 +252,7 @@ new state arrives as `state.changed` (the result does not replace it).
 | `preset.recall`      | `{"name": string}`                                | `{"found": bool}`               |
 
 - `loop` is a board device index (`loops[].index`), not a position. `value` is normalised 0..1; the script clamps it.
+- `state.dump` sends the `state.dump` event again, to the requesting connection only, right after the response. A client resyncs without reconnecting (debugging with `nc`, an iPad waking from sleep). It is the one method the hub answers itself, from its cache (including the `hub` node), so it also works while `live_connected` is false. The method shares the event's name on purpose: whatever asks for a dump handles it in the same place as any other dump.
 - `page.set` calls `FC200._show_page`: it leaves `parameter_control` and drops a favorite or pending overwrite, like a bank pedal.
 - `scene.select` selects a scene without launching it (`Song.view.selected_scene`). `scene.fire` does what pedal 3 does on page 0 (`TransportPage._fire_scene`): it launches the selected scene and selects the next one. It works on any page.
 - `loop.set` switches the loop on or off (parameter 0), like a number pedal on page 1.

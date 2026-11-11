@@ -124,6 +124,18 @@ class UiGatewayTest(unittest.TestCase):
         client.send(proto.request(2, "echo"))
         self.assertEqual(client.read(), {"id": 2, "result": {}})
 
+    def test_state_dump_request_goes_to_the_requester_only(self):
+        a, b = self.connect(), self.connect()
+        a.read(), b.read()
+        self.model.set("tempo", 90.0)
+        changed = {"event": "state.changed", "data": {"tempo": 90.0}}
+        self.assertEqual(a.read(), changed)
+        self.assertEqual(b.read(), changed)
+        a.send(proto.request(1, "state.dump"))
+        self.assertEqual(a.read(), {"id": 1, "result": {}})
+        self.assertEqual(a.read(), {"event": "state.dump", "data": {"tempo": 90.0, "page": 1}})
+        b.nothing_more()
+
     def test_unknown_method(self):
         client = self.connect()
         client.read()

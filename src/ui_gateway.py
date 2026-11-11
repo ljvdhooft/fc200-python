@@ -119,19 +119,24 @@ class UiGateway:
             client.inbox += data
         *lines, client.inbox = client.inbox.split(b"\n")
         for line in lines:
-            reply = self._answer(line) if line.strip() else None
-            if reply is not None:
+            for reply in self._answer(line) if line.strip() else []:
                 self._queue(client, reply)
 
-    def _answer(self, line: bytes) -> proto.Message | None:
-        """The response to a request line; None for events and responses, which
-        clients have no reason to send."""
+    def _answer(self, line: bytes) -> list[proto.Message]:
+        """What to send back for one line: the response to a request, nothing for
+        events and responses (clients have no reason to send those)."""
         try:
             message = proto.decode(line)
         except proto.ProtocolError as e:
-            return proto.error_response(None, "bad_params", str(e))
+            return [proto.error_response(None, "bad_params", str(e))]
         if "method" not in message:
-            return None
+            return []
+        if message["method"] == "state.dump":
+            # Built in: the gateway owns the model. The dump goes to this client only.
+            return [proto.response(message["id"], {}), proto.event("state.dump", self._model.dump())]
+        return [self._call(message)]
+
+    def _call(self, message: proto.Message) -> proto.Message:
         id = message["id"]
         handler = self._handlers.get(message["method"])
         if handler is None:
