@@ -6,7 +6,9 @@
   "pedalboard": {
     "found": true,
     "track": "Guitar",
-    "device": 4
+    "track_index": 31,
+    "device": "FC200 Pedalboard",
+    "device_index": 4
   },
   "transport": {
     "playing": false,

@@ -102,9 +102,11 @@ can tell "no pedalboard" from "not connected" and point at the fix.
 
 | Field    | Type        | Meaning                                         | Source                          |
 |----------|-------------|-------------------------------------------------|---------------------------------|
-| `found`  | bool        | A rack named "FC200 Pedalboard" was found       | `FC200._has_pedalboard`         |
-| `track`  | string/null | Name of the track holding it                    | `FC200._track.name`             |
-| `device` | int/null    | Its device index on that track                  | `FC200._device_index`           |
+| `found`        | bool        | A rack named "FC200 Pedalboard" was found  | `FC200._has_pedalboard`         |
+| `track`        | string/null | Name of the track holding it               | `FC200._track.name`             |
+| `track_index`  | int/null    | Index of that track (0-based)              | `FC200._track_index`            |
+| `device`       | string/null | Name of the rack                           | `FC200._device.name`            |
+| `device_index` | int/null    | Its device index on that track (0-based)   | `FC200._device_index`           |
 
 It lives in the script's tree, not in `hub`: only the script can look for the rack.
 Without a pedalboard, `loops` is an empty list and `favorite`, `edit` and `presets`

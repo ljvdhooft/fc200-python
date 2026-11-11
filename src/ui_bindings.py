@@ -85,7 +85,9 @@ class UiBindings(presets.PresetEvents):
         self.model.set("pedalboard", {
             "found": found,
             "track": self.s._board_track().name if found else None,
-            "device": self.s._device_index if found else None,
+            "track_index": self.s._track_index if found else None,
+            "device": self.s._device.name if found else None,
+            "device_index": self.s._device_index if found else None,
         })
         self._on_transport()
         self.model.set("loops", [self._loop_state(pos) for pos in range(self._loop_count)])

@@ -57,6 +57,8 @@ class Surface(FakeSurface):
         self._transport_page = self._pages[0]
         self._favorites_page = self._pages[2]
         self._track = SimpleNamespace(name="Guitar")
+        self._track_index = 31
+        self._device = SimpleNamespace(name="FC200 Pedalboard")
         self._device_index = 4
         self.settings.MIN_PAGE, self.settings.MAX_PAGE = 0, 2
 
@@ -283,7 +285,9 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.call("preset.cancel"), {"cancelled": False})
 
     def test_pedalboard(self):
-        self.assertEqual(self.model.get("pedalboard"), {"found": True, "track": "Guitar", "device": 4})
+        self.assertEqual(self.model.get("pedalboard"), {
+            "found": True, "track": "Guitar", "track_index": 31,
+            "device": "FC200 Pedalboard", "device_index": 4})
 
     def test_scene_select(self):
         self.assertEqual(self.call("scene.select", index=8), {"index": 8})
