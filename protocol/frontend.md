@@ -1,26 +1,31 @@
 # Frontend protocol
 
-**Version 0.2.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.3.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
 | 0.1.0   | First version; folds in and supersedes `presets.md` §3                  |
 | 0.2.0   | `favorite` node replaces `loops[].favorite.picked`                      |
+| 0.3.0   | Approved. `state.dump`/`state.changed`, loop-tree methods, scene and edit methods, `pedalboard` node |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
-| 1. Transports         | **Draft, not implemented.** Needs approval |
-| 2. Messages           | Draft                                      |
-| 3. State tree         | Draft                                      |
-| 4. Patches            | Draft                                      |
-| 5. Methods            | Draft                                      |
-| 6. Versioning         | Draft                                      |
-| 7. Reconnect          | Draft                                      |
+| 1. Transports         | Approved, implemented                      |
+| 2. Messages           | Approved; 0.3.0 renames not implemented yet |
+| 3. State tree         | Approved; `pedalboard` not implemented yet |
+| 4. Changes            | Approved; rename not implemented yet       |
+| 5. Methods            | Approved; 0.3.0 methods not implemented yet |
+| 6. Versioning         | Approved                                   |
+| 7. Reconnect          | Approved, implemented                      |
 
 The Remote Script is the single source of truth for the FC200 state. It pushes
 the state to a **hub** (`apps/hub`), which relays it to **clients** (web app,
 future hardware display). Clients send requests, which the hub relays back to the
 script. Design background: `docs/frontend-architecture.md`.
+
+The words "snapshot", "patch", "preset" and "scene" are avoided for protocol
+mechanics: on a pedalboard they already mean a sound or a song part. The full
+state is a **dump**, an update to it is a set of **changes**.
 
 ## 1. Transports
 
@@ -31,7 +36,7 @@ script. Design background: `docs/frontend-architecture.md`.
 
 - The **script is the server**, so Live can restart without any client logic in the script. It accepts several connections (the hub, plus `nc` for debugging).
 - JSON lines: UTF-8, one message per line, terminated by `\n`, no embedded newlines.
-- The hub serves the web app on the same port (`http://<host>:20031/`).
+- The hub serves the web app on the same port (`http://<host>:20031/`) and advertises itself as `fc200.local` (mDNS).
 - The hub passes script messages to clients **unchanged**, except for request ids (section 5) and the `hub` node (section 3).
 - The protocol assumes nothing browser-specific, so an ESP32 can be a client.
 - No authentication: LAN only.
@@ -49,15 +54,19 @@ Same conventions as `presets.md` §3 (ableton-dev conventions):
 - `id` is a string or integer chosen by the requester, unique among its open requests. `params` may be omitted when a method takes none.
 - Every request gets exactly one response.
 - Unknown fields in any message are ignored.
+- Naming: methods are `<object>.<verb>` along the Live tree (`loop.chain.select`); events are past tense or a noun (`state.changed`, `preset.saved`, `state.dump`), so an event never reads like a command.
 
 ### Events
 
 | Event                | Data                          | From          | When                                             |
 |----------------------|-------------------------------|---------------|--------------------------------------------------|
-| `state.snapshot`     | the full state tree           | script, hub   | On connect, and on every reconnect               |
-| `state.patch`        | `{"<path>": value, ...}`      | script, hub   | At most once per `update_display` tick, never empty |
+| `state.dump`         | the full state tree           | script, hub   | On connect, and on every reconnect               |
+| `state.changed`      | `{"<path>": value, ...}`      | script, hub   | At most once per `update_display` tick, never empty |
 | `hub.status`         | `{"live_connected": bool}`    | hub           | On client connect, and when the Live link changes |
 | `preset.<event>`     | see below                     | script        | A `PresetEvents` call (transient, not in state)  |
+
+`hub.status` and the `hub` node both carry `live_connected`: the event suits simple
+clients that only show a connection light, the node keeps a dump self-contained.
 
 Preset events carry the arguments of the matching `PresetEvents` method
 (`presets.md` §2): `preset.overwrite_pending {"name"}`, `preset.overwrite_cancelled {"name"}`,
@@ -68,9 +77,9 @@ a client that misses an event still converges.
 
 ## 3. State tree
 
-The snapshot is a JSON object. Modules are top-level keys; a client ignores keys
+The dump is a JSON object. Modules are top-level keys; a client ignores keys
 it doesn't know. **Missing and `null` mean the same** ("none"): a producer may send
-either in a snapshot, and a patch sets `null` by deleting the key (section 4).
+either in a dump, and a change sets `null` by deleting the key (section 4).
 `value` is always the **normalised** value (0..1, i.e. `(value - min) / (max - min)`
 of the `DeviceParameter`) and `display` is Live's string for it
 (`str_for_value(value)`), so clients never need parameter ranges.
@@ -79,12 +88,27 @@ of the `DeviceParameter`) and `display` is Live's string for it
 
 | Field       | Type   | Meaning                          | Source                                  |
 |-------------|--------|----------------------------------|-----------------------------------------|
-| `version`   | string | Protocol version, `"0.2.0"`      | constant in the script                  |
+| `version`   | string | Protocol version, `"0.3.0"`      | constant in the script                  |
 | `page`      | int    | Active page, `MIN_PAGE..MAX_PAGE` (0 transport, 1 loops, 2 favorites) | `FC200._page` |
 | `mode`      | string | `"transport"`, `"loops"`, `"favorites"` or `"parameter_control"` | class of `FC200._mode` (`TransportPage`, `LoopsPage`, `FavoritesPage`, `ParameterControl`) |
 | `tempo`     | float  | Song tempo in BPM                | `Song.tempo` (listener)                 |
 
 `mode` equals the page name except while `ParameterControl` is active (it sits on page 2).
+
+### `pedalboard`
+
+Whether the script found the "FC200 Pedalboard" rack. Always present, so a client
+can tell "no pedalboard" from "not connected" and point at the fix.
+
+| Field    | Type        | Meaning                                         | Source                          |
+|----------|-------------|-------------------------------------------------|---------------------------------|
+| `found`  | bool        | A rack named "FC200 Pedalboard" was found       | `FC200._has_pedalboard`         |
+| `track`  | string/null | Name of the track holding it                    | `FC200._track.name`             |
+| `device` | int/null    | Its device index on that track                  | `FC200._device_index`           |
+
+It lives in the script's tree, not in `hub`: only the script can look for the rack.
+Without a pedalboard, `loops` is an empty list and `favorite`, `edit` and `presets`
+are missing; methods that need it answer `unavailable`.
 
 ### `transport`
 
@@ -105,6 +129,7 @@ of the `DeviceParameter`) and `display` is Live's string for it
 A `window` / `fired` entry: `index` (int), `name` (string, `Scene.name`), `color`
 (int, `Scene.color`, `0xRRGGBB`). The window replaces `MiraGUI.scene_overview`
 (`prev3..next3`, `cur`); the current scene is the entry whose `index` equals `selected`.
+Near the start or end of the set the window is shorter; clients lay it out by `index`.
 
 ### `loops`
 
@@ -173,8 +198,7 @@ in `loops[]` (`chain`, `chains`), not repeated here.
 | `pending_overwrite` | string/null | Preset waiting for overwrite confirmation            | `PresetManager.pending_overwrite`                |
 | `last`              | string/null | Name of the last preset saved or recalled            | `PresetEvents.saved` / `recalled` (subscriber)   |
 
-Missing when the script found no pedalboard (`PresetManager` is None); so are
-`loops` (empty list) and `edit`.
+Missing when the script found no pedalboard (`PresetManager` is None).
 
 ### `hub`
 
@@ -186,42 +210,52 @@ Added by the hub, never by the script.
 
 While `live_connected` is false the rest of the tree is the **last known** state and is stale.
 
-## 4. Patches
+## 4. Changes
 
-`{"event": "state.patch", "data": {"<path>": value, ...}}`
+`{"event": "state.changed", "data": {"<path>": value, ...}}`
 
 - A **path** is dotted from the root. Object keys are used as-is; list elements by decimal index: `loops.2.favorite.value`, `scenes.window.3.name`, `edit.macros.0.display`. No key contains a dot.
 - **Set:** the path's value becomes `value` (any JSON type). **Delete:** `null` removes the key (so "none" reads as missing; see section 3).
 - A **list is replaced as a whole** when its length changes: the producer sends the full list at the list's path (`"scenes.window": [...]`, `"loops.2.chains": [...]`). Element paths are only used while the length is unchanged.
-- To add an object (e.g. `edit` when entering `parameter_control`), the producer sends the full object at its path. A patch whose parent path doesn't exist is ignored by the consumer (log it); the next reconnect resyncs.
-- A patch contains no path that is a prefix of another. Entries are applied in object order.
-- The producer coalesces: many changes within one tick yield one patch; a value equal to the current one is not sent; no empty patch is sent. Rate: at most one patch per `update_display` tick (about 100 ms).
-- `state.patch` is applied by the hub to its cache and forwarded unchanged.
+- To add an object (e.g. `edit` when entering `parameter_control`), the producer sends the full object at its path. A change whose parent path doesn't exist is ignored by the consumer (log it); the next reconnect resyncs.
+- A `state.changed` contains no path that is a prefix of another. Entries are applied in object order.
+- The producer coalesces: many changes within one tick yield one `state.changed`; a value equal to the current one is not sent; an empty one is never sent. Rate: at most one per `update_display` tick (about 100 ms).
+- `state.changed` is applied by the hub to its cache and forwarded unchanged.
 
 ## 5. Methods
 
 Requests go client - hub - script. The hub replaces `id` with its own and routes the
-response back with the client's original `id`. Methods are namespaced per module.
-All run on Live's main thread, through the same code paths as the pedal. A method
-changes state; the new state arrives as a patch (the result does not replace it).
+response back with the client's original `id`. Methods follow the Live tree: what
+belongs to a loop (its chains, its parameters) is under `loop.`. All run on Live's
+main thread, through the same code paths as the pedal. A method changes state; the
+new state arrives as `state.changed` (the result does not replace it).
 
-| Method           | Params                                         | Result                          |
-|------------------|------------------------------------------------|---------------------------------|
-| `page.set`       | `{"page": int}`                                | `{"page": int}`                 |
-| `loop.set`       | `{"loop": int, "on": bool}`                    | `{"on": bool}`                  |
-| `chain.select`   | `{"loop": int, "chain": string}`               | `{"chain": string}`             |
-| `param.set`      | `{"loop": int, "parameter": int, "value": float}` | `{"value": float, "display": string}` |
-| `preset.list`    | none                                           | `{"names": [string]}`           |
-| `preset.get`     | `{"name": string}`                             | the preset object (`presets.md` §1) |
-| `preset.store`   | `{"scene_index": int}`                         | `{}`; outcome as `preset.*` event and `presets` state |
-| `preset.cancel`  | none                                           | `{"cancelled": bool}`           |
-| `preset.recall`  | `{"name": string}`                             | `{"found": bool}`               |
+| Method               | Params                                            | Result                          |
+|----------------------|---------------------------------------------------|---------------------------------|
+| `page.set`           | `{"page": int}`                                   | `{"page": int}`                 |
+| `scene.select`       | `{"index": int}`                                  | `{"index": int}`                |
+| `scene.fire`         | none                                              | `{"index": int}` (fired scene)  |
+| `loop.set`           | `{"loop": int, "on": bool}`                       | `{"on": bool}`                  |
+| `loop.chain.select`  | `{"loop": int, "chain": string}`                  | `{"chain": string}`             |
+| `loop.param.set`     | `{"loop": int, "parameter": int, "value": float}` | `{"value": float, "display": string}` |
+| `loop.param.select`  | `{"loop": int, "parameter": int}`                 | `{"parameter": int}`            |
+| `edit.open`          | `{"loop": int}`                                   | `{"loop": int}`                 |
+| `edit.close`         | none                                              | `{}`                            |
+| `preset.list`        | none                                              | `{"names": [string]}`           |
+| `preset.get`         | `{"name": string}`                                | the preset object (`presets.md` §1) |
+| `preset.store`       | `{"scene_index": int}`                            | `{}`; outcome as `preset.*` event and `presets` state |
+| `preset.cancel`      | none                                              | `{"cancelled": bool}`           |
+| `preset.recall`      | `{"name": string}`                                | `{"found": bool}`               |
 
 - `loop` is a board device index (`loops[].index`), not a position. `value` is normalised 0..1; the script clamps it.
 - `page.set` calls `FC200._show_page`: it leaves `parameter_control` and drops a favorite or pending overwrite, like a bank pedal.
-- `param.set` accepts `parameter` 1..8 (macros) and the loop's favorite parameter. It does **not** change what the expression pedal controls (`favorite`, `edit.selected`).
-- `chain.select` matches the chain by name, like a preset recall. While the loop is being edited, the script keeps `ParameterControl`'s chain index in sync.
-- `preset.store` and `preset.recall` behave exactly as `PresetManager.store` / `recall`; a second `preset.store` for the same name confirms an overwrite, `preset.cancel` drops it.
+- `scene.select` selects a scene without launching it (`Song.view.selected_scene`). `scene.fire` does what pedal 3 does on page 0 (`TransportPage._fire_scene`): it launches the selected scene and selects the next one. It works on any page.
+- `loop.set` switches the loop on or off (parameter 0), like a number pedal on page 1.
+- `loop.chain.select` matches the chain by name, like a preset recall. While the loop is being edited, the script keeps `ParameterControl`'s chain index in sync.
+- `loop.param.set` accepts the macros only, `parameter` 1..8 (a loop's favorite is one of its macros). It does **not** change what the expression pedal controls.
+- `loop.param.select` sets what the expression pedal controls, like a macro pedal in `parameter_control` (`ParameterControl._select_macro`). Only for the loop being edited; otherwise `unavailable`.
+- `edit.open` enters `parameter_control` for a loop, like pressing a favorite's pedal twice on page 2; it goes to page 2 first if needed. `edit.close` returns to the favorites page, like CTL in `parameter_control`; outside it, it does nothing.
+- `preset.store` and `preset.recall` behave exactly as `PresetManager.store` / `recall`; a second `preset.store` for the same name confirms an overwrite, `preset.cancel` drops it. `preset.store` requires `scene_index`: a remote names its target explicitly. `preset.recall` already applies a preset without launching a scene.
 - `preset.state` from `presets.md` §3 is replaced by the `presets` state node.
 
 ### Errors
@@ -232,7 +266,7 @@ changes state; the new state arrives as a patch (the result does not replace it)
 |------------------|--------------|--------------------------------------------------------------|
 | `unknown_method` | script       | No such method                                               |
 | `bad_params`     | script       | Missing/ill-typed param, or a value out of range             |
-| `not_found`      | script       | Unknown loop, chain, parameter or preset name                |
+| `not_found`      | script       | Unknown loop, chain, parameter, scene or preset name         |
 | `unavailable`    | script       | No pedalboard found, or the method doesn't apply now         |
 | `internal`       | script       | The handler raised; details are in Live's Log.txt            |
 | `live_offline`   | hub          | The hub has no link to the script                            |
@@ -242,7 +276,7 @@ An unknown method or a failing handler never crashes the script.
 
 ## 6. Versioning
 
-- `version` in the snapshot is the protocol version (semver, as at the top).
+- `version` in the dump is the protocol version (semver, as at the top).
 - Adding a module, a field or a method is a **minor** bump; clients ignore modules, fields, events and error codes they don't know, and don't depend on field order.
 - Removing or retyping a field, or changing a method's meaning, is a breaking bump (0.x: minor, then major from 1.0).
 - A client supports one major (0.x: one minor) and shows "incompatible version" for a different one rather than guessing.
@@ -250,27 +284,24 @@ An unknown method or a failing handler never crashes the script.
 
 ## 7. Reconnect
 
-- **Hub - script:** the hub reconnects with exponential backoff (0.5 s doubling to 5 s). The script sends a full `state.snapshot` first on every new connection. The hub replaces its cache with it and forwards it to every client. While disconnected the hub sets `hub.live_connected` false, sends `hub.status`, keeps the stale cache and answers requests with `live_offline`.
-- **Client - hub:** the client reconnects with backoff (0.5 s doubling to 5 s, with jitter) and finds the hub by name (`fc200.local`), not IP. On connect the hub sends `state.snapshot` (cache + `hub`) and then `hub.status`. A client replaces its whole state with each snapshot.
+- **Hub - script:** the hub reconnects with exponential backoff (0.5 s doubling to 5 s). The script sends a full `state.dump` first on every new connection. The hub replaces its cache with it and forwards it to every client. While disconnected the hub sets `hub.live_connected` false, sends `hub.status`, keeps the stale cache and answers requests with `live_offline`.
+- **Client - hub:** the client reconnects with backoff (0.5 s doubling to 5 s, with jitter) and finds the hub by name (`fc200.local`), not IP. On connect the hub sends `state.dump` (cache + `hub`) and then `hub.status`. A client replaces its whole state with each dump.
 - Open requests fail when their connection drops; requests are not retried automatically.
 - The script closes its socket on `disconnect()` (`SO_REUSEADDR`), so a reload doesn't leave the port bound.
-- If the hub has never connected to the script, it sends no snapshot, only `hub.status` with `live_connected` false (mock mode uses `protocol/fixtures/snapshot.json` instead).
+- If the hub has never connected to the script, it sends no dump, only `hub.status` with `live_connected` false (mock mode uses `protocol/fixtures/dump.json` instead).
+- The backoff and timeout numbers are starting values, to be tuned on the stage network.
 
 ## Fixture
 
-`protocol/fixtures/snapshot.json` is a full snapshot (as a hub client receives it, with
+`protocol/fixtures/dump.json` is a full dump (as a hub client receives it, with
 the `hub` node) in `parameter_control` mode with a fired scene. It is the contract for
 the mock hub and for tests.
 
-## Open questions
+## Planned
 
-1. **`hub.status` vs `hub` node:** both carry `live_connected`. Keep both, or drop the event and let the hub patch `hub.live_connected`?
-2. **Scene control:** no `scene.select` / `scene.fire` method in 0.1.0 (the brief names only `page.set`, `chain.select`, `param.set`, `preset.*`). Add them?
-3. **Entering edit mode:** no way yet to start `parameter_control` or to select the expression pedal's target (`favorite`, `edit.selected`) from a client. Add `edit.open {loop}`, `edit.close`, `param.select`?
-4. **`transport` node:** added beyond the brief's module list (playing/metronome are real LED state). Keep?
-5. **`presets.last`:** the script keeps no such value today; it would be set by the frontend `PresetEvents` subscriber (saved or recalled?).
-6. **`param.set` scope:** limited to macros and the favorite for now. Any parameter, or the loop on/off too?
-7. **Out-of-range scenes:** `window` omits missing neighbours (shorter list), unlike `MiraGUI`, which sends blanks. Fixed 7 slots with `null` instead?
-8. **Backoff numbers** (0.5 s to 5 s) and the 2 s timeout come from a guess/the build plan; tune on the stage network.
-9. **`preset.store` without a scene:** require `scene_index`, or default to the selected scene as the pedal does? (presets.md open question 3, store by name, is still open.)
-10. **Missing pedalboard:** `loops` is `[]` and `presets`/`edit` are missing; confirm that is what clients should expect.
+- **Presets without scenes.** Storing is tied to the clip on a scene (the preset is
+  named after it). Once `PresetManager` is decoupled from clip slots, add
+  `preset.save {"name"}`, which stores the board under a name without a clip.
+  Recall is already independent of scenes. Tracked in `presets.md` (open question 3).
+- **Favorites from a client.** `favorite.select {"loop"}` / `favorite.clear`, if a
+  client should drive page 2 the way the number pedals do.
