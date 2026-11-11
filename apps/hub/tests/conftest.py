@@ -29,10 +29,10 @@ class FakeBackend:
 
 
 @pytest.fixture
-async def env(aiohttp_client):
+async def env(aiohttp_client, tmp_path):
     hub = Hub(timeout=0.3)
     backend = FakeBackend(hub)
-    app = make_app(hub)
+    app = make_app(hub, dist=tmp_path)  # no built web app: placeholder page
     client = await aiohttp_client(app)
     return hub, backend, client
 
