@@ -37,8 +37,13 @@ class Listeners:
         self._removers.append(remove)
 
     def remove_all(self) -> None:
+        """Remove every listener. One that fails (e.g. its subject was deleted from
+        the set) is logged and skipped, so the rest are still removed."""
         for remove in reversed(self._removers):
-            remove()
+            try:
+                remove()
+            except Exception:
+                self._log(f"Error removing a listener:\n{traceback.format_exc()}")
         self._removers.clear()
 
     def __len__(self) -> int:

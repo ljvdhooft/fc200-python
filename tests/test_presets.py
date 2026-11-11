@@ -168,12 +168,14 @@ class FakeHardware:
     def __init__(self):
         self.calls = []
 
-    def blink_loop(self, pedal, interval):
+    def blink_loop(self, pedal, interval, only_if=None):
         self.calls.append("blink")
+        self.only_if = only_if
         return SimpleNamespace(kill=lambda: self.calls.append("kill"))
 
-    def flash_repeatedly(self, pedal, times):
+    def flash_repeatedly(self, pedal, times, only_if=None):
         self.calls.append("flash")
+        self.only_if = only_if
 
     def led(self, pedal, value):
         self.calls.append(("led", value))
@@ -325,6 +327,17 @@ class PresetFeedbackTest(unittest.TestCase):
         self.feedback.overwrite_pending("Song A")
         self.feedback.overwrite_cancelled("Song A")
         self.assertEqual(self.hw.calls[-1], "kill")
+
+
+    def test_blink_and_flash_only_touch_the_led_on_the_store_page(self):
+        self.feedback.overwrite_pending("Song A")
+        self.assertTrue(self.hw.only_if())
+        self.page = 2
+        self.assertFalse(self.hw.only_if())
+        self.feedback.saved("Song A")
+        self.assertFalse(self.hw.only_if())
+        self.page = 0
+        self.assertTrue(self.hw.only_if())
 
 
 class AlcTest(unittest.TestCase):

@@ -31,19 +31,19 @@ class PresetFeedback(presets.PresetEvents):
 
     def overwrite_pending(self, name: str) -> None:
         self._stop_blink()
-        self._blink = self._hw.blink_loop(self._pedal, 0.3)
+        self._blink = self._hw.blink_loop(self._pedal, 0.3, only_if=self._on_store_page)
         self._show_message(f"Overwrite preset {name}?")
 
     def overwrite_cancelled(self, name: str) -> None:
         self._stop_blink()
         self._show_message("Cancelled saving preset!")
-        if self._page() == self._store_page:
+        if self._on_store_page():
             self._hw.led(self._pedal, se.OFF)
 
     def saved(self, name: str) -> None:
         self._stop_blink()
         self._show_message(f"Saved preset: {name}")
-        self._hw.flash_repeatedly(self._pedal, 3)
+        self._hw.flash_repeatedly(self._pedal, 3, only_if=self._on_store_page)
 
     def save_failed(self, name: str) -> None:
         self._stop_blink()
@@ -51,6 +51,10 @@ class PresetFeedback(presets.PresetEvents):
 
     def template_clip_missing(self) -> None:
         self._show_message('No clip on selected slot')
+
+    def _on_store_page(self) -> bool:
+        """The store pedal's LED belongs to its page: other pages keep theirs."""
+        return self._page() == self._store_page
 
     def _stop_blink(self) -> None:
         if self._blink is not None:

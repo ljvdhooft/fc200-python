@@ -346,6 +346,8 @@ class FC200(ControlSurface):
 
     def disconnect(self) -> None:
         """Clean up when the script is unloaded."""
+        # First: a failure below must not leave the hub's port taken for the next load
+        self._ui_gateway.close()
         self.log_message(f"Removing {len(self._listeners) + len(self._scene_listeners) + len(self._script_listeners)} listeners...")
         self._mode.on_exit()
         if self._presets is not None:
@@ -353,6 +355,5 @@ class FC200(ControlSurface):
         self._listeners.remove_all()
         self._scene_listeners.remove_all()
         self._script_listeners.remove_all()
-        self._ui_gateway.close()
         self.log_message("--- FC200 Script Unloaded ---")
         super(FC200, self).disconnect()
