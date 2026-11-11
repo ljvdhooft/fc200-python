@@ -32,6 +32,9 @@ class Mock:
         self.model.set("hub", None)  # the hub owns this node
         self._replies: asyncio.Queue[proto.Message] = asyncio.Queue()
         self._names = self._scene_names()
+        # Preset names aren't in the state (only their count), so the mock keeps them
+        self._presets = ["Song A", "Song B", "Song C"]
+        self.model.set("presets.count", len(self._presets))
         self._t = 0.0
 
     def _scene_names(self) -> list[str]:
@@ -151,21 +154,21 @@ class Mock:
         return {"value": value, "display": display}
 
     def _m_preset_list(self, p: dict[str, Any]) -> Any:
-        return {"names": self.model.get("presets.names", [])}
+        return {"names": sorted(self._presets)}
 
     def _m_preset_get(self, p: dict[str, Any]) -> Any:
-        if p["name"] not in self.model.get("presets.names", []):
+        if p["name"] not in self._presets:
             raise LookupError(p["name"])
         return {"name": p["name"], "devices": {}}
 
     def _m_preset_store(self, p: dict[str, Any]) -> Any:
         name = self._names[int(p["scene_index"])]
-        names = self.model.get("presets.names", [])
-        if name in names and self.model.get("presets.pending_overwrite") != name:
+        if name in self._presets and self.model.get("presets.pending_overwrite") != name:
             self.model.set("presets.pending_overwrite", name)
             self.hub.on_event(proto.event("preset.overwrite_pending", {"name": name}))
         else:
-            self.model.set("presets.names", sorted({*names, name}))
+            self._presets = sorted({*self._presets, name})
+            self.model.set("presets.count", len(self._presets))
             self.model.set("presets.pending_overwrite", None)
             self.model.set("presets.last", name)
             self.hub.on_event(proto.event("preset.saved", {"name": name}))
@@ -179,7 +182,7 @@ class Mock:
         return {"cancelled": bool(name)}
 
     def _m_preset_recall(self, p: dict[str, Any]) -> Any:
-        found = p["name"] in self.model.get("presets.names", [])
+        found = p["name"] in self._presets
         if found:
             self.model.set("presets.last", p["name"])
             self.hub.on_event(proto.event("preset.recalled", {"name": p["name"]}))

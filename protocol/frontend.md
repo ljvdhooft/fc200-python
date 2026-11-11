@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.4.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.5.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -8,6 +8,7 @@
 | 0.2.0   | `favorite` node replaces `loops[].favorite.picked`                      |
 | 0.3.0   | Approved. `state.dump`/`state.changed`, loop-tree methods, scene and edit methods, `pedalboard` node |
 | 0.4.0   | `state.dump` method: ask for the full state again without reconnecting |
+| 0.5.0   | `presets.names` replaced by `presets.count`; names via `preset.list`   |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -73,7 +74,7 @@ Preset events carry the arguments of the matching `PresetEvents` method
 (`presets.md` §2): `preset.overwrite_pending {"name"}`, `preset.overwrite_cancelled {"name"}`,
 `preset.saved {"name"}`, `preset.save_failed {"name"}`, `preset.recalled {"name"}`,
 `preset.template_clip_copied {"scene_index"}`, `preset.template_clip_missing {}`.
-The durable part (`pending_overwrite`, `names`, `last`) is also in the state tree, so
+The durable part (`pending_overwrite`, `count`, `last`) is also in the state tree, so
 a client that misses an event still converges.
 
 ## 3. State tree
@@ -89,7 +90,7 @@ of the `DeviceParameter`) and `display` is Live's string for it
 
 | Field       | Type   | Meaning                          | Source                                  |
 |-------------|--------|----------------------------------|-----------------------------------------|
-| `version`   | string | Protocol version, `"0.4.0"`      | constant in the script                  |
+| `version`   | string | Protocol version, `"0.5.0"`      | constant in the script                  |
 | `page`      | int    | Active page, `MIN_PAGE..MAX_PAGE` (0 transport, 1 loops, 2 favorites) | `FC200._page` |
 | `mode`      | string | `"transport"`, `"loops"`, `"favorites"` or `"parameter_control"` | class of `FC200._mode` (`TransportPage`, `LoopsPage`, `FavoritesPage`, `ParameterControl`) |
 | `tempo`     | float  | Song tempo in BPM                | `Song.tempo` (listener)                 |
@@ -197,11 +198,15 @@ in `loops[]` (`chain`, `chains`), not repeated here.
 
 | Field               | Type        | Meaning                                              | Source                                           |
 |---------------------|-------------|------------------------------------------------------|--------------------------------------------------|
-| `names`             | string[]    | Stored preset names, sorted                          | `PresetManager.preset_names()`                   |
+| `count`             | int         | Number of stored presets                             | `len(PresetManager.preset_names())`              |
 | `pending_overwrite` | string/null | Preset waiting for overwrite confirmation            | `PresetManager.pending_overwrite`                |
 | `last`              | string/null | Name of the last preset saved or recalled            | `PresetEvents.saved` / `recalled` (subscriber)   |
 
 Missing when the script found no pedalboard (`PresetManager` is None).
+
+The names themselves are not in the state: the list can be long and every dump would
+carry it. A client that shows them asks `preset.list` and asks again when `count`
+changes or a `preset.saved` event arrives.
 
 ### `hub`
 
@@ -245,7 +250,7 @@ new state arrives as `state.changed` (the result does not replace it).
 | `loop.param.select`  | `{"loop": int, "parameter": int}`                 | `{"parameter": int}`            |
 | `edit.open`          | `{"loop": int}`                                   | `{"loop": int}`                 |
 | `edit.close`         | none                                              | `{}`                            |
-| `preset.list`        | none                                              | `{"names": [string]}`           |
+| `preset.list`        | none                                              | `{"names": [string]}`, sorted   |
 | `preset.get`         | `{"name": string}`                                | the preset object (`presets.md` §1) |
 | `preset.store`       | `{"scene_index": int}`                            | `{}`; outcome as `preset.*` event and `presets` state |
 | `preset.cancel`      | none                                              | `{"cancelled": bool}`           |

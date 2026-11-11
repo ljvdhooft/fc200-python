@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 
@@ -180,7 +180,7 @@ class UiBindings(presets.PresetEvents):
         if manager is None:
             self.model.set("presets", None)
             return
-        self.model.set("presets", {"names": manager.preset_names(),
+        self.model.set("presets", {"count": len(manager.preset_names()),
                                    "pending_overwrite": manager.pending_overwrite,
                                    "last": self._last_preset})
 

@@ -128,7 +128,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.4.0")
+        self.assertEqual(state["version"], "0.5.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -140,7 +140,7 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(state["loops"][0]["chain"], "B")
         self.assertEqual(state["loops"][0]["favorite"]["parameter"], 6)
         self.assertNotIn("edit", state)   # none = missing
-        self.assertEqual(state["presets"], {"names": ["A", "B"], "pending_overwrite": None,
+        self.assertEqual(state["presets"], {"count": 2, "pending_overwrite": None,
                                             "last": None})
         self.assertEqual(self.s._presets.subscribers, [self.ui])
 
