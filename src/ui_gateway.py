@@ -80,6 +80,11 @@ class UiGateway:
         for client in list(self._clients):
             self._send(client)
 
+    def emit(self, message: proto.Message) -> None:
+        """Queue an event for every client; it goes out on the next poll."""
+        for client in list(self._clients):
+            self._queue(client, message)
+
     def close(self) -> None:
         for client in self._clients:
             client.sock.close()
