@@ -23,11 +23,24 @@ export function wake(): void {
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 
+let holds = 0;
+
 /** Restart the idle timer, e.g. while a list is being scrolled. */
 export function keepInteractive(): void {
   if (!get(interactive)) return;
   clearTimeout(timer);
+  if (holds > 0) return; // held open: no idle timeout until released
   timer = setTimeout(() => interactive.set(false), IDLE);
+}
+
+/** Stay in touch mode (e.g. while a menu is open) until the returned release runs. */
+export function holdInteractive(): () => void {
+  holds++;
+  keepInteractive();
+  return () => {
+    holds--;
+    keepInteractive();
+  };
 }
 
 export function trackTouch(): void {

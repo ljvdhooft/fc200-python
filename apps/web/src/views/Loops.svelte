@@ -3,6 +3,7 @@
   import { appState, abletonConnected, type Loop } from "../lib/state";
   import { interactive, keepInteractive } from "../lib/touch";
   import { throttle } from "../lib/throttle";
+  import ChainMenu from "./ChainMenu.svelte";
 
   let loops = $derived($appState.loops ?? []);
 
@@ -53,7 +54,24 @@
     return loop.favorite?.value ?? 0;
   }
 
+  // Holding a tile still opens its chain menu (moving cancels it: that's a drag)
+  const HOLD = 850;
+  let holdTimer: ReturnType<typeof setTimeout> | undefined;
+  let holding = false; // the press became a hold: its release and click do nothing
+  let menuLoop = $state<number | null>(null);
+  let menuAnchor = $state<DOMRect | null>(null); // the held tile, to place the menu by
+  let menu = $derived(loops.find((l) => l.index === menuLoop));
+
   function onpointerdown(e: PointerEvent, loop: Loop) {
+    holding = false;
+    clearTimeout(holdTimer);
+    const tile = e.currentTarget as HTMLElement;
+    holdTimer = setTimeout(() => {
+      menuAnchor = tile.getBoundingClientRect();
+      holding = true;
+      drag = null;
+      menuLoop = loop.index;
+    }, HOLD);
     if (!loop.favorite) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     drag = { loop: loop.index, x: e.clientX, y: e.clientY, start: value(loop), value: value(loop), moved: false };
@@ -63,12 +81,14 @@
     const dx = e.clientX - drag.x;
     const dy = drag.y - e.clientY; // right or up raises it
     if (!drag.moved && Math.hypot(dx, dy) < SLOP) return;
+    clearTimeout(holdTimer);
     drag.moved = true;
     drag.value = Math.min(1, Math.max(0, drag.start + dx / RANGE_X + dy / RANGE_Y));
     send(loop.index, loop.favorite.parameter, drag.value);
     keepInteractive();
   }
   function onpointerup(loop: Loop) {
+    clearTimeout(holdTimer);
     if (drag?.loop !== loop.index) return;
     if (drag.moved) {
       send.flush();
@@ -100,8 +120,11 @@
       onpointerdown={(e) => onpointerdown(e, loop)}
       onpointermove={(e) => onpointermove(e, loop)}
       onpointerup={() => onpointerup(loop)}
-      onpointercancel={() => (drag = null)}
-      onclick={() => loop.favorite || toggle(loop)}
+      onpointercancel={() => {
+        clearTimeout(holdTimer);
+        drag = null;
+      }}
+      onclick={() => holding || loop.favorite || toggle(loop)}
       aria-pressed={on(loop)}
     >
       <span class="head">
@@ -122,6 +145,10 @@
     </button>
   {/each}
 </section>
+
+{#if menu}
+  <ChainMenu loop={menu} anchor={menuAnchor} onclose={() => (menuLoop = null)} />
+{/if}
 
 <!-- Beside the grid in landscape, under it in portrait -->
 <aside class="side">
