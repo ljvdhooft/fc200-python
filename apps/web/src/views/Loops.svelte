@@ -39,9 +39,9 @@
     >
       <span class="head">
         <span class="pedal">{loop.pedal}</span>
+        <span class="name">{loop.name}</span>
         <span class="led"></span>
       </span>
-      <span class="name">{loop.name}</span>
       <span class="chain">{loop.chain}</span>
 
       {#if loop.favorite}
@@ -92,8 +92,13 @@
 
   .head {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+  .head .led {
+    margin-left: auto;
+    align-self: center;
+    flex: none;
   }
   .pedal {
     font-size: var(--text-label);
@@ -116,7 +121,7 @@
 
   /* the loop and its chain belong together; the favorite sits apart at the bottom */
   .name {
-    margin-top: var(--space-2);
+    min-width: 0;
     font-size: var(--text-name);
     line-height: 1.15;
   }
@@ -135,14 +140,18 @@
   .favorite {
     margin-top: auto;
     display: flex;
-    flex-direction: column;
+    align-items: baseline;
+    gap: var(--space-2);
     padding-bottom: var(--space-1);
   }
   .param {
+    min-width: 0;
     font-size: var(--text-label);
     color: var(--text-muted);
   }
   .value {
+    margin-left: auto;
+    flex: none;
     font-size: var(--text-body);
     font-variant-numeric: tabular-nums;
   }
