@@ -9,6 +9,10 @@
   import Loops from "./views/Loops.svelte";
   import Outage from "./views/Outage.svelte";
   import Lock from "./lib/Lock.svelte";
+  import TunerBar from "./views/Tuner.svelte";
+  import type { Tuner } from "./lib/state";
+  import Drawer from "./lib/Drawer.svelte";
+  import { tunerBar } from "./lib/tuner";
 
   let showJson = $state(false);
 
@@ -21,6 +25,21 @@
   const portraitQuery = matchMedia("(orientation: portrait)");
   let portrait = $state(portraitQuery.matches);
   portraitQuery.addEventListener("change", (e) => (portrait = e.matches));
+
+  // The tuner node goes as soon as the volume is up: keep the last reading so the
+  // drawer slides out with it instead of closing empty
+  let lastTuner = $state<Tuner | undefined>();
+  $effect(() => {
+    if ($appState.tuner) lastTuner = $appState.tuner;
+  });
+
+  // Pages whose touch-mode controls slide in over the tuner bar (Scenes' bottom
+  // drawer): the bar stays under them. Elsewhere (loops: the presets button stays)
+  // the bar slides away with touch mode: tuning and the controls don't go together.
+  const COVERED_PAGES = new Set([0]);
+  let tunerOpen = $derived(
+    !!($tunerBar && $appState.tuner) && (COVERED_PAGES.has($shownPage) || !$interactive),
+  );
 
   let menuOpen = $state(false);
   // The menu goes when touch mode ends (not before it starts: the page button opens
@@ -85,6 +104,12 @@
             {#each [...PAGES.entries()].reverse() as [page, name] (name)}
               <button role="menuitem" class:current={$shownPage === page} onclick={() => choose(page)}>{name}</button>
             {/each}
+            <button
+              role="menuitemcheckbox"
+              class="setting"
+              aria-checked={$tunerBar}
+              onclick={() => tunerBar.update((on) => !on)}
+            >tuner bar <span class="check">{$tunerBar ? "on" : "off"}</span></button>
           </div>
         {/if}
       {/if}
@@ -132,6 +157,13 @@
         </details>
       {/if}
     </main>
+
+    <!-- Floats over the bottom of the page: it never resizes the scene list -->
+    <div class="tuner-slot">
+      <Drawer open={tunerOpen} edge="overlay">
+        {#if lastTuner}<TunerBar tuner={lastTuner} />{/if}
+      </Drawer>
+    </div>
   </div>
 </div>
 {/if}
@@ -273,6 +305,19 @@
     color: var(--text-muted);
     background: var(--panel);
   }
+  .rail .menu .setting {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+  }
+  .setting .check {
+    color: var(--text-muted);
+  }
+  .setting[aria-checked="true"] .check {
+    color: var(--accent-on);
+  }
   .rail .menu button.current {
     color: var(--text);
     background: color-mix(in srgb, var(--accent-select) 12%, var(--panel));
@@ -298,6 +343,13 @@
     stroke-linejoin: round;
     filter: drop-shadow(0 0 4px color-mix(in srgb, currentColor 70%, transparent));
     transition: color var(--motion) var(--ease);
+  }
+
+  /* The content box's bottom edge, for the tuner overlay (no extra gap) */
+  .tuner-slot {
+    position: relative;
+    height: 0;
+    margin-top: calc(-1 * var(--space-3));
   }
 
   main {

@@ -8,7 +8,12 @@
   //   side:   in landscape a column at the outer edge that doesn't grow (its parent
   //           floats it over the content: a list must not change width under the
   //           finger, iOS cancels the scroll); in portrait a row on top, growing down
-  let { open, edge, children }: { open: boolean; edge: "bottom" | "side"; children: Snippet } = $props();
+  //   overlay: grows up like bottom, but floats over the bottom of its positioned
+  //           parent instead of taking room
+  // bottom and side are opaque and stack above an overlay: they slide in over it
+  // and hide it completely, so an overlay can stay open under them.
+  let { open, edge, children }: { open: boolean; edge: "bottom" | "side" | "overlay"; children: Snippet } =
+    $props();
 </script>
 
 <div class="drawer {edge}" class:open inert={!open}>
@@ -45,17 +50,37 @@
   /* Growing open: the track goes from 0 to the content's height. The content sits
      against the inner edge, so it moves with it (a slide, not a curtain). The
      negative margin cancels the parent's gap while closed (--drawer-gap). */
-  .bottom,
-  .side {
+  .drawer {
     grid-template-rows: 0fr;
   }
-  .bottom.open,
-  .side.open {
+  .drawer.open {
     grid-template-rows: 1fr;
   }
-  .bottom {
+  .bottom,
+  .overlay {
     margin-top: calc(-1 * var(--drawer-gap, 0px));
     transform: translateY(var(--drawer-slide));
+  }
+
+  /* Opaque, above overlays (which come later in the page, at z-index 0) */
+  .bottom,
+  .side {
+    position: relative;
+    z-index: 1;
+  }
+  .bottom .inner,
+  .side .inner {
+    background: var(--bg);
+  }
+
+  /* Grows up from the parent's bottom edge without moving anything */
+  .overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+    margin: 0;
   }
   .side {
     margin-bottom: calc(-1 * var(--drawer-gap, 0px));

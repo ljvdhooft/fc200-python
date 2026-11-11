@@ -13,8 +13,16 @@ export interface FcState {
   loops?: Loop[];
   edit?: Record<string, unknown>;
   presets?: Record<string, unknown>;
+  tuner?: Tuner;
   hub?: { live_connected: boolean };
   [key: string]: unknown;
+}
+
+/** Present only while the volume is 0 (protocol/frontend.md, `tuner`). */
+export interface Tuner {
+  note: string;
+  cents: number;
+  in_tune: boolean;
 }
 
 export interface Scene {

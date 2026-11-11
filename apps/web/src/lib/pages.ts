@@ -5,7 +5,7 @@ import { appState } from "./state";
 export const PAGES = ["scenes", "loops", "favorites"] as const;
 
 /** A store remembered per device (localStorage; private mode just forgets). */
-function remembered<T>(key: string, fallback: T) {
+export function remembered<T>(key: string, fallback: T) {
   let initial = fallback;
   try {
     const raw = localStorage.getItem(key);

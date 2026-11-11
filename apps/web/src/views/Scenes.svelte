@@ -592,6 +592,13 @@
     :global(:root[data-island="right"]) .stop {
       border-bottom-left-radius: var(--corner-concentric);
     }
+    /* the rows scrolling past that corner are clipped to the same curve */
+    :global(:root:not([data-island="right"])) .list {
+      border-bottom-right-radius: var(--corner-concentric);
+    }
+    :global(:root[data-island="right"]) .list {
+      border-bottom-left-radius: var(--corner-concentric);
+    }
   }
 
   /* Portrait: the side column becomes a row above the list */
