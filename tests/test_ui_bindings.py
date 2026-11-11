@@ -45,14 +45,27 @@ class Surface(FakeSurface):
         super().__init__()
         for rack in self._racks:
             rack.parameters = [Parameter(f"{rack.name} p{i}") for i in range(10)]
+        self.fired = []
         self.scenes = [SimpleNamespace(name=f"Scene {i}", color=i) for i in range(10)]
+        for scene in self.scenes:
+            scene.fire = lambda scene=scene: self.fired.append(scene.name)
         self.song_obj.view.selected_scene = self.scenes[5]
         self.song_obj.scenes = self.scenes
         self.song_obj.tempo = 120.0
         self.song_obj.is_playing = False
         self._fired_scene = None
+        self._transport_page = self._pages[0]
         self._favorites_page = self._pages[2]
+        self._track = SimpleNamespace(name="Guitar")
+        self._device_index = 4
         self.settings.MIN_PAGE, self.settings.MAX_PAGE = 0, 2
+
+    def _board_track(self):
+        return self._track
+
+    @property
+    def _selected_scene(self):
+        return self.song_obj.view.selected_scene
 
     @property
     def _all_scenes(self):
@@ -268,6 +281,41 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.error("preset.store", scene_index=99), "bad_params")
         self.assertEqual(self.call("preset.recall", name="A"), {"found": True})
         self.assertEqual(self.call("preset.cancel"), {"cancelled": False})
+
+    def test_pedalboard(self):
+        self.assertEqual(self.model.get("pedalboard"), {"found": True, "track": "Guitar", "device": 4})
+
+    def test_scene_select(self):
+        self.assertEqual(self.call("scene.select", index=8), {"index": 8})
+        self.assertEqual(self.model.get("scenes.selected"), 8)
+        self.assertEqual(self.s.fired, [])
+        self.assertEqual(self.error("scene.select", index=10), "not_found")
+
+    def test_scene_fire_works_like_pedal_3_on_any_page(self):
+        self.assertEqual(self.call("scene.fire"), {"index": 5})
+        self.assertEqual(self.s.fired, ["Scene 5"])
+        self.assertEqual(self.model.get("scenes.fired.index"), 5)
+        self.assertEqual(self.model.get("scenes.selected"), 6)
+
+    def test_edit_open_select_close(self):
+        self.s._show_page(0)
+        self.assertEqual(self.call("edit.open", loop=2), {"loop": 2})
+        self.assertEqual((self.model.get("page"), self.model.get("mode")), (2, "parameter_control"))
+        self.assertEqual(self.model.get("edit.loop"), 2)
+
+        self.assertEqual(self.call("loop.param.select", loop=2, parameter=5), {"parameter": 5})
+        self.assertIs(self.s._mode.parameter, self.s._racks[2].parameters[5])
+        self.assertEqual(self.model.get("edit.selected"), 4)
+        self.assertEqual(self.error("loop.param.select", loop=2, parameter=0), "not_found")
+        self.assertEqual(self.error("loop.param.select", loop=3, parameter=1), "unavailable")
+
+        self.assertEqual(self.call("edit.close"), {})
+        self.assertEqual(self.model.get("mode"), "favorites")
+        self.assertIsNone(self.model.get("edit"))
+        self.assertEqual(self.call("edit.close"), {})     # outside edit: nothing happens
+
+    def test_edit_open_unknown_loop(self):
+        self.assertEqual(self.error("edit.open", loop=5), "not_found")
 
 
 if __name__ == "__main__":

@@ -81,6 +81,12 @@ class UiBindings(presets.PresetEvents):
             self.s._presets.subscribe(self)
 
         self.model.set("version", VERSION)
+        found = self.s._has_pedalboard
+        self.model.set("pedalboard", {
+            "found": found,
+            "track": self.s._board_track().name if found else None,
+            "device": self.s._device_index if found else None,
+        })
         self._on_transport()
         self.model.set("loops", [self._loop_state(pos) for pos in range(self._loop_count)])
         self._write_presets()
@@ -237,9 +243,14 @@ class UiBindings(presets.PresetEvents):
         """The protocol's methods. Each refreshes the state after it ran."""
         methods: dict[str, Handler] = {
             "page.set": self._page_set,
+            "scene.select": self._scene_select,
+            "scene.fire": self._scene_fire,
             "loop.set": self._loop_set,
             "loop.chain.select": self._chain_select,
             "loop.param.set": self._param_set,
+            "loop.param.select": self._param_select,
+            "edit.open": self._edit_open,
+            "edit.close": self._edit_close,
             "preset.list": self._preset_list,
             "preset.get": self._preset_get,
             "preset.store": self._preset_store,
@@ -260,6 +271,19 @@ class UiBindings(presets.PresetEvents):
             raise MethodError("bad_params", f"page must be {settings.MIN_PAGE}..{settings.MAX_PAGE}")
         self.s._show_page(page)
         return {"page": page}
+
+    def _scene_select(self, params: dict[str, Any]) -> Any:
+        index = _arg(params, "index", int)
+        scenes = self.s._all_scenes
+        if not 0 <= index < len(scenes):
+            raise MethodError("not_found", f"no scene {index}")
+        self.s.song().view.selected_scene = scenes[index]
+        return {"index": index}
+
+    def _scene_fire(self, params: dict[str, Any]) -> Any:
+        index = self.s._selected_scene_index
+        self.s._transport_page._fire_scene()
+        return {"index": index}
 
     def _loop_set(self, params: dict[str, Any]) -> Any:
         rack = self._loop_param(params)
@@ -291,6 +315,31 @@ class UiBindings(presets.PresetEvents):
         p.value = p.min + value * (p.max - p.min)
         result = _parameter(p)
         return {"value": result["value"], "display": result["display"]}
+
+    def _param_select(self, params: dict[str, Any]) -> Any:
+        self._loop_param(params)
+        mode = self.s._mode
+        if not isinstance(mode, pages.ParameterControl) or mode.device_index != params["loop"]:
+            raise MethodError("unavailable", f"loop {params['loop']} is not being edited")
+        parameter = _arg(params, "parameter", int)
+        if parameter not in MACROS:
+            raise MethodError("not_found", f"parameter {parameter} is not a macro")
+        mode._select_macro(se.Pedal(_macro_pedal(parameter) - 1))
+        return {"parameter": parameter}
+
+    def _edit_open(self, params: dict[str, Any]) -> Any:
+        self._loop_param(params)
+        loop = params["loop"]
+        if self.s._page != 2:
+            self.s._show_page(2)
+        self.s._set_mode(pages.ParameterControl(self.s, loop))
+        return {"loop": loop}
+
+    def _edit_close(self, params: dict[str, Any]) -> Any:
+        # Like CTL in ParameterControl: back to the favorites page
+        if isinstance(self.s._mode, pages.ParameterControl):
+            self.s._show_page(self.s._page, announce=False)
+        return {}
 
     def _preset_list(self, params: dict[str, Any]) -> Any:
         return {"names": self._presets().preset_names()}

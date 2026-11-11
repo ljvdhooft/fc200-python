@@ -11,10 +11,10 @@
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
 | 1. Transports         | Approved, implemented                      |
-| 2. Messages           | Approved; 0.3.0 renames not implemented yet |
-| 3. State tree         | Approved; `pedalboard` not implemented yet |
-| 4. Changes            | Approved; rename not implemented yet       |
-| 5. Methods            | Approved; 0.3.0 methods not implemented yet |
+| 2. Messages           | Approved, implemented                      |
+| 3. State tree         | Approved, implemented                      |
+| 4. Changes            | Approved, implemented                      |
+| 5. Methods            | Approved, implemented (mock hub: 0.2 methods only) |
 | 6. Versioning         | Approved                                   |
 | 7. Reconnect          | Approved, implemented                      |
 
