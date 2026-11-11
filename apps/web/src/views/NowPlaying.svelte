@@ -1,16 +1,31 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { connection } from "../lib/client";
   import { appState } from "../lib/state";
   import { hex, number } from "../lib/scene";
   import Lock from "../lib/Lock.svelte";
 
   let fired = $derived($appState.scenes?.fired ?? null);
+  let playing = $derived($appState.transport?.playing ?? false);
+
+  // "playing" while the fired scene is what's playing. Once the transport stops it
+  // is the "last" scene, also when the transport starts again without firing a
+  // scene; firing one makes it "playing" again.
+  let stopped = $state(!($appState.transport?.playing ?? false));
+  $effect(() => {
+    if (!playing) stopped = true;
+  });
+  // Every fire, also of the same scene again, comes as a `scene.fired` event
+  // (resuming the transport doesn't count). Firing starts the transport, so don't
+  // wait for `playing`: it may arrive in a later change.
+  onMount(() => connection.on("scene.fired", () => (stopped = false)));
 </script>
 
 <div class="now">
-  <span class="label">now playing</span>
+  <span class="label">{fired && !stopped ? "playing" : "last"}</span>
   {#if fired}
-    <span class="led"></span>
-    <span class="swatch" style:background={hex(fired.color)}></span>
+    <span class="led" class:off={stopped}></span>
+    <span class="strip" style:background={hex(fired.color)}></span>
     <span class="num">{number(fired)}</span>
     <span class="name">{fired.name}</span>
   {:else}
@@ -34,6 +49,7 @@
     border-radius: var(--radius);
   }
   .label {
+    min-width: 6ch; /* "playing" and "last" take the same room */
     margin-right: var(--space-2);
     font-size: var(--text-label);
     color: var(--text-muted);
@@ -41,11 +57,14 @@
   .muted {
     color: var(--text-muted);
   }
-  .swatch {
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
+  /* the scene colour as a line, like in the list */
+  .strip {
+    align-self: stretch;
+    width: 6px;
     flex: none;
+    /* it belongs to the scene: tight to its number, apart from the light */
+    margin-left: var(--space-2);
+    margin-right: calc(-1 * var(--space-1));
   }
   .led {
     width: 8px;
@@ -54,6 +73,13 @@
     background: var(--accent-on);
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent-on) 60%, transparent);
     flex: none;
+    transition:
+      background var(--motion) var(--ease),
+      box-shadow var(--motion) var(--ease);
+  }
+  .led.off {
+    background: var(--text-muted);
+    box-shadow: none;
   }
   .num {
     color: var(--text-muted);
