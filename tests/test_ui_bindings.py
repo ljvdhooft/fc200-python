@@ -45,14 +45,29 @@ class Surface(FakeSurface):
         super().__init__()
         for rack in self._racks:
             rack.parameters = [Parameter(f"{rack.name} p{i}") for i in range(10)]
+        self.fired = []
         self.scenes = [SimpleNamespace(name=f"Scene {i}", color=i) for i in range(10)]
+        for scene in self.scenes:
+            scene.fire = lambda scene=scene: self.fired.append(scene.name)
         self.song_obj.view.selected_scene = self.scenes[5]
         self.song_obj.scenes = self.scenes
         self.song_obj.tempo = 120.0
         self.song_obj.is_playing = False
         self._fired_scene = None
+        self._transport_page = self._pages[0]
         self._favorites_page = self._pages[2]
+        self._track = SimpleNamespace(name="Guitar")
+        self._track_index = 31
+        self._device = SimpleNamespace(name="FC200 Pedalboard")
+        self._device_index = 4
         self.settings.MIN_PAGE, self.settings.MAX_PAGE = 0, 2
+
+    def _board_track(self):
+        return self._track
+
+    @property
+    def _selected_scene(self):
+        return self.song_obj.view.selected_scene
 
     @property
     def _all_scenes(self):
@@ -74,6 +89,9 @@ class FakePresets:
 
     def preset_names(self):
         return ["A", "B"]
+
+    def missing_json(self):
+        return ["B"]
 
     def get(self, name):
         return SimpleNamespace(to_json=lambda: '{"0": {"parameters": [], "chain": "A"}}') \
@@ -111,9 +129,9 @@ class UiBindingsTest(unittest.TestCase):
 
     # --- State ---
 
-    def test_snapshot(self):
-        state = self.model.snapshot()
-        self.assertEqual(state["version"], "0.2.0")
+    def test_dump(self):
+        state = self.model.dump()
+        self.assertEqual(state["version"], "0.6.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -125,7 +143,7 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(state["loops"][0]["chain"], "B")
         self.assertEqual(state["loops"][0]["favorite"]["parameter"], 6)
         self.assertNotIn("edit", state)   # none = missing
-        self.assertEqual(state["presets"], {"names": ["A", "B"], "pending_overwrite": None,
+        self.assertEqual(state["presets"], {"count": 2, "pending_overwrite": None,
                                             "last": None})
         self.assertEqual(self.s._presets.subscribers, [self.ui])
 
@@ -171,9 +189,9 @@ class UiBindingsTest(unittest.TestCase):
         parameter = self.s._racks[1].parameters[1]
         parameter.value = 127
         self.listeners.fire(parameter, "value")
-        patch = self.model.flush()
-        self.assertEqual(patch["favorite.value"], 1.0)
-        self.assertEqual(patch["loops.1.favorite.value"], 1.0)
+        changes = self.model.flush()
+        self.assertEqual(changes["favorite.value"], 1.0)
+        self.assertEqual(changes["loops.1.favorite.value"], 1.0)
 
         # CTL drops it
         self.s._mode.handle(press(P.CTL))
@@ -192,7 +210,7 @@ class UiBindingsTest(unittest.TestCase):
         self.s._mode.handle(press(P.P3))
         self.s._mode.handle(press(P.P6))   # selects parameter 1
         self.ui.refresh()
-        state = self.model.snapshot()
+        state = self.model.dump()
         self.assertEqual(state["mode"], "parameter_control")
         edit = state["edit"]
         self.assertEqual((edit["loop"], edit["selected"]), (2, 0))
@@ -245,22 +263,22 @@ class UiBindingsTest(unittest.TestCase):
         self.s._mode.handle(press(P.P1))
         mode = self.s._mode
         self.assertIsInstance(mode, pages.ParameterControl)
-        self.call("chain.select", loop=0, chain="A")
+        self.call("loop.chain.select", loop=0, chain="A")
         self.assertEqual(self.s._racks[0].view.selected_chain.name, "A")
         self.assertEqual(mode._chain_index, 0)
-        self.assertEqual(self.error("chain.select", loop=0, chain="Z"), "not_found")
+        self.assertEqual(self.error("loop.chain.select", loop=0, chain="Z"), "not_found")
 
     def test_param_set(self):
-        result = self.call("param.set", loop=0, parameter=2, value=0.5)
+        result = self.call("loop.param.set", loop=0, parameter=2, value=0.5)
         self.assertEqual(result, {"value": 0.5, "display": "64"})
         self.assertEqual(self.s._racks[0].parameters[2].value, 63.5)
-        self.call("param.set", loop=0, parameter=2, value=7)
+        self.call("loop.param.set", loop=0, parameter=2, value=7)
         self.assertEqual(self.s._racks[0].parameters[2].value, 127)     # clamped
-        self.assertEqual(self.error("param.set", loop=0, parameter=9, value=0.5), "not_found")
-        self.assertEqual(self.error("param.set", loop=0, parameter=0, value=0.5), "not_found")
+        self.assertEqual(self.error("loop.param.set", loop=0, parameter=9, value=0.5), "not_found")
+        self.assertEqual(self.error("loop.param.set", loop=0, parameter=0, value=0.5), "not_found")
 
     def test_presets(self):
-        self.assertEqual(self.call("preset.list"), {"names": ["A", "B"]})
+        self.assertEqual(self.call("preset.list"), {"names": ["A", "B"], "missing_json": ["B"]})
         self.assertEqual(self.call("preset.get", name="A"), {"0": {"parameters": [], "chain": "A"}})
         self.assertEqual(self.error("preset.get", name="Z"), "not_found")
         self.assertEqual(self.call("preset.store", scene_index=3), {})
@@ -268,6 +286,43 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.error("preset.store", scene_index=99), "bad_params")
         self.assertEqual(self.call("preset.recall", name="A"), {"found": True})
         self.assertEqual(self.call("preset.cancel"), {"cancelled": False})
+
+    def test_pedalboard(self):
+        self.assertEqual(self.model.get("pedalboard"), {
+            "found": True, "track": "Guitar", "track_index": 31,
+            "device": "FC200 Pedalboard", "device_index": 4})
+
+    def test_scene_select(self):
+        self.assertEqual(self.call("scene.select", index=8), {"index": 8})
+        self.assertEqual(self.model.get("scenes.selected"), 8)
+        self.assertEqual(self.s.fired, [])
+        self.assertEqual(self.error("scene.select", index=10), "not_found")
+
+    def test_scene_fire_works_like_pedal_3_on_any_page(self):
+        self.assertEqual(self.call("scene.fire"), {"index": 5})
+        self.assertEqual(self.s.fired, ["Scene 5"])
+        self.assertEqual(self.model.get("scenes.fired.index"), 5)
+        self.assertEqual(self.model.get("scenes.selected"), 6)
+
+    def test_edit_open_select_close(self):
+        self.s._show_page(0)
+        self.assertEqual(self.call("edit.open", loop=2), {"loop": 2})
+        self.assertEqual((self.model.get("page"), self.model.get("mode")), (2, "parameter_control"))
+        self.assertEqual(self.model.get("edit.loop"), 2)
+
+        self.assertEqual(self.call("loop.param.select", loop=2, parameter=5), {"parameter": 5})
+        self.assertIs(self.s._mode.parameter, self.s._racks[2].parameters[5])
+        self.assertEqual(self.model.get("edit.selected"), 4)
+        self.assertEqual(self.error("loop.param.select", loop=2, parameter=0), "not_found")
+        self.assertEqual(self.error("loop.param.select", loop=3, parameter=1), "unavailable")
+
+        self.assertEqual(self.call("edit.close"), {})
+        self.assertEqual(self.model.get("mode"), "favorites")
+        self.assertIsNone(self.model.get("edit"))
+        self.assertEqual(self.call("edit.close"), {})     # outside edit: nothing happens
+
+    def test_edit_open_unknown_loop(self):
+        self.assertEqual(self.error("edit.open", loop=5), "not_found")
 
 
 if __name__ == "__main__":

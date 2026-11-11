@@ -59,10 +59,10 @@ class LiveLink:
                 log.warning("bad line from Live: %s", e)
                 continue
             name = message.get("event")
-            if name == "state.snapshot":
-                self.hub.on_snapshot(message["data"])
-            elif name == "state.patch":
-                self.hub.on_patch(message["data"])
+            if name == "state.dump":
+                self.hub.on_dump(message["data"])
+            elif name == "state.changed":
+                self.hub.on_changes(message["data"])
             elif name is not None:
                 self.hub.on_event(message)
             else:

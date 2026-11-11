@@ -1,8 +1,15 @@
 {
-  "version": "0.2.0",
+  "version": "0.6.0",
   "page": 2,
   "mode": "parameter_control",
   "tempo": 120.0,
+  "pedalboard": {
+    "found": true,
+    "track": "Guitar",
+    "track_index": 31,
+    "device": "FC200 Pedalboard",
+    "device_index": 4
+  },
   "transport": {
     "playing": false,
     "metronome": true
@@ -273,11 +280,7 @@
     ]
   },
   "presets": {
-    "names": [
-      "Song A",
-      "Song B",
-      "Song C"
-    ],
+    "count": 3,
     "pending_overwrite": null,
     "last": "Song A"
   },

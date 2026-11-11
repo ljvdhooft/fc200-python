@@ -5,7 +5,7 @@ from fc200_hub import ui_protocol as proto
 from fc200_hub.hub import Hub
 from fc200_hub.live_link import LiveLink
 
-from conftest import SNAPSHOT
+from conftest import DUMP
 
 
 async def until(cond, timeout=3.0):
@@ -28,7 +28,7 @@ class FakeScript:
 
     async def _on_client(self, reader, writer):
         self.writers.append(writer)
-        writer.write(proto.encode(proto.event("state.snapshot", SNAPSHOT)))
+        writer.write(proto.encode(proto.event("state.dump", DUMP)))
         while line := await reader.readline():
             msg = json.loads(line)
             self.received.append(msg)
@@ -56,8 +56,8 @@ async def test_link_drop_and_recovery():
         await until(lambda: hub.live_connected and hub.state)
         assert hub.state["hub"]["live_connected"] is True
 
-        # patches from the script update the cache
-        script.writers[0].write(proto.encode(proto.event("state.patch", {"tempo": 77.0})))
+        # changes from the script update the cache
+        script.writers[0].write(proto.encode(proto.event("state.changed", {"tempo": 77.0})))
         await until(lambda: hub.state["tempo"] == 77.0)
 
         # request round trip with a rewritten id
@@ -71,11 +71,11 @@ async def test_link_drop_and_recovery():
         assert hub.state["tempo"] == 77.0
         assert (await hub.request("page.set", {}))["error"]["code"] == "live_offline"
 
-        # recovery: a new script on the same port, snapshot replaces the cache
+        # recovery: a new script on the same port, dump replaces the cache
         script2 = FakeScript()
         await script2.start(port)
-        # live_connected flips on connect, the snapshot follows a moment later
-        await until(lambda: hub.live_connected and hub.state["tempo"] == SNAPSHOT["tempo"])
+        # live_connected flips on connect, the dump follows a moment later
+        await until(lambda: hub.live_connected and hub.state["tempo"] == DUMP["tempo"])
         assert hub.state["hub"]["live_connected"] is True
         await script2.stop()
     finally:

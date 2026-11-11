@@ -3,8 +3,8 @@ for the hub, and for `nc` while debugging.
 
 There are no threads: FC200 calls poll() from update_display, so requests run on
 Live's main thread like pedal events. One poll handles the requests that came in,
-sends the StateModel's patch to the connected clients and greets new clients
-with a snapshot. Sockets are non-blocking, and what a client can't take yet is
+sends the StateModel's changes to the connected clients and greets new clients
+with a dump. Sockets are non-blocking, and what a client can't take yet is
 queued per client.
 
 Handlers raise MethodError for an error response. Any other exception becomes
@@ -72,10 +72,10 @@ class UiGateway:
             return
         for client in list(self._clients):
             self._receive(client)
-        patch = self._model.flush()
-        if patch is not None:
+        changes = self._model.flush()
+        if changes is not None:
             for client in list(self._clients):
-                self._queue(client, proto.event("state.patch", patch))
+                self._queue(client, proto.event("state.changed", changes))
         self._accept()
         for client in list(self._clients):
             self._send(client)
@@ -103,7 +103,7 @@ class UiGateway:
             sock.setblocking(False)
             client = _Client(sock)
             self._clients.append(client)
-            self._queue(client, proto.event("state.snapshot", self._model.snapshot()))
+            self._queue(client, proto.event("state.dump", self._model.dump()))
 
     def _receive(self, client: _Client) -> None:
         while True:
@@ -119,19 +119,24 @@ class UiGateway:
             client.inbox += data
         *lines, client.inbox = client.inbox.split(b"\n")
         for line in lines:
-            reply = self._answer(line) if line.strip() else None
-            if reply is not None:
+            for reply in self._answer(line) if line.strip() else []:
                 self._queue(client, reply)
 
-    def _answer(self, line: bytes) -> proto.Message | None:
-        """The response to a request line; None for events and responses, which
-        clients have no reason to send."""
+    def _answer(self, line: bytes) -> list[proto.Message]:
+        """What to send back for one line: the response to a request, nothing for
+        events and responses (clients have no reason to send those)."""
         try:
             message = proto.decode(line)
         except proto.ProtocolError as e:
-            return proto.error_response(None, "bad_params", str(e))
+            return [proto.error_response(None, "bad_params", str(e))]
         if "method" not in message:
-            return None
+            return []
+        if message["method"] == "state.dump":
+            # Built in: the gateway owns the model. The dump goes to this client only.
+            return [proto.response(message["id"], {}), proto.event("state.dump", self._model.dump())]
+        return [self._call(message)]
+
+    def _call(self, message: proto.Message) -> proto.Message:
         id = message["id"]
         handler = self._handlers.get(message["method"])
         if handler is None:
