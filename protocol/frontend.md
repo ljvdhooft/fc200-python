@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.9.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.10.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -13,6 +13,7 @@
 | 0.7.0   | `scene.list`: every scene in the set, for browsing                      |
 | 0.8.0   | `scene.fired` event; `scenes.fired` also follows launches in Ableton    |
 | 0.9.0   | `transport.play`, `transport.stop`, `metronome.set`, `scene.fire_and_stop` |
+| 0.10.0  | `tuner` node: note and cents while the volume is 0                    |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -227,6 +228,22 @@ by the file system, so as case-insensitively as macOS and Live.
 The names themselves are not in the state: the list can be long and every dump would
 carry it. A client that shows them asks `preset.list` and asks again when `count`
 changes or a `preset.saved` event arrives.
+
+### `tuner`
+
+The pedalboard's tuner, present only while the volume (EXP, `LOOP_VOLUME`) is at 0,
+which is when the FC-200 shows it on the bank display. Missing/`null` otherwise and
+without a pedalboard. Whether a client shows it, and how, is up to the client.
+
+| Field     | Type   | Meaning                                                   | Source                                            |
+|-----------|--------|-----------------------------------------------------------|---------------------------------------------------|
+| `note`    | string | Detected note: `"C"`, `"C#"` .. `"B"`                     | tuner device `parameters[2]` mod 12               |
+| `cents`   | float  | Deviation in cents, including the reference offset (~-50..50) | tuner `parameters[1]` - 50 + (rack `parameters[1]` - 64) |
+| `in_tune` | bool   | Within the bank display's tolerance (±2 cents)           | `FC200._tuner_reading`                            |
+
+The tuner device is `track.devices[TUNER_RACK].chains[TUNER_CHAIN].devices[TUNER_DEVICE]`
+(`config.Settings`). The values follow its listeners, so they change often while a
+string sounds; the model drops repeats.
 
 ### `hub`
 

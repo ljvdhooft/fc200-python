@@ -61,6 +61,14 @@ class Surface(FakeSurface):
         self._device = SimpleNamespace(name="FC200 Pedalboard")
         self._device_index = 4
         self.settings.MIN_PAGE, self.settings.MAX_PAGE = 0, 2
+        self.settings.TUNER_TOLERANCE = 2
+        self._volume_param = Parameter("Volume", 100)
+        self._tuner_device = SimpleNamespace(parameters=[Parameter(f"Tuner p{i}") for i in range(3)])
+        self._tuner_rack = SimpleNamespace(parameters=[Parameter(f"Tuner rack p{i}") for i in range(2)])
+        self.tuner = ("a#", 0.0)
+
+    def _tuner_reading(self):
+        return self.tuner
 
     def _board_track(self):
         return self._track
@@ -132,7 +140,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.9.0")
+        self.assertEqual(state["version"], "0.10.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -147,6 +155,24 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(state["presets"], {"count": 2, "pending_overwrite": None,
                                             "last": None})
         self.assertEqual(self.s._presets.subscribers, [self.ui])
+
+    def test_tuner_only_while_the_volume_is_0(self):
+        self.assertNotIn("tuner", self.model.dump())
+        self.s._volume_param.value = 0
+        self.s.tuner = ("a#", -3.0)
+        self.listeners.fire(self.s._volume_param, "value")
+        self.assertEqual(self.model.flush(),
+                         {"tuner": {"note": "A#", "cents": -3.0, "in_tune": False}})
+
+        cents = self.s._tuner_device.parameters[1]
+        self.s.tuner = ("a#", 1.0)
+        self.listeners.fire(cents, "value")
+        self.assertEqual(self.model.flush(),
+                         {"tuner": {"note": "A#", "cents": 1.0, "in_tune": True}})
+
+        self.s._volume_param.value = 64
+        self.listeners.fire(cents, "value")
+        self.assertEqual(self.model.flush(), {"tuner": None})
 
     def test_scene_window_is_clipped(self):
         self.s.song_obj.view.selected_scene = self.s.scenes[1]

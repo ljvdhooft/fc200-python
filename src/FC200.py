@@ -296,25 +296,28 @@ class FC200(ControlSurface):
         self._volume_param.value = value
         self._volume = value
 
+    def _tuner_reading(self) -> tuple[str, float]:
+        """The tuner's note ("c" .. "b", "#" for sharps) and its deviation in
+        cents, including the rack's reference offset."""
+        note = int(self._tuner_device.parameters[2].value) % 12
+        cents: float = int(self._tuner_device.parameters[1].value) - 50
+        notes = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
+        offset = (float(self._tuner_rack.parameters[1].value) - 64) / 1.
+        return notes[note], cents + offset
+
     def _display_tuner(self) -> None:
         if self._volume > 0:
             return
         if not self._mode.shows_tuner:
             return
-        note = int(self._tuner_device.parameters[2].value) % 12
-        cents: float = int(self._tuner_device.parameters[1].value) - 50
-        notes = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
-        note_a = notes[note]
+        note_a, cents = self._tuner_reading()
         sharp = False
         if len(note_a) == 2:
             note_a = note_a[0]
             sharp = True
 
-        offset = (float(self._tuner_rack.parameters[1].value) - 64) / 1.
-        cents += offset
-
         binary = 0 if sharp == False else 4
-        tolerance = 2
+        tolerance = self.settings.TUNER_TOLERANCE
         if (tolerance * -1) < cents < tolerance:
             binary += 64
         if cents <= (tolerance * -1):
