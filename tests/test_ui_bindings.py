@@ -159,11 +159,11 @@ class UiBindingsTest(unittest.TestCase):
         self.listeners.fire(rack.view, "selected_chain")
         self.assertEqual(self.model.flush(), {"loops.0.chain": "C"})
 
-    def test_picking_a_favorite(self):
+    def test_selecting_a_favorite(self):
         self.s._mode.handle(press(P.P2))
         self.ui.refresh()
         self.assertEqual(self.model.flush(), {
-            "loops.1.favorite.picked": True,
+            "loops.1.favorite.selected": True,
             "favorite": {"loop": 1, "pedal": 2, "loop_name": "Loop 1", "parameter": 1,
                          "name": "Loop 1 p1", "value": 0.0, "display": "0"},
         })
@@ -179,7 +179,7 @@ class UiBindingsTest(unittest.TestCase):
         # CTL drops it
         self.s._mode.handle(press(P.CTL))
         self.ui.refresh()
-        self.assertEqual(self.model.flush(), {"loops.1.favorite.picked": False, "favorite": None})
+        self.assertEqual(self.model.flush(), {"loops.1.favorite.selected": False, "favorite": None})
 
     def test_favorite_gives_way_to_parameter_control(self):
         self.s._mode.handle(press(P.P2))
@@ -191,11 +191,11 @@ class UiBindingsTest(unittest.TestCase):
     def test_parameter_control(self):
         self.s._mode.handle(press(P.P3))
         self.s._mode.handle(press(P.P3))
-        self.s._mode.handle(press(P.P6))   # picks parameter 1
+        self.s._mode.handle(press(P.P6))   # selects parameter 1
         self.ui.refresh()
         state = self.model.snapshot()
         self.assertEqual(state["mode"], "parameter_control")
-        self.assertFalse(state["loops"][2]["favorite"]["picked"])
+        self.assertFalse(state["loops"][2]["favorite"]["selected"])
         edit = state["edit"]
         self.assertEqual((edit["loop"], edit["selected"]), (2, 0))
         self.assertEqual([m["parameter"] for m in edit["macros"]], list(range(1, 9)))

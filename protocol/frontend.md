@@ -5,7 +5,7 @@
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
 | 0.1.0   | First version; folds in and supersedes `presets.md` §3                  |
-| 0.2.0   | `favorite` node: the picked favorite on page 2                          |
+| 0.2.0   | `favorite` node; `loops[].favorite.picked` renamed to `selected`        |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -129,23 +129,24 @@ is a rack on the pedalboard (`FC200._loop(index)`).
 | `name`      | string | Parameter name                                               | `DeviceParameter.name`                      |
 | `value`     | float  | Normalised value                                             | `DeviceParameter.value`                     |
 | `display`   | string | Live's display string                                        | `DeviceParameter.str_for_value`             |
-| `picked`    | bool   | This favorite is the one the expression pedal controls       | `FavoritesPage.pedal` / `.parameter`        |
+| `selected`  | bool   | This favorite is the one the expression pedal controls       | `FavoritesPage.pedal` / `.parameter`        |
 
 ### `favorite`
 
 The favorite the expression pedal controls on page 2 (`FavoritesPage`), between
-picking it with a number pedal and either dropping it (CTL, leaving the page) or
+selecting it with a number pedal and either dropping it (CTL, leaving the page) or
 pressing the same pedal again to enter `parameter_control`. Missing/`null` otherwise.
 
 | Field       | Type   | Meaning                                         | Source                                   |
 |-------------|--------|-------------------------------------------------|------------------------------------------|
 | `loop`      | int    | Board device index of the loop (`loops[].index`)| `LOOP_MAPPING[FavoritesPage.pedal]`      |
-| `pedal`     | int    | Number pedal that picked it (1-based)           | `FavoritesPage.pedal` + 1                |
+| `pedal`     | int    | Number pedal that selected it (1-based)         | `FavoritesPage.pedal` + 1                |
 | `loop_name` | string | Loop name                                       | `RackDevice.name`                        |
 | `parameter` | int    | Parameter index within the loop                 | `FAVORITE_PARAMETERS[pedal]`             |
 | `name`, `value`, `display` | | As for `loops[].favorite`                | `FavoritesPage.parameter`                |
 
-`loops[].favorite.picked` marks the same loop in the list.
+`loops[].favorite.selected` marks the same loop in the list. The name follows
+`ParameterControl.selected`, which `edit.selected` mirrors.
 
 ### `edit`
 
@@ -217,7 +218,7 @@ changes state; the new state arrives as a patch (the result does not replace it)
 
 - `loop` is a board device index (`loops[].index`), not a position. `value` is normalised 0..1; the script clamps it.
 - `page.set` calls `FC200._show_page`: it leaves `parameter_control` and drops a favorite or pending overwrite, like a bank pedal.
-- `param.set` accepts `parameter` 1..8 (macros) and the loop's favorite parameter. It does **not** change what the expression pedal controls (`picked` / `selected`).
+- `param.set` accepts `parameter` 1..8 (macros) and the loop's favorite parameter. It does **not** change what the expression pedal controls (`selected`).
 - `chain.select` matches the chain by name, like a preset recall. While the loop is being edited, the script keeps `ParameterControl`'s chain index in sync.
 - `preset.store` and `preset.recall` behave exactly as `PresetManager.store` / `recall`; a second `preset.store` for the same name confirms an overwrite, `preset.cancel` drops it.
 - `preset.state` from `presets.md` §3 is replaced by the `presets` state node.
@@ -264,7 +265,7 @@ the mock hub and for tests.
 
 1. **`hub.status` vs `hub` node:** both carry `live_connected`. Keep both, or drop the event and let the hub patch `hub.live_connected`?
 2. **Scene control:** no `scene.select` / `scene.fire` method in 0.1.0 (the brief names only `page.set`, `chain.select`, `param.set`, `preset.*`). Add them?
-3. **Entering edit mode:** no way yet to start `parameter_control` or to pick the expression pedal's target (`picked` / `selected`) from a client. Add `edit.open {loop}`, `edit.close`, `param.pick`?
+3. **Entering edit mode:** no way yet to start `parameter_control` or to select the expression pedal's target (`selected`) from a client. Add `edit.open {loop}`, `edit.close`, `param.select`?
 4. **`transport` node:** added beyond the brief's module list (playing/metronome are real LED state). Keep?
 5. **`presets.last`:** the script keeps no such value today; it would be set by the frontend `PresetEvents` subscriber (saved or recalled?).
 6. **`param.set` scope:** limited to macros and the favorite for now. Any parameter, or the loop on/off too?

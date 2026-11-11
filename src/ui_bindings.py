@@ -3,7 +3,7 @@
 
 Live state that changes on its own (tempo, transport, scenes, loop parameters
 and chains) is followed with listeners. State the pedals change (page, mode,
-picked favorite, edited loop, fired scene) is re-read by refresh(), which FC200
+selected favorite, edited loop, fired scene) is re-read by refresh(), which FC200
 calls on every update_display tick and the methods call when they're done. The
 model drops values that didn't change, so refreshing often costs nothing on the
 wire.
@@ -45,7 +45,7 @@ def _parameter(p: DeviceParameter) -> dict[str, Any]:
 
 
 def _macro_pedal(parameter: int) -> int:
-    """The 1-based number pedal that picks a macro in ParameterControl:
+    """The 1-based number pedal that selects a macro in ParameterControl:
     parameters 1-4 -> pedals 6-9, parameters 5-8 -> pedals 1-4."""
     return parameter + 5 if parameter <= 4 else parameter - 4
 
@@ -105,8 +105,8 @@ class UiBindings(presets.PresetEvents):
 
         favorite = self._favorite_state()
         for pos in range(self._loop_count):
-            picked = favorite is not None and favorite["pedal"] == pos + 1
-            self.model.set(f"loops.{pos}.favorite.picked", picked)
+            selected = favorite is not None and favorite["pedal"] == pos + 1
+            self.model.set(f"loops.{pos}.favorite.selected", selected)
         self.model.set("favorite", favorite)
         self.model.set("edit", self._edit_state())
 
@@ -137,7 +137,7 @@ class UiBindings(presets.PresetEvents):
             "chain": rack.view.selected_chain.name,
             "chains": [c.name for c in rack.chains],
             "favorite": {"parameter": favorite, **_parameter(rack.parameters[favorite]),
-                         "picked": False},
+                         "selected": False},
         }
 
     def _favorite_state(self) -> dict[str, Any] | None:
@@ -192,10 +192,10 @@ class UiBindings(presets.PresetEvents):
         if index == 0:
             self.model.set(f"loops.{pos}.on", p.value != 0)
         if index == self.s.settings.FAVORITE_PARAMETERS[pos]:
-            picked = self.model.get("favorite.pedal") == pos + 1
+            selected = self.model.get("favorite.pedal") == pos + 1
             for key, value in _parameter(p).items():
                 self.model.set(f"loops.{pos}.favorite.{key}", value)
-                if picked:
+                if selected:
                     self.model.set(f"favorite.{key}", value)
         edit = self.model.get("edit")
         if edit is not None and edit["loop"] == self.s.settings.LOOP_MAPPING[pos] and index in MACROS:

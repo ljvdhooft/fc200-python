@@ -69,7 +69,7 @@
         "name": "Ratio",
         "value": 0.35,
         "display": "3.5:1",
-        "picked": false
+        "selected": false
       }
     },
     {
@@ -88,7 +88,7 @@
         "name": "Gain",
         "value": 0.42,
         "display": "4.2",
-        "picked": false
+        "selected": false
       }
     },
     {
@@ -106,7 +106,7 @@
         "name": "Fuzz",
         "value": 0.6,
         "display": "60 %",
-        "picked": false
+        "selected": false
       }
     },
     {
@@ -124,7 +124,7 @@
         "name": "Rate",
         "value": 0.25,
         "display": "0.8 Hz",
-        "picked": false
+        "selected": false
       }
     },
     {
@@ -141,7 +141,7 @@
         "name": "Rate",
         "value": 0.3,
         "display": "1.1 Hz",
-        "picked": false
+        "selected": false
       }
     },
     {
@@ -159,7 +159,7 @@
         "name": "Time",
         "value": 0.5,
         "display": "1/8",
-        "picked": false
+        "selected": false
       }
     },
     {
@@ -178,7 +178,7 @@
         "name": "Decay",
         "value": 0.45,
         "display": "2.4 s",
-        "picked": false
+        "selected": false
       }
     },
     {
@@ -196,7 +196,7 @@
         "name": "Shift",
         "value": 0.5,
         "display": "0 st",
-        "picked": false
+        "selected": false
       }
     },
     {
@@ -214,7 +214,7 @@
         "name": "Freq",
         "value": 0.7,
         "display": "1.2 kHz",
-        "picked": false
+        "selected": false
       }
     }
   ],
