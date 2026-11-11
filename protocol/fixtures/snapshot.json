@@ -1,0 +1,296 @@
+{
+  "version": "0.1.0",
+  "page": 2,
+  "mode": "parameter_control",
+  "tempo": 120.0,
+  "transport": {
+    "playing": false,
+    "metronome": true
+  },
+  "scenes": {
+    "count": 20,
+    "selected": 12,
+    "fired": {
+      "index": 11,
+      "name": "Verse 2",
+      "color": 65280
+    },
+    "window": [
+      {
+        "index": 9,
+        "name": "Intro",
+        "color": 16711680
+      },
+      {
+        "index": 10,
+        "name": "Verse 1",
+        "color": 65280
+      },
+      {
+        "index": 11,
+        "name": "Chorus 1",
+        "color": 255
+      },
+      {
+        "index": 12,
+        "name": "Verse 2",
+        "color": 65280
+      },
+      {
+        "index": 13,
+        "name": "Chorus 2",
+        "color": 255
+      },
+      {
+        "index": 14,
+        "name": "Bridge",
+        "color": 16776960
+      },
+      {
+        "index": 15,
+        "name": "Outro",
+        "color": 16711935
+      }
+    ]
+  },
+  "loops": [
+    {
+      "index": 0,
+      "pedal": 1,
+      "name": "Comp",
+      "on": true,
+      "chain": "Opto",
+      "chains": [
+        "Opto",
+        "FET"
+      ],
+      "favorite": {
+        "parameter": 6,
+        "name": "Ratio",
+        "value": 0.35,
+        "display": "3.5:1",
+        "picked": false
+      }
+    },
+    {
+      "index": 1,
+      "pedal": 2,
+      "name": "Drive",
+      "on": true,
+      "chain": "TS808",
+      "chains": [
+        "TS808",
+        "Klon",
+        "Rat"
+      ],
+      "favorite": {
+        "parameter": 1,
+        "name": "Gain",
+        "value": 0.42,
+        "display": "4.2",
+        "picked": false
+      }
+    },
+    {
+      "index": 2,
+      "pedal": 3,
+      "name": "Fuzz",
+      "on": false,
+      "chain": "Muff",
+      "chains": [
+        "Muff",
+        "Octave"
+      ],
+      "favorite": {
+        "parameter": 1,
+        "name": "Fuzz",
+        "value": 0.6,
+        "display": "60 %",
+        "picked": false
+      }
+    },
+    {
+      "index": 3,
+      "pedal": 4,
+      "name": "Chorus",
+      "on": false,
+      "chain": "Chorus",
+      "chains": [
+        "Chorus",
+        "Vibe"
+      ],
+      "favorite": {
+        "parameter": 1,
+        "name": "Rate",
+        "value": 0.25,
+        "display": "0.8 Hz",
+        "picked": false
+      }
+    },
+    {
+      "index": 4,
+      "pedal": 5,
+      "name": "Phaser",
+      "on": false,
+      "chain": "Phase 90",
+      "chains": [
+        "Phase 90"
+      ],
+      "favorite": {
+        "parameter": 1,
+        "name": "Rate",
+        "value": 0.3,
+        "display": "1.1 Hz",
+        "picked": false
+      }
+    },
+    {
+      "index": 6,
+      "pedal": 6,
+      "name": "Delay",
+      "on": true,
+      "chain": "Tape",
+      "chains": [
+        "Tape",
+        "Digital"
+      ],
+      "favorite": {
+        "parameter": 1,
+        "name": "Time",
+        "value": 0.5,
+        "display": "1/8",
+        "picked": false
+      }
+    },
+    {
+      "index": 7,
+      "pedal": 7,
+      "name": "Reverb",
+      "on": true,
+      "chain": "Hall",
+      "chains": [
+        "Room",
+        "Hall",
+        "Shimmer"
+      ],
+      "favorite": {
+        "parameter": 2,
+        "name": "Decay",
+        "value": 0.45,
+        "display": "2.4 s",
+        "picked": false
+      }
+    },
+    {
+      "index": 8,
+      "pedal": 8,
+      "name": "Pitch",
+      "on": false,
+      "chain": "POG",
+      "chains": [
+        "POG",
+        "Whammy"
+      ],
+      "favorite": {
+        "parameter": 1,
+        "name": "Shift",
+        "value": 0.5,
+        "display": "0 st",
+        "picked": false
+      }
+    },
+    {
+      "index": 9,
+      "pedal": 9,
+      "name": "Wah",
+      "on": false,
+      "chain": "Vox",
+      "chains": [
+        "Cry",
+        "Vox"
+      ],
+      "favorite": {
+        "parameter": 2,
+        "name": "Freq",
+        "value": 0.7,
+        "display": "1.2 kHz",
+        "picked": false
+      }
+    }
+  ],
+  "edit": {
+    "loop": 2,
+    "name": "Fuzz",
+    "selected": 4,
+    "macros": [
+      {
+        "parameter": 1,
+        "pedal": 6,
+        "name": "Level",
+        "value": 0.1,
+        "display": "10 %"
+      },
+      {
+        "parameter": 2,
+        "pedal": 7,
+        "name": "Gain",
+        "value": 0.2,
+        "display": "20 %"
+      },
+      {
+        "parameter": 3,
+        "pedal": 8,
+        "name": "Tone",
+        "value": 0.3,
+        "display": "30 %"
+      },
+      {
+        "parameter": 4,
+        "pedal": 9,
+        "name": "Mix",
+        "value": 0.4,
+        "display": "40 %"
+      },
+      {
+        "parameter": 5,
+        "pedal": 1,
+        "name": "Rate",
+        "value": 0.5,
+        "display": "50 %"
+      },
+      {
+        "parameter": 6,
+        "pedal": 2,
+        "name": "Depth",
+        "value": 0.6,
+        "display": "60 %"
+      },
+      {
+        "parameter": 7,
+        "pedal": 3,
+        "name": "Feedback",
+        "value": 0.7,
+        "display": "70 %"
+      },
+      {
+        "parameter": 8,
+        "pedal": 4,
+        "name": "Time",
+        "value": 0.8,
+        "display": "80 %"
+      }
+    ]
+  },
+  "presets": {
+    "names": [
+      "Song A",
+      "Song B",
+      "Song C"
+    ],
+    "pending_overwrite": null,
+    "last": "Song A"
+  },
+  "hub": {
+    "live_connected": true
+  }
+}
