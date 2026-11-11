@@ -37,4 +37,11 @@ describe("optimistic view", () => {
     appState.set({ scenes: { count: 9, selected: 5, fired: null, window: [] } });
     want(get(view).scenes?.fired).toBeNull();
   });
+
+  it("doesn't hold a value the state already has, so the next change shows", () => {
+    appState.set({ presets: { count: 1, pending_overwrite: null, last: null } });
+    expect("presets.pending_overwrite", null); // Ableton was quicker
+    appState.set({ presets: { count: 1, pending_overwrite: "Verse", last: null } });
+    want(get(view).presets?.pending_overwrite).toBe("Verse");
+  });
 });

@@ -13,6 +13,12 @@ const expected = writable<Record<string, unknown>>({});
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function expect(path: string, value: unknown): void {
+  // Already so (e.g. Ableton was quicker): nothing to wait for, and waiting would
+  // hide the next change until the timeout
+  if (same(read(get(appState), path), value)) {
+    drop(path);
+    return;
+  }
   expected.update((e) => ({ ...e, [path]: value }));
   clearTimeout(timers.get(path));
   timers.set(path, setTimeout(() => drop(path), CONFIRM));
@@ -27,7 +33,8 @@ function drop(path: string): void {
 const read = (state: unknown, path: string): unknown =>
   path.split(".").reduce<unknown>((node, key) => (node as Record<string, unknown> | undefined)?.[key], state);
 
-const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+// Missing and null mean the same (protocol/frontend.md §3)
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 // Confirmed: Ableton reports what we expected
 appState.subscribe((state) => {

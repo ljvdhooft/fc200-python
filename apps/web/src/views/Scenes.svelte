@@ -1,7 +1,7 @@
 <script lang="ts">
   import { connection } from "../lib/client";
   import { appState, abletonConnected, type Scene } from "../lib/state";
-  import { interactive, keepInteractive, session, wake } from "../lib/touch";
+  import { holdInteractive, interactive, keepInteractive, session, wake } from "../lib/touch";
   import { fade } from "svelte/transition";
   import { ease, FADE, GLIDE } from "../lib/motion";
   import { hex, number } from "../lib/scene";
@@ -167,12 +167,60 @@
     expect("transport.metronome", on);
     connection.send("metronome.set", { on });
   }
-  let pendingOverwrite = $derived(($appState.presets?.pending_overwrite as string | null | undefined) ?? null);
+  // Ahead of Ableton (lib/optimistic): cancelling drops it at once
+  let pendingOverwrite = $derived(($view.presets?.pending_overwrite as string | null | undefined) ?? null);
   let canStore = $derived($appState.presets !== undefined);
   function store() {
-    // a second store of the same scene confirms an overwrite
+    // a second store of the same scene confirms an overwrite: that one can only save,
+    // so it shows "stored" at once (a save_failed event still turns it red)
+    if (pendingOverwrite !== null) showStored("saved");
+    else {
+      stored = null; // a new store: drop an old outcome, so its own can show
+      storing = true; // lit until the outcome shows (or CONFIRM passes)
+    }
+    clearTimeout(storingTimer);
+    storingTimer = setTimeout(() => (storing = false), CONFIRM);
     connection.send("preset.store", { scene_index: selected });
   }
+  const CONFIRM = 2000;
+  let storing = $state(false);
+  let storingTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    if (stored !== null || pendingOverwrite !== null) storing = false;
+  });
+  // A pending overwrite keeps touch mode on until it is confirmed or cancelled
+  $effect(() => {
+    if (pendingOverwrite !== null) return holdInteractive();
+  });
+  let cancelling = $state(false);
+  function cancelOverwrite() {
+    // lit for a moment, then everything closes (ahead of Ableton)
+    cancelling = true;
+    connection.send("preset.cancel");
+    setTimeout(() => {
+      expect("presets.pending_overwrite", null);
+      cancelling = false;
+    }, 120);
+  }
+  // The store's outcome, shown on the button for a moment
+  const RESULT = 1500;
+  let stored = $state<"saved" | "failed" | null>(null);
+  let storedTimer: ReturnType<typeof setTimeout> | undefined;
+  function showStored(result: "saved" | "failed") {
+    stored = result;
+    clearTimeout(storedTimer);
+    storedTimer = setTimeout(() => (stored = null), RESULT);
+  }
+  $effect(() => {
+    // only when not already showing it: a confirmed overwrite showed it on the tap
+    const offSaved = connection.on("preset.saved", () => stored !== "saved" && showStored("saved"));
+    const offFailed = connection.on("preset.save_failed", () => showStored("failed"));
+    return () => {
+      offSaved();
+      offFailed();
+      clearTimeout(storedTimer);
+    };
+  });
 
   // Fire and stop: the scene's clips recall their presets without anything playing
   // The selected scene becomes the fired one, ahead of Ableton
@@ -220,6 +268,15 @@
       </li>
     {/each}
   </ol>
+  {#if pendingOverwrite !== null && stored === null}
+    <!-- information only: the choice is on the side column, which stays clear -->
+    <div class="overwrite-info" transition:fade={{ duration: FADE }}>
+      <div class="card">
+        <span class="label">overwrite preset?</span>
+        <span class="name">{pendingOverwrite}</span>
+      </div>
+    </div>
+  {/if}
 
   <!-- Always in the layout: its height animates with the slide, so the list
        re-centres in the same motion instead of jumping when the slide ends -->
@@ -241,14 +298,28 @@
 <Drawer open={$interactive} edge="side">
 <div class="side-buttons">
   <!-- top to bottom: store, metronome, play, stop (stop in the corner) -->
+  {#if pendingOverwrite !== null && stored === null}
+  <!-- An overwrite waits: store splits into confirm and cancel, blinking in turn -->
+  <div class="overwrite-choice">
+    <button class="confirm" disabled={!$abletonConnected} onclick={store} aria-label="confirm overwrite">
+      <svg class="outline" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+    </button>
+    <button class="cancel" class:cancelling disabled={!$abletonConnected} onclick={cancelOverwrite} aria-label="cancel overwrite">
+      <svg class="outline" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
+  </div>
+  {:else}
   <button
     class="store"
-    class:pending={pendingOverwrite !== null}
+    class:saved={stored === "saved"}
+    class:storing
+    class:failed={stored === "failed"}
     disabled={!$abletonConnected || !canStore || selected < 0}
     onclick={store}
   >
-    {pendingOverwrite !== null ? "overwrite?" : "store"}
+    {#if stored === "saved"}stored ✓{:else if stored === "failed"}failed{:else}store{/if}
   </button>
+  {/if}
   <button
     class="metronome"
     class:on={metronome}
@@ -425,22 +496,111 @@
     border-color: var(--accent-on);
     background: var(--accent-on);
   }
-  /* waiting for a second store to confirm: the one blinking thing */
-  .store.pending {
-    color: var(--status-error);
-    border-color: var(--status-error);
-    animation: overwrite 1s steps(2, jump-none) infinite;
+  /* Overwrite: confirm and cancel take the store button's place; confirm blinks */
+  .overwrite-choice {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
   }
-  @keyframes overwrite {
+  .overwrite-choice button {
+    flex: 1;
+    min-height: 0;
+  }
+  .overwrite-choice svg {
+    width: 28px;
+    height: 28px;
+    stroke-width: 2.4;
+  }
+  /* red and dark in turn, the icon always readable */
+  .overwrite-choice .confirm {
+    color: var(--text);
+    border-color: var(--status-error);
+    background: var(--status-error);
+    animation: blink 1s steps(2, jump-none) infinite;
+  }
+  .overwrite-choice .cancel.cancelling {
+    color: var(--bg);
+    border-color: var(--text);
+    background: var(--text);
+  }
+  @keyframes blink {
     50% {
-      border-color: var(--border);
+      color: var(--status-error);
+      background: var(--panel-2);
+    }
+  }
+  @media (orientation: portrait) {
+    .overwrite-choice {
+      flex-direction: row;
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .store.pending {
+    .overwrite-choice button {
       animation: none;
     }
   }
+  /* over the list and controls, the page blurred behind; touches go through */
+  .body {
+    position: relative;
+  }
+  /* above the list, under the drawers (z-index 1): the buttons stay sharp */
+  .overwrite-info {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    padding: var(--space-3) 0 var(--space-3) var(--space-5);
+    background: color-mix(in srgb, var(--bg) 30%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .overwrite-info .card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-5);
+    background: var(--panel);
+    border: 1px solid var(--status-error);
+    border-radius: calc(var(--radius) * 2);
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.6);
+    width: min(560px, 100%);
+  }
+  /* landscape: clear of the side column floating over the list's edge */
+  @media (orientation: landscape) {
+    .overwrite-info .card {
+      width: min(560px, 100% - var(--side) - var(--space-2) - var(--space-5));
+    }
+    :global(:root[data-island="right"]) .overwrite-info .card {
+      margin-left: calc(var(--side) + var(--space-2));
+      margin-right: var(--space-5);
+    }
+  }
+  .overwrite-info .label {
+    font-size: var(--text-name);
+    color: var(--text-muted);
+  }
+  /* the name is what matters: big, on its own line */
+  .overwrite-info .name {
+    font-size: var(--text-scene);
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--status-error);
+    overflow-wrap: anywhere;
+  }
+  /* the store's outcome, for a moment */
+  .store.saved {
+    color: var(--status-live);
+    border-color: var(--status-live);
+    background: color-mix(in srgb, var(--status-live) 12%, var(--panel-2));
+  }
+  .store.failed {
+    color: var(--status-error);
+    border-color: var(--status-error);
+    background: color-mix(in srgb, var(--status-error) 12%, var(--panel-2));
+  }
+  .side .store.storing,
   .side button:active:not(:disabled) {
     filter: brightness(1.3);
   }
