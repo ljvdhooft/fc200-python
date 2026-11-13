@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.10.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.11.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -14,6 +14,7 @@
 | 0.8.0   | `scene.fired` event; `scenes.fired` also follows launches in Ableton    |
 | 0.9.0   | `transport.play`, `transport.stop`, `metronome.set`, `scene.fire_and_stop` |
 | 0.10.0  | `tuner` node: note, cents and tolerance while the volume is 0          |
+| 0.11.0  | `loops[].macros`: every loop carries its 8 macros                       |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -164,6 +165,7 @@ is a rack on the pedalboard (`FC200._loop(index)`).
 | `chain`    | string      | Selected chain name                                      | `RackDevice.view.selected_chain.name`                |
 | `chains`   | string[]    | All chain names, in order                                | `[c.name for c in RackDevice.chains]`                |
 | `favorite` | object/null | The loop's favorite parameter (page 2); see below        | `parameters[FAVORITE_PARAMETERS[n]]`                 |
+| `macros`   | list        | The loop's 8 macros, in parameter order                  | `RackDevice.parameters[1..8]`                        |
 
 `favorite`:
 
@@ -173,6 +175,10 @@ is a rack on the pedalboard (`FC200._loop(index)`).
 | `name`      | string | Parameter name                                               | `DeviceParameter.name`                      |
 | `value`     | float  | Normalised value                                             | `DeviceParameter.value`                     |
 | `display`   | string | Live's display string                                        | `DeviceParameter.str_for_value`             |
+
+A `macros` entry: `parameter` (int, 1..8), `name`, `value`, `display` (as for
+`favorite`). Clients edit a loop with them without entering `parameter_control`
+(`loop.param.set`); `edit.macros` adds the pedal mapping for that mode.
 
 Which favorite the expression pedal controls is page-wide state, in the `favorite` node.
 

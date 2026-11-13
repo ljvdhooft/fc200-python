@@ -183,7 +183,7 @@ class Mock:
         if not 1 <= parameter <= 8:
             raise LookupError("parameter")
         # Macros only; the mock tracks values where the state shows them
-        bases = []
+        bases = [f"loops.{pos}.macros.{parameter - 1}"]
         edit = self.model.get("edit")
         if edit and edit["loop"] == p["loop"]:
             bases.append(f"edit.macros.{parameter - 1}")

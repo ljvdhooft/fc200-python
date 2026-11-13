@@ -140,7 +140,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.10.0")
+        self.assertEqual(state["version"], "0.11.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -151,6 +151,7 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(state["loops"][5]["pedal"], 6)
         self.assertEqual(state["loops"][0]["chain"], "B")
         self.assertEqual(state["loops"][0]["favorite"]["parameter"], 6)
+        self.assertEqual([m["parameter"] for m in state["loops"][0]["macros"]], list(range(1, 9)))
         self.assertNotIn("edit", state)   # none = missing
         self.assertEqual(state["presets"], {"count": 2, "pending_overwrite": None,
                                             "last": None})
@@ -196,7 +197,9 @@ class UiBindingsTest(unittest.TestCase):
         favorite.value = 127
         self.listeners.fire(favorite, "value")
         self.assertEqual(self.model.flush(), {"loops.0.favorite.value": 1.0,
-                                              "loops.0.favorite.display": "127"})
+                                              "loops.0.favorite.display": "127",
+                                              "loops.0.macros.5.value": 1.0,
+                                              "loops.0.macros.5.display": "127"})
 
     def test_chain_listener(self):
         rack = self.s._racks[0]
@@ -244,7 +247,8 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual([m["parameter"] for m in edit["macros"]], list(range(1, 9)))
         self.assertEqual([m["pedal"] for m in edit["macros"]], [6, 7, 8, 9, 1, 2, 3, 4])
 
-        # A macro moving updates the edit node; the same parameter on another loop doesn't
+        # A macro moving updates its loop and the edit node; the same parameter on another
+        # loop updates only that loop
         self.model.flush()
         macro = self.s._racks[2].parameters[3]
         macro.value = 63.5
@@ -252,7 +256,11 @@ class UiBindingsTest(unittest.TestCase):
         other = self.s._racks[3].parameters[3]
         other.value = 10
         self.listeners.fire(other, "value")
-        self.assertEqual(self.model.flush(), {"edit.macros.2.value": 0.5,
+        self.assertEqual(self.model.flush(), {"loops.2.macros.2.value": 0.5,
+                                              "loops.2.macros.2.display": "64",
+                                              "loops.3.macros.2.value": 10 / 127,
+                                              "loops.3.macros.2.display": "10",
+                                              "edit.macros.2.value": 0.5,
                                               "edit.macros.2.display": "64"})
 
     def test_preset_events_update_state_and_emit(self):

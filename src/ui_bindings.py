@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.10.0"
+VERSION = "0.11.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 
@@ -145,6 +145,7 @@ class UiBindings(presets.PresetEvents):
             "chain": rack.view.selected_chain.name,
             "chains": [c.name for c in rack.chains],
             "favorite": {"parameter": favorite, **_parameter(rack.parameters[favorite])},
+            "macros": [{"parameter": i, **_parameter(rack.parameters[i])} for i in MACROS],
         }
 
     def _favorite_state(self) -> dict[str, Any] | None:
@@ -204,6 +205,9 @@ class UiBindings(presets.PresetEvents):
                 self.model.set(f"loops.{pos}.favorite.{key}", value)
                 if selected:
                     self.model.set(f"favorite.{key}", value)
+        if index in MACROS:
+            for key, value in _parameter(p).items():
+                self.model.set(f"loops.{pos}.macros.{index - 1}.{key}", value)
         edit = self.model.get("edit")
         if edit is not None and edit["loop"] == self.s.settings.LOOP_MAPPING[pos] and index in MACROS:
             for key, value in _parameter(p).items():

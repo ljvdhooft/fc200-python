@@ -1,5 +1,5 @@
 {
-  "version": "0.10.0",
+  "version": "0.11.0",
   "page": 2,
   "mode": "parameter_control",
   "tempo": 120.0,
@@ -76,7 +76,57 @@
         "name": "Ratio",
         "value": 0.35,
         "display": "3.5:1"
-      }
+      },
+      "macros": [
+        {
+          "parameter": 1,
+          "name": "Gain",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 2,
+          "name": "Tone",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 3,
+          "name": "Level",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 4,
+          "name": "Mix",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 5,
+          "name": "Attack",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 6,
+          "name": "Ratio",
+          "value": 0.35,
+          "display": "3.5:1"
+        },
+        {
+          "parameter": 7,
+          "name": "Depth",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 8,
+          "name": "Rate",
+          "value": 0.5,
+          "display": "50 %"
+        }
+      ]
     },
     {
       "index": 1,
@@ -94,7 +144,57 @@
         "name": "Gain",
         "value": 0.42,
         "display": "4.2"
-      }
+      },
+      "macros": [
+        {
+          "parameter": 1,
+          "name": "Gain",
+          "value": 0.42,
+          "display": "4.2"
+        },
+        {
+          "parameter": 2,
+          "name": "Tone",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 3,
+          "name": "Level",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 4,
+          "name": "Mix",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 5,
+          "name": "Attack",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 6,
+          "name": "Release",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 7,
+          "name": "Depth",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 8,
+          "name": "Rate",
+          "value": 0.5,
+          "display": "50 %"
+        }
+      ]
     },
     {
       "index": 2,
@@ -111,7 +211,57 @@
         "name": "Fuzz",
         "value": 0.6,
         "display": "60 %"
-      }
+      },
+      "macros": [
+        {
+          "parameter": 1,
+          "name": "Fuzz",
+          "value": 0.6,
+          "display": "60 %"
+        },
+        {
+          "parameter": 2,
+          "name": "Tone",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 3,
+          "name": "Level",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 4,
+          "name": "Mix",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 5,
+          "name": "Attack",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 6,
+          "name": "Release",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 7,
+          "name": "Depth",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 8,
+          "name": "Rate",
+          "value": 0.5,
+          "display": "50 %"
+        }
+      ]
     },
     {
       "index": 3,
@@ -128,7 +278,57 @@
         "name": "Rate",
         "value": 0.25,
         "display": "0.8 Hz"
-      }
+      },
+      "macros": [
+        {
+          "parameter": 1,
+          "name": "Rate",
+          "value": 0.25,
+          "display": "0.8 Hz"
+        },
+        {
+          "parameter": 2,
+          "name": "Tone",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 3,
+          "name": "Level",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 4,
+          "name": "Mix",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 5,
+          "name": "Attack",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 6,
+          "name": "Release",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 7,
+          "name": "Depth",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 8,
+          "name": "Rate",
+          "value": 0.5,
+          "display": "50 %"
+        }
+      ]
     },
     {
       "index": 4,
@@ -144,7 +344,57 @@
         "name": "Rate",
         "value": 0.3,
         "display": "1.1 Hz"
-      }
+      },
+      "macros": [
+        {
+          "parameter": 1,
+          "name": "Rate",
+          "value": 0.3,
+          "display": "1.1 Hz"
+        },
+        {
+          "parameter": 2,
+          "name": "Tone",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 3,
+          "name": "Level",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 4,
+          "name": "Mix",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 5,
+          "name": "Attack",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 6,
+          "name": "Release",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 7,
+          "name": "Depth",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 8,
+          "name": "Rate",
+          "value": 0.5,
+          "display": "50 %"
+        }
+      ]
     },
     {
       "index": 6,
@@ -161,7 +411,57 @@
         "name": "Time",
         "value": 0.5,
         "display": "1/8"
-      }
+      },
+      "macros": [
+        {
+          "parameter": 1,
+          "name": "Time",
+          "value": 0.5,
+          "display": "1/8"
+        },
+        {
+          "parameter": 2,
+          "name": "Tone",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 3,
+          "name": "Level",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 4,
+          "name": "Mix",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 5,
+          "name": "Attack",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 6,
+          "name": "Release",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 7,
+          "name": "Depth",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 8,
+          "name": "Rate",
+          "value": 0.5,
+          "display": "50 %"
+        }
+      ]
     },
     {
       "index": 7,
@@ -179,7 +479,57 @@
         "name": "Decay",
         "value": 0.45,
         "display": "2.4 s"
-      }
+      },
+      "macros": [
+        {
+          "parameter": 1,
+          "name": "Gain",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 2,
+          "name": "Decay",
+          "value": 0.45,
+          "display": "2.4 s"
+        },
+        {
+          "parameter": 3,
+          "name": "Level",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 4,
+          "name": "Mix",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 5,
+          "name": "Attack",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 6,
+          "name": "Release",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 7,
+          "name": "Depth",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 8,
+          "name": "Rate",
+          "value": 0.5,
+          "display": "50 %"
+        }
+      ]
     },
     {
       "index": 8,
@@ -196,7 +546,57 @@
         "name": "Shift",
         "value": 0.5,
         "display": "0 st"
-      }
+      },
+      "macros": [
+        {
+          "parameter": 1,
+          "name": "Shift",
+          "value": 0.5,
+          "display": "0 st"
+        },
+        {
+          "parameter": 2,
+          "name": "Tone",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 3,
+          "name": "Level",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 4,
+          "name": "Mix",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 5,
+          "name": "Attack",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 6,
+          "name": "Release",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 7,
+          "name": "Depth",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 8,
+          "name": "Rate",
+          "value": 0.5,
+          "display": "50 %"
+        }
+      ]
     },
     {
       "index": 9,
@@ -213,7 +613,57 @@
         "name": "Freq",
         "value": 0.7,
         "display": "1.2 kHz"
-      }
+      },
+      "macros": [
+        {
+          "parameter": 1,
+          "name": "Gain",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 2,
+          "name": "Freq",
+          "value": 0.7,
+          "display": "1.2 kHz"
+        },
+        {
+          "parameter": 3,
+          "name": "Level",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 4,
+          "name": "Mix",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 5,
+          "name": "Attack",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 6,
+          "name": "Release",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 7,
+          "name": "Depth",
+          "value": 0.5,
+          "display": "50 %"
+        },
+        {
+          "parameter": 8,
+          "name": "Rate",
+          "value": 0.5,
+          "display": "50 %"
+        }
+      ]
     }
   ],
   "edit": {
