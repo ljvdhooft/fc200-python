@@ -222,7 +222,7 @@
   </button>
   <!-- placeholder: presets come later -->
   <!-- no press look: it doesn't do anything yet -->
-  <button class="presets" data-own-press class:passive={!$interactive} disabled={!$interactive}>presets</button>
+  <button class="presets" data-own-press class:passive={!$interactive} disabled={!$interactive}><span class="text">presets</span></button>
 </aside>
 </div>
 
@@ -498,6 +498,15 @@
     .loop {
       grid-column: auto;
       grid-row: auto;
+    }
+  }
+
+  /* Inverted landscape: the rotated label reads the other way, mirroring it (only
+     the text: the button stays as it is) */
+  @media (orientation: landscape) {
+    :global(:root[data-island="right"]) .presets .text {
+      display: inline-block;
+      rotate: 180deg;
     }
   }
 </style>

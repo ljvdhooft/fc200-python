@@ -317,7 +317,7 @@
     disabled={!$abletonConnected || !canStore || selected < 0}
     onclick={store}
   >
-    {#if stored === "saved"}stored ✓{:else if stored === "failed"}failed{:else}store{/if}
+    <span class="text">{#if stored === "saved"}stored ✓{:else if stored === "failed"}failed{:else}store{/if}</span>
   </button>
   {/if}
   <button
@@ -790,6 +790,15 @@
       width: auto;
       height: var(--touch);
       writing-mode: horizontal-tb;
+    }
+  }
+
+  /* Inverted landscape: the rotated label reads the other way, mirroring it (only
+     the text: the button stays as it is) */
+  @media (orientation: landscape) {
+    :global(:root[data-island="right"]) .store .text {
+      display: inline-block;
+      rotate: 180deg;
     }
   }
 </style>
