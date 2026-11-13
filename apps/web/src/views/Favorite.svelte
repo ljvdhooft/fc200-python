@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fade } from "svelte/transition";
   import type { Favorite } from "../lib/state";
-  import CloseButton from "../lib/CloseButton.svelte";
+  import ViewButton from "../lib/ViewButton.svelte";
   import Dial from "../lib/Dial.svelte";
   import { paramDrag } from "../lib/paramDrag.svelte";
   import { connection } from "../lib/client";
@@ -46,9 +46,8 @@
   onpointercancel={drag.onpointercancel}
   transition:fade={{ duration: 120 }}
 >
-  <!-- buttons, not drags: they keep the pointer from the slider -->
-  <button class="back" aria-label="back" onpointerdown={(e) => e.stopPropagation()} onclick={onback}>←</button>
-  <span class="exit"><CloseButton label="exit on the FC-200" onclick={exit} /></span>
+  <span class="back"><ViewButton glyph="←" label="back" onclick={onback} /></span>
+  <span class="exit"><ViewButton glyph="✕" label="exit on the FC-200" onclick={exit} /></span>
 
   <!-- the value fills the screen from the bottom -->
   <div class="fill"></div>
@@ -87,12 +86,6 @@
     top: calc(var(--space-2) + var(--safe-top));
   }
   .back {
-    width: var(--touch);
-    min-width: 0;
-    padding: 0;
-    font-size: var(--text-name);
-    color: var(--text-muted);
-    background: var(--panel);
     left: max(var(--space-4), var(--safe-left));
   }
   .exit {

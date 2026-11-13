@@ -1,20 +1,28 @@
 <script lang="ts">
   import { fade } from "svelte/transition";
   import { abletonConnected, type Loop } from "../lib/state";
-  import CloseButton from "../lib/CloseButton.svelte";
+  import ViewButton from "../lib/ViewButton.svelte";
   import ChainMenu from "./ChainMenu.svelte";
   import MacroView from "./Macro.svelte";
 
   // Parameter control from the app: a loop's 8 macros as dials, and its chain.
   // Opened here, it stands alone: the FC-200 stays in whatever mode it is in.
   // `followed`: opened by the FC-200's parameter control; `selected`: the macro
-  // its expression pedal controls (a position in `loop.macros`).
+  // its expression pedal controls (a position in `loop.macros`). Followed, it has
+  // a ← (`onback`) that only hides it here.
   let {
     loop,
     selected = null,
     followed = false,
     onclose,
-  }: { loop: Loop; selected?: number | null; followed?: boolean; onclose: () => void } = $props();
+    onback,
+  }: {
+    loop: Loop;
+    selected?: number | null;
+    followed?: boolean;
+    onclose: () => void;
+    onback: () => void;
+  } = $props();
 
   // The chain button opens the same menu as a long press on a loop tile, against
   // the screen's right edge: an anchor at that edge, which the menu clamps to
@@ -55,20 +63,21 @@
   <!-- the same columns as the dials: the chain button starts at the third -->
   <header>
     <span class="title">
+      {#if followed}<ViewButton glyph="←" label="back" onclick={onback} />{/if}
       <span class="pedal">{loop.pedal}</span>
       <span class="name">{loop.name}</span>
     </span>
     <span class="end">
       <button
         class="chain"
-          aria-haspopup="dialog"
+        aria-haspopup="dialog"
         disabled={!$abletonConnected}
         onclick={() => (chainOpen = true)}
       >
         <span class="label">chain</span>
         <span class="current">{loop.chain}</span>
       </button>
-      <CloseButton onclick={onclose} />
+      <ViewButton glyph="✕" label="close" onclick={onclose} />
     </span>
   </header>
 

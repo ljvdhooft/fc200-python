@@ -201,7 +201,7 @@
 
 <!-- Beside the grid in landscape, under it in portrait -->
 {#if editing}
-  <Edit loop={editing} {selected} {followed} onclose={closeEdit} />
+  <Edit loop={editing} {selected} {followed} onclose={closeEdit} onback={() => (dismissed = fcLoop ?? null)} />
 {/if}
 
 <aside class="side">
