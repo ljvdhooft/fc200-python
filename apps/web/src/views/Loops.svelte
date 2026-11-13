@@ -179,9 +179,13 @@
     aria-label="edit"
     onclick={() => (editMode = !editMode)}
   >
-    <!-- Lucide "sliders-vertical" (ISC) -->
+    <!-- After Lucide "sliders-vertical" (ISC): the knobs slide along their tracks
+         when edit mode toggles -->
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M2 14h4M10 8h4M18 16h4" />
+      <path class="tracks" d="M4 21V3M12 21V3M20 21V3" />
+      <path class="knob" style:--to="-6px" d="M2 14h4" />
+      <path class="knob" style:--to="7px" d="M10 8h4" />
+      <path class="knob" style:--to="-7px" d="M18 16h4" />
     </svg>
   </button>
   <!-- placeholder: presets come later -->
@@ -213,7 +217,21 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text-muted);
-    transition: opacity var(--motion) var(--ease);
+    transition:
+      opacity var(--motion) var(--ease),
+      color var(--motion) var(--ease),
+      background var(--motion) var(--ease),
+      border-color var(--motion) var(--ease);
+  }
+  .edit .tracks {
+    opacity: 0.45;
+  }
+  .edit .knob {
+    stroke-width: 2.5;
+    transition: translate var(--motion) var(--ease);
+  }
+  .edit.on .knob {
+    translate: 0 var(--to);
   }
   .edit svg {
     width: 24px;
