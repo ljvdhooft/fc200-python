@@ -151,6 +151,11 @@ class Mock:
         self.model.set("transport.playing", True)
         return {}
 
+    def _m_tempo_set(self, p: dict[str, Any]) -> Any:
+        tempo = min(999.0, max(20.0, float(p["tempo"])))
+        self.model.set("tempo", tempo)
+        return {"tempo": tempo}
+
     def _m_metronome_set(self, p: dict[str, Any]) -> Any:
         self.model.set("transport.metronome", bool(p["on"]))
         return {"on": bool(p["on"])}

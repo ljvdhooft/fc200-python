@@ -140,7 +140,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.12.0")
+        self.assertEqual(state["version"], "0.13.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -355,6 +355,12 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.call("transport.play"), {})
         self.assertEqual(self.call("transport.stop"), {})
         self.assertEqual(self.s.song_obj.calls, ["start", "stop", "stop_all"])
+
+    def test_tempo_set(self):
+        self.assertEqual(self.call("tempo.set", tempo=98.5), {"tempo": 98.5})
+        self.assertEqual(self.s.song_obj.tempo, 98.5)
+        self.assertEqual(self.call("tempo.set", tempo=5), {"tempo": 20.0})     # clamped
+        self.assertEqual(self.error("tempo.set", tempo="fast"), "bad_params")
 
     def test_metronome_set_works_like_pedal_6(self):
         self.assertEqual(self.call("metronome.set", on=False), {"on": False})

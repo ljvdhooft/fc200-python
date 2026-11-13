@@ -32,9 +32,10 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.12.0"
+VERSION = "0.13.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
+MIN_TEMPO, MAX_TEMPO = 20.0, 999.0   # Live's tempo range
 DISPLAY_STEPS = 128     # a macro's steps (0..127), for loop.param.displays
 
 
@@ -274,6 +275,7 @@ class UiBindings(presets.PresetEvents):
             "transport.play": self._play,
             "transport.stop": self._stop,
             "metronome.set": self._metronome_set,
+            "tempo.set": self._tempo_set,
             "scene.list": self._scene_list,
             "loop.set": self._loop_set,
             "loop.chain.select": self._chain_select,
@@ -331,6 +333,11 @@ class UiBindings(presets.PresetEvents):
         on = _arg(params, "on", bool)
         self.s._transport_page.set_metronome(on)
         return {"on": on}
+
+    def _tempo_set(self, params: dict[str, Any]) -> Any:
+        tempo = min(MAX_TEMPO, max(MIN_TEMPO, float(_arg(params, "tempo", (int, float)))))
+        self.s.song().tempo = tempo
+        return {"tempo": tempo}
 
     def _scene_fire_and_stop(self, params: dict[str, Any]) -> Any:
         if not self.s._has_pedalboard:

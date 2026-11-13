@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.12.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.13.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -16,6 +16,7 @@
 | 0.10.0  | `tuner` node: note, cents and tolerance while the volume is 0          |
 | 0.11.0  | `loops[].macros`: every loop carries its 8 macros                       |
 | 0.12.0  | `loop.param.displays`: a macro's display text for each of its 128 steps |
+| 0.13.0  | `tempo.set`                                                              |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -293,6 +294,7 @@ new state arrives as `state.changed` (the result does not replace it).
 | `transport.play`     | none                                              | `{}`                            |
 | `transport.stop`     | none                                              | `{}`                            |
 | `metronome.set`      | `{"on": bool}`                                    | `{"on": bool}`                  |
+| `tempo.set`          | `{"tempo": float}`                                | `{"tempo": float}`              |
 | `scene.list`         | none                                              | `{"scenes": [{index, name, color}]}`, in set order |
 | `loop.set`           | `{"loop": int, "on": bool}`                       | `{"on": bool}`                  |
 | `loop.chain.select`  | `{"loop": int, "chain": string}`                  | `{"chain": string}`             |
@@ -313,6 +315,7 @@ new state arrives as `state.changed` (the result does not replace it).
 - `scene.select` selects a scene without launching it (`Song.view.selected_scene`). `scene.fire` does what pedal 3 does on page 0 (`TransportPage._fire_scene`): it launches the selected scene and selects the next one. It works on any page.
 - `scene.fire_and_stop` does what pedal 7 does on page 0 (`TransportPage.fire_and_stop`): it fires the selected scene and stops right away, so its clips recall their presets without anything playing. Needs a pedalboard (`unavailable` otherwise).
 - `transport.play` / `transport.stop` do what pedals 1 and 2 do on page 0; stop also stops all clips. Both work on any page.
+- `tempo.set` sets the song tempo (`Song.tempo`) in BPM, clamped to Live's 20..999; the result is the tempo set. Works on any page.
 - `metronome.set` switches the metronome on or off (`Song.metronome`), like pedal 6 on page 0. Works on any page.
 - `loop.set` switches the loop on or off (parameter 0), like a number pedal on page 1.
 - `loop.chain.select` matches the chain by name, like a preset recall. While the loop is being edited, the script keeps `ParameterControl`'s chain index in sync.
