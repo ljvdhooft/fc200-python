@@ -23,6 +23,8 @@
     if (held !== undefined && Math.abs(favorite.value - held) < 0.005) held = undefined;
   });
   let value = $derived(drag?.value ?? held ?? favorite.value);
+  // From bottom-left (135°) clockwise round to bottom-right (45°), radius 38
+  const ARC = "M 23.13 76.87 A 38 38 0 1 1 76.87 76.87";
   let enabled = $derived($abletonConnected && $interactive);
 
   function onpointerdown(e: PointerEvent) {
@@ -67,6 +69,12 @@
   <div class="text">
     <div class="loop"><span class="pedal">{favorite.pedal}</span> {favorite.loop_name}</div>
     <div class="name">{favorite.name}</div>
+    <!-- Ableton-style dial: a 270° arc open at the bottom, the needle from the centre -->
+    <svg class="dial" viewBox="0 0 100 100" aria-hidden="true">
+      <path class="track" d={ARC} />
+      <path class="arc" d={ARC} pathLength="1" stroke-dasharray="{value} 1" />
+      <line class="needle" x1="50" y1="50" x2="88" y2="50" style:rotate="{135 + 270 * value}deg" />
+    </svg>
     <div class="display">{favorite.display}</div>
   </div>
 </div>
@@ -113,6 +121,29 @@
   .name {
     font-size: var(--text-scene);
     color: var(--text);
+  }
+  .dial {
+    width: 160px;
+    height: 160px;
+    margin-block: var(--space-2);
+    fill: none;
+    stroke-width: 7;
+  }
+  .track {
+    stroke: var(--panel-2);
+  }
+  .arc {
+    stroke: var(--accent-on);
+  }
+  .needle {
+    stroke: var(--text);
+    stroke-width: 4;
+    stroke-linecap: round;
+    transform-origin: 50px 50px;
+  }
+  .arc,
+  .needle {
+    transition: all 80ms linear;
   }
   .display {
     font-size: 72px;
