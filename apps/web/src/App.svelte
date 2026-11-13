@@ -90,8 +90,8 @@
        the top, health on the left, page and follow on the right -->
   <aside class="rail">
     <!-- Only shown while everything is connected (otherwise the Outage screen) -->
-    <!-- Tapping it types a new tempo -->
-    <button class="status" data-always title="hub and Ableton Live connected" aria-label="tempo {tempo} bpm: set" onclick={() => (tempoPad = true)}>
+    <!-- Tapping it types a new tempo, in touch mode (the waking touch only wakes) -->
+    <button class="status" title="hub and Ableton Live connected" aria-label="tempo {tempo} bpm: set" onclick={() => (tempoPad = true)}>
       <span class="dot"></span>
       <span class="tempo">{tempo}</span>
       <span class="unit">bpm</span>

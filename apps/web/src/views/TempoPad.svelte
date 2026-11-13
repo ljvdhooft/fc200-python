@@ -6,8 +6,9 @@
   import { abletonConnected } from "../lib/state";
   import { holdInteractive } from "../lib/touch";
   import ViewButton from "../lib/ViewButton.svelte";
+  import Health from "./Health.svelte";
 
-  // Type a tempo (tapping the BPM). Starts empty, with the current tempo as the
+  // Type a tempo (tapping the BPM and health dot), with the health beside it. Starts empty, with the current tempo as the
   // placeholder; the check sends it (tempo.set) and shows it at once.
   let { tempo, onclose }: { tempo: number | undefined; onclose: () => void } = $props();
 
@@ -39,7 +40,7 @@
   const KEYS = ["7", "8", "9", "4", "5", "6", "1", "2", "3", ".", "0", "⌫"];
 </script>
 
-<!-- tapping the blurred page around the pad closes it -->
+<!-- tapping the blurred page around the panels closes it -->
 <div
   class="backdrop"
   data-always
@@ -66,6 +67,8 @@
       {/each}
     </div>
   </div>
+  <!-- beside the pad, away from the island in landscape; under it in portrait -->
+  <Health />
 </div>
 
 <style>
@@ -73,8 +76,12 @@
     position: fixed;
     inset: 0;
     z-index: 20;
-    display: grid;
-    place-items: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* the health is apart from the pad, not part of it: far enough not to read as
+       one group (a share of the screen, along the direction they're laid out) */
+    gap: max(var(--space-6), 15vw);
     background: color-mix(in srgb, var(--bg) 30%, transparent);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
@@ -154,6 +161,17 @@
   }
   .set:disabled {
     opacity: 0.4;
+  }
+
+  :global(:root[data-island="right"]) .backdrop {
+    flex-direction: row-reverse;
+  }
+  @media (orientation: portrait) {
+    .backdrop,
+    :global(:root[data-island="right"]) .backdrop {
+      flex-direction: column;
+      gap: max(var(--space-6), 10vh);
+    }
   }
 
   /* Landscape phones: the screen is too short for it all at full size. The pad
