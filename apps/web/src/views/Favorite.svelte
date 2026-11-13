@@ -83,7 +83,8 @@
   .exit {
     position: absolute;
     z-index: 1;
-    top: calc(var(--space-3) + var(--safe-top));
+    /* where the edit view's header puts its ✕ (its padding) */
+    top: calc(var(--space-2) + var(--safe-top));
   }
   .back {
     width: var(--touch);
