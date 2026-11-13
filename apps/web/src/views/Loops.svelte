@@ -1,9 +1,10 @@
 <script lang="ts">
   import { connection } from "../lib/client";
   import { appState, abletonConnected, type Loop } from "../lib/state";
-  import { interactive, keepInteractive } from "../lib/touch";
+  import { holdInteractive, interactive, keepInteractive } from "../lib/touch";
   import { throttle } from "../lib/throttle";
   import ChainMenu from "./ChainMenu.svelte";
+  import Edit from "./Edit.svelte";
 
   let loops = $derived($appState.loops ?? []);
 
@@ -35,6 +36,19 @@
     pending[loop.index] = next;
     expire(`on${loop.index}`, () => delete pending[loop.index]);
     connection.send("loop.set", { loop: loop.index, on: next });
+  }
+
+  // Edit mode: a tap opens the loop's macros instead of switching it. The page
+  // doesn't lock while it is on.
+  let editMode = $state(false);
+  let editLoop = $state<number | null>(null);
+  let editing = $derived(loops.find((l) => l.index === editLoop));
+  $effect(() => {
+    if (editMode) return holdInteractive();
+  });
+  function tap(loop: Loop) {
+    if (editMode) editLoop = loop.index;
+    else toggle(loop);
   }
 
   // Dragging a tile (sideways or up/down) sets its favorite; a tap still toggles.
@@ -95,7 +109,7 @@
       held[loop.index] = drag.value;
       expire(`value${loop.index}`, () => delete held[loop.index]);
     } else {
-      toggle(loop);
+      tap(loop);
     }
     drag = null;
   }
@@ -124,7 +138,7 @@
         clearTimeout(holdTimer);
         drag = null;
       }}
-      onclick={() => holding || loop.favorite || toggle(loop)}
+      onclick={() => holding || loop.favorite || tap(loop)}
       aria-pressed={on(loop)}
     >
       <span class="head">
@@ -151,7 +165,19 @@
 {/if}
 
 <!-- Beside the grid in landscape, under it in portrait -->
+{#if editing}
+  <Edit loop={editing} onclose={() => (editLoop = null)} />
+{/if}
+
 <aside class="side">
+  <button
+    class="edit"
+    class:on={editMode}
+    class:passive={!$interactive}
+    disabled={!$interactive}
+    aria-pressed={editMode}
+    onclick={() => (editMode = !editMode)}
+  >edit</button>
   <!-- placeholder: presets come later -->
   <button class="presets" class:passive={!$interactive} disabled={!$interactive}>presets</button>
 </aside>
@@ -166,8 +192,11 @@
   .side {
     flex: none;
     display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
     width: calc(var(--touch) + var(--space-3));
   }
+  .edit,
   .presets {
     flex: 1;
     writing-mode: vertical-rl;
@@ -180,7 +209,13 @@
     text-transform: uppercase;
     transition: opacity var(--motion) var(--ease);
   }
+  .edit.on {
+    color: var(--accent-on);
+    border-color: var(--accent-on);
+    background: color-mix(in srgb, var(--accent-on) 12%, var(--panel-2));
+  }
   /* clearly off in display mode */
+  .edit.passive,
   .presets.passive {
     pointer-events: none;
     opacity: 0.3;
@@ -361,8 +396,12 @@
 
   /* Portrait phones: the bottom corners follow the screen's */
   @media (orientation: portrait) and (max-width: 500px) {
+    /* side by side along the bottom: each takes one screen corner */
+    .edit {
+      border-radius: var(--radius) var(--radius) var(--radius) var(--corner-concentric);
+    }
     .presets {
-      border-radius: var(--radius) var(--radius) var(--corner-concentric) var(--corner-concentric);
+      border-radius: var(--radius) var(--radius) var(--corner-concentric) var(--radius);
     }
   }
 
@@ -374,7 +413,9 @@
     .side {
       width: auto;
       height: calc(var(--touch) * 1.5);
+      flex-direction: row;
     }
+    .edit,
     .presets {
       writing-mode: horizontal-tb;
     }

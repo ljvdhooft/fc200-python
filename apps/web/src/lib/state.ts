@@ -55,7 +55,11 @@ export interface Loop {
   chain: string;
   chains: string[];
   favorite: Parameter | null;
+  macros: Macro[];
 }
+
+/** One of a loop's 8 macros (`loops[].macros`); `parameter` is 1..8. */
+export type Macro = Parameter;
 
 /** The favorite the expression pedal controls on page 2 (protocol/frontend.md, `favorite`). */
 export interface Favorite extends Parameter {
