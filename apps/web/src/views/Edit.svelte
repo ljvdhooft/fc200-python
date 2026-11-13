@@ -1,33 +1,32 @@
 <script lang="ts">
   import { fade } from "svelte/transition";
-  import { connection } from "../lib/client";
   import { abletonConnected, type Loop } from "../lib/state";
+  import ChainMenu from "./ChainMenu.svelte";
   import MacroView from "./Macro.svelte";
 
   // Parameter control from the app: a loop's 8 macros as dials, and its chain.
   // Stands alone: the FC-200 stays in whatever mode it is in.
   let { loop, onclose }: { loop: Loop; onclose: () => void } = $props();
 
-  function selectChain(chain: string) {
-    if (chain !== loop.chain) connection.send("loop.chain.select", { loop: loop.index, chain });
-  }
+  // The chain button opens the same menu as a long press on a loop tile
+  let chainButton = $state<HTMLButtonElement>();
+  let chainAnchor = $state<DOMRect | null>(null);
 </script>
 
 <div class="edit" transition:fade={{ duration: 120 }}>
   <header>
     <span class="pedal">{loop.pedal}</span>
     <span class="name">{loop.name}</span>
-    <select
+    <button
       class="chain"
-      aria-label="chain"
-      value={loop.chain}
+      bind:this={chainButton}
+      aria-haspopup="dialog"
       disabled={!$abletonConnected}
-      onchange={(e) => selectChain(e.currentTarget.value)}
+      onclick={() => (chainAnchor = chainButton!.getBoundingClientRect())}
     >
-      {#each loop.chains as chain (chain)}
-        <option value={chain}>{chain}</option>
-      {/each}
-    </select>
+      <span class="label">chain</span>
+      <span class="current">{loop.chain}</span>
+    </button>
     <button class="close" onclick={onclose} aria-label="close">✕</button>
   </header>
 
@@ -36,6 +35,10 @@
       <MacroView loop={loop.index} {macro} />
     {/each}
   </section>
+
+  {#if chainAnchor}
+    <ChainMenu {loop} anchor={chainAnchor} onclose={() => (chainAnchor = null)} />
+  {/if}
 </div>
 
 <style>
@@ -70,14 +73,24 @@
     margin-left: auto;
     min-width: 0;
     max-width: 50%;
-    min-height: var(--touch);
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
     padding: 0 var(--space-3);
     background: var(--panel-2);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    font: inherit;
+  }
+  .chain .label {
+    font-size: var(--text-label);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .chain .current {
     font-size: var(--text-body);
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .close {
     flex: none;
