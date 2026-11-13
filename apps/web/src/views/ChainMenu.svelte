@@ -9,7 +9,7 @@
   // over the blurred page, centred on the held tile as far as the screen (and the
   // Dynamic Island's safe area) allows. Touch mode stays on while it is open.
   // `from`: the chain it was on before (a change elsewhere): the highlight starts
-  // there and moves to the current chain once the menu is in
+  // there and moves to the current chain while the menu fades in
   let {
     loop,
     anchor,
@@ -19,9 +19,12 @@
 
   // svelte-ignore state_referenced_locally (only where it starts)
   let before = $state(from);
+  // Two frames: the old highlight is painted first, so the move is a transition
   $effect(() => {
-    const timer = setTimeout(() => (before = undefined), FADE);
-    return () => clearTimeout(timer);
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => (before = undefined));
+    });
+    return () => cancelAnimationFrame(frame);
   });
 
   $effect(() => holdInteractive());
