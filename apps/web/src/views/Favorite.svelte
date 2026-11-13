@@ -119,7 +119,8 @@
     font-variant-numeric: tabular-nums;
   }
   .name {
-    font-size: var(--text-scene);
+    font-size: 44px;
+    line-height: 1.1;
     color: var(--text);
   }
   .dial {
