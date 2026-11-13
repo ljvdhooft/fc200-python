@@ -25,6 +25,9 @@
     --drawer-slide: 16px;
     display: grid;
     opacity: 0;
+    /* its own layer for good: dropping it when the slide ends redraws the borders
+       a shade different */
+    will-change: transform, opacity;
     transition:
       grid-template-rows var(--motion) var(--ease),
       margin var(--motion) var(--ease),
@@ -71,6 +74,12 @@
   .bottom .inner,
   .side .inner {
     background: var(--bg);
+  }
+  /* Clipped above only: below, the content may draw over the gap under the drawer
+     while it grows, instead of losing its bottom edge to it */
+  .bottom .inner {
+    overflow: visible;
+    clip-path: inset(0 0 -100vh 0);
   }
 
   /* Grows up from the parent's bottom edge without moving anything */

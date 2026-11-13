@@ -70,6 +70,8 @@ export function trackTouch(): void {
       // acts on the first touch wakes the page only after its click went through
       wakeAfterClick = waking && always;
       if (swallowClick) {
+        // The controls enable under the finger: no :active press look for this touch
+        document.documentElement.dataset.waking = "";
         wake();
         e.preventDefault();
         e.stopPropagation();
@@ -78,6 +80,9 @@ export function trackTouch(): void {
     },
     { capture: true },
   );
+  for (const type of ["pointerup", "pointercancel"]) {
+    window.addEventListener(type, () => delete document.documentElement.dataset.waking, { capture: true });
+  }
   window.addEventListener(
     "click",
     (e) => {

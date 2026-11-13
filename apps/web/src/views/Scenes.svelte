@@ -720,8 +720,9 @@
     font-size: var(--text-label);
     letter-spacing: 0.04em;
   }
-  .controls button:active:not(:disabled),
-  .row:active:not(:disabled) {
+  /* not on the touch that wakes the page (it would flash the row under the finger) */
+  :global(:root:not([data-waking])) .controls button:active:not(:disabled),
+  :global(:root:not([data-waking])) .row:active:not(:disabled) {
     filter: brightness(1.3);
   }
   /* Disabled buttons swallow touches in some browsers; let the waking touch through */
