@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fade } from "svelte/transition";
   import { connection } from "../lib/client";
   import { abletonConnected, type Favorite } from "../lib/state";
   import { interactive, keepInteractive } from "../lib/touch";
@@ -59,6 +60,7 @@
   {onpointermove}
   {onpointerup}
   onpointercancel={() => (drag = null)}
+  transition:fade={{ duration: 120 }}
 >
   <!-- the value fills the screen from the bottom -->
   <div class="fill"></div>
@@ -85,6 +87,8 @@
     transform: scaleY(var(--value));
     background: color-mix(in srgb, var(--accent-on) 22%, var(--bg));
     border-top: 2px solid var(--accent-on);
+    /* just smooths the pedal's steps; longer and it trails behind */
+    transition: transform 80ms linear;
   }
   .text {
     position: relative;
