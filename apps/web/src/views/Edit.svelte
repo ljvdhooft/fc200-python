@@ -8,9 +8,9 @@
   // Stands alone: the FC-200 stays in whatever mode it is in.
   let { loop, onclose }: { loop: Loop; onclose: () => void } = $props();
 
-  // The chain button opens the same menu as a long press on a loop tile
-  let chainButton = $state<HTMLButtonElement>();
-  let chainAnchor = $state<DOMRect | null>(null);
+  // The chain button opens the same menu as a long press on a loop tile, against
+  // the screen's right edge: an anchor at that edge, which the menu clamps to
+  let chainOpen = $state(false);
 </script>
 
 <div class="edit" transition:fade={{ duration: 120 }}>
@@ -23,10 +23,9 @@
     <span class="end">
       <button
         class="chain"
-        bind:this={chainButton}
-        aria-haspopup="dialog"
+          aria-haspopup="dialog"
         disabled={!$abletonConnected}
-        onclick={() => (chainAnchor = chainButton!.getBoundingClientRect())}
+        onclick={() => (chainOpen = true)}
       >
         <span class="label">chain</span>
         <span class="current">{loop.chain}</span>
@@ -41,8 +40,8 @@
     {/each}
   </section>
 
-  {#if chainAnchor}
-    <ChainMenu {loop} anchor={chainAnchor} onclose={() => (chainAnchor = null)} />
+  {#if chainOpen}
+    <ChainMenu {loop} anchor={new DOMRect(innerWidth, 0, 0, 0)} onclose={() => (chainOpen = false)} />
   {/if}
 </div>
 
