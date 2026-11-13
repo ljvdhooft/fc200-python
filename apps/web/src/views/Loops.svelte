@@ -1,7 +1,7 @@
 <script lang="ts">
   import { connection } from "../lib/client";
   import { appState, abletonConnected, type Loop } from "../lib/state";
-  import { holdInteractive, interactive, keepInteractive, wake } from "../lib/touch";
+  import { holdInteractive, interactive, keepInteractive, sleep, wake } from "../lib/touch";
   import { throttle } from "../lib/throttle";
   import ChainMenu from "./ChainMenu.svelte";
   import Edit from "./Edit.svelte";
@@ -65,6 +65,13 @@
     if (!followed) return;
     wake();
     return holdInteractive();
+  });
+  // ...and display mode again as soon as the FC-200 leaves parameter control
+  let wasFollowing = false;
+  $effect(() => {
+    const following = fcLoop !== undefined;
+    if (wasFollowing && !$appState.edit) sleep(); // not when follow is switched off
+    wasFollowing = following;
   });
   function closeEdit() {
     if (shownLoop !== undefined && shownLoop === fcLoop) connection.send("edit.close");

@@ -3,6 +3,7 @@
   import type { Favorite } from "../lib/state";
   import Dial from "../lib/Dial.svelte";
   import { paramDrag } from "../lib/paramDrag.svelte";
+  import { holdInteractive, sleep, wake } from "../lib/touch";
 
   // The favorite the expression pedal controls on page 2, over the whole screen.
   // Shown whatever page this app shows (follow or not): picking it is a pedal action.
@@ -10,6 +11,16 @@
   let { favorite }: { favorite: Favorite } = $props();
 
   const drag = paramDrag(() => favorite);
+
+  // Touch mode while it is up; it goes when the FC-200 drops the favorite
+  $effect(() => {
+    wake();
+    const release = holdInteractive();
+    return () => {
+      release();
+      sleep();
+    };
+  });
 </script>
 
 <div

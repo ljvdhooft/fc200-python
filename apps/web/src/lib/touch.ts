@@ -43,6 +43,19 @@ export function holdInteractive(): () => void {
   };
 }
 
+/**
+ * Back to display mode now, e.g. when the FC-200 leaves the mode that woke it.
+ * After this tick's unmounts have released their holds; a hold still left
+ * (edit mode, an open menu) keeps touch mode.
+ */
+export function sleep(): void {
+  setTimeout(() => {
+    if (holds > 0) return;
+    clearTimeout(timer);
+    interactive.set(false);
+  });
+}
+
 export function trackTouch(): void {
   let swallowClick = false;
   let wakeAfterClick = false;
