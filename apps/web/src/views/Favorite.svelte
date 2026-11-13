@@ -125,7 +125,9 @@
   .dial {
     width: 160px;
     height: 160px;
-    margin-block: var(--space-2);
+    margin-top: var(--space-2);
+    /* the value tucks up into the dial's open bottom, like Ableton's */
+    margin-bottom: -36px;
     fill: none;
     stroke-width: 7;
   }
