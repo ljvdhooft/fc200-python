@@ -43,12 +43,15 @@
   // doesn't lock while it is on.
   let editMode = $state(false);
   let editLoop = $state<number | null>(null);
-  // Following: the FC-200's parameter control opens the same view. One direction:
-  // closing it here hides it until the FC-200 edits another loop, nothing more.
+  // Following: the FC-200's parameter control opens the same view, over one opened
+  // here. Only closing goes back: closing the FC-200's loop leaves parameter control
+  // there too (edit.close). The view stays hidden until the FC-200 confirms.
   let fcLoop = $derived($follow ? $appState.edit?.loop : undefined);
   let dismissed = $state<number | null>(null);
   $effect(() => {
+    // runs when the FC-200 opens, switches or leaves a loop (it only reads fcLoop)
     if (fcLoop === undefined) dismissed = null;
+    else editLoop = null;
   });
   let shownLoop = $derived(editLoop ?? (fcLoop !== dismissed ? fcLoop : undefined));
   let editing = $derived(loops.find((l) => l.index === shownLoop));
@@ -57,6 +60,7 @@
     $appState.edit && $appState.edit.loop === shownLoop ? $appState.edit.selected : null,
   );
   function closeEdit() {
+    if (shownLoop !== undefined && shownLoop === fcLoop) connection.send("edit.close");
     editLoop = null;
     dismissed = fcLoop ?? null;
   }
