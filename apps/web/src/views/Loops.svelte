@@ -221,7 +221,8 @@
     </svg>
   </button>
   <!-- placeholder: presets come later -->
-  <button class="presets" class:passive={!$interactive} disabled={!$interactive}>presets</button>
+  <!-- no press look: it doesn't do anything yet -->
+  <button class="presets" data-own-press class:passive={!$interactive} disabled={!$interactive}>presets</button>
 </aside>
 </div>
 
@@ -253,7 +254,8 @@
       opacity var(--motion) var(--ease),
       color var(--motion) var(--ease),
       background var(--motion) var(--ease),
-      border-color var(--motion) var(--ease);
+      border-color var(--motion) var(--ease),
+      filter var(--motion) var(--ease);
   }
   .edit svg {
     width: 24px;
@@ -320,7 +322,8 @@
     transition:
       background var(--motion) var(--ease),
       border-color var(--motion) var(--ease),
-      color var(--motion) var(--ease);
+      color var(--motion) var(--ease),
+      filter var(--motion) var(--ease);
   }
   .loop.on {
     color: var(--text);
@@ -425,9 +428,6 @@
     opacity: 0.8;
   }
 
-  .loop:active:not(:disabled) {
-    filter: brightness(1.3);
-  }
   /* Disabled buttons swallow touches in some browsers; let the waking touch through */
   .loop.passive {
     pointer-events: none;

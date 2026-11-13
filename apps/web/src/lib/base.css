@@ -47,6 +47,22 @@ button {
   border-radius: var(--radius);
 }
 
+/* The pressed look of every button, and of anything a finger holds or drags
+   (`.held`). Not on the touch that wakes the page: the controls enable under the
+   finger (touch.ts). Opt out with data-own-press, e.g. rows a scroll can start on. */
+:root:not([data-waking]) button:not([data-own-press]):active:not(:disabled),
+.held {
+  filter: brightness(1.3);
+  transition: none; /* on at once... */
+}
+
+/* ...and off in the same motion as what the press changes (a toggle's colours), so
+   the two read as one change. Elements with their own transition list add
+   `filter var(--motion) var(--ease)` to it. */
+button {
+  transition: filter var(--motion) var(--ease);
+}
+
 button:focus-visible {
   outline: 2px solid var(--accent-select);
   outline-offset: 1px;

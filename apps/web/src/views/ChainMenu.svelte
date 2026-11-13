@@ -4,6 +4,7 @@
   import type { Loop } from "../lib/state";
   import { FADE } from "../lib/motion";
   import { holdInteractive } from "../lib/touch";
+  import ViewButton from "../lib/ViewButton.svelte";
 
   // Pick the loop's chain (long press on a loop tile): a narrow, full-height list
   // over the blurred page, centred on the held tile as far as the screen (and the
@@ -71,7 +72,7 @@
   <header>
     <span class="pedal">{loop.pedal}</span>
     <span class="name">{loop.name}</span>
-    <button class="close" data-always onclick={onclose} aria-label="close">✕</button>
+    <ViewButton glyph="✕" label="close" always onclick={onclose} />
   </header>
   <div class="chains" onscroll={release}>
     {#each loop.chains as chain (chain)}
@@ -80,6 +81,7 @@
         class:current={chain === (chosen ?? before ?? loop.chain)}
         class:pressed={pressed === chain}
         data-always
+        data-own-press
         onpointerdown={() => press(chain)}
         onpointerup={release}
         onpointercancel={release}
@@ -136,14 +138,6 @@
     flex: 1;
     font-size: var(--text-name);
     color: var(--text);
-  }
-  .close {
-    align-self: center;
-    width: var(--touch);
-    min-width: 0;
-    padding: 0;
-    color: var(--text-muted);
-    background: var(--panel);
   }
   .chains {
     flex: 1;

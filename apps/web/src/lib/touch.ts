@@ -69,9 +69,12 @@ export function trackTouch(): void {
       // iOS drops the click when the page changes under the finger, so a control that
       // acts on the first touch wakes the page only after its click went through
       wakeAfterClick = waking && always;
+      // No press look on a waking touch, also not on the controls that act on it.
+      // It lasts until the next touch: iOS keeps :active a moment after the finger
+      // lifts, and clearing it on pointerup let the press look show (and fade) then.
+      if (waking) document.documentElement.dataset.waking = "";
+      else delete document.documentElement.dataset.waking;
       if (swallowClick) {
-        // The controls enable under the finger: no :active press look for this touch
-        document.documentElement.dataset.waking = "";
         wake();
         e.preventDefault();
         e.stopPropagation();
@@ -80,9 +83,6 @@ export function trackTouch(): void {
     },
     { capture: true },
   );
-  for (const type of ["pointerup", "pointercancel"]) {
-    window.addEventListener(type, () => delete document.documentElement.dataset.waking, { capture: true });
-  }
   window.addEventListener(
     "click",
     (e) => {

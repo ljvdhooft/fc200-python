@@ -430,7 +430,8 @@
     transition:
       opacity var(--motion) var(--ease),
       border-color var(--motion) var(--ease),
-      background var(--motion) var(--ease);
+      background var(--motion) var(--ease),
+      filter var(--motion) var(--ease);
   }
   .side svg {
     width: 18px;
@@ -600,8 +601,7 @@
     border-color: var(--status-error);
     background: color-mix(in srgb, var(--status-error) 12%, var(--panel-2));
   }
-  .side .store.storing,
-  .side button:active:not(:disabled) {
+  .side .store.storing {
     filter: brightness(1.3);
   }
   .led {
@@ -672,7 +672,8 @@
       background var(--motion) var(--ease),
       border-color var(--motion) var(--ease),
       color var(--motion) var(--ease),
-      font-size var(--motion) var(--ease);
+      font-size var(--motion) var(--ease),
+      filter var(--motion) var(--ease);
   }
   .strip {
     align-self: stretch;
@@ -719,11 +720,6 @@
   .controls .fire-stop {
     font-size: var(--text-label);
     letter-spacing: 0.04em;
-  }
-  /* not on the touch that wakes the page (it would flash the row under the finger) */
-  :global(:root:not([data-waking])) .controls button:active:not(:disabled),
-  :global(:root:not([data-waking])) .row:active:not(:disabled) {
-    filter: brightness(1.3);
   }
   /* Disabled buttons swallow touches in some browsers; let the waking touch through */
   .row.passive {

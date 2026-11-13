@@ -13,6 +13,7 @@
 <div
   class="macro"
   class:selected
+  class:held={drag.dragging /* the global press look, for the whole drag */}
   role="slider"
   aria-label={macro.name}
   aria-valuemin={0}
@@ -44,7 +45,8 @@
     touch-action: none; /* the drag is ours, not a scroll */
     transition:
       background var(--motion) var(--ease),
-      border-color var(--motion) var(--ease);
+      border-color var(--motion) var(--ease),
+      filter var(--motion) var(--ease);
   }
   .selected {
     background: color-mix(in srgb, var(--accent-select) 12%, var(--panel));

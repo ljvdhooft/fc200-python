@@ -117,8 +117,24 @@
       border-top-right-radius: var(--corner-concentric);
       padding-right: var(--space-5); /* clear of the curve */
     }
+    /* Inverted: the curve is on the orange line's end. The bar keeps the curve; the
+       line moves in, past it (where the curve is nearly the full bar height) */
     :global(:root[data-island="right"]) .now {
+      position: relative;
+      overflow: hidden; /* the line follows the curve's edge where it crosses it */
       border-top-left-radius: var(--corner-concentric);
+      border-left-width: 1px;
+      border-left-color: var(--border);
+      padding-left: calc(var(--space-5) + 3px + var(--space-3));
+    }
+    :global(:root[data-island="right"]) .now::before {
+      content: "";
+      position: absolute;
+      left: var(--space-5);
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--accent-on);
     }
   }
 </style>
