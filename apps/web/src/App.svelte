@@ -14,10 +14,14 @@
   import type { Tuner } from "./lib/state";
   import Drawer from "./lib/Drawer.svelte";
   import { tunerBar } from "./lib/tuner";
+  import { view } from "./lib/optimistic";
+  import TempoPad from "./views/TempoPad.svelte";
 
   let showJson = $state(false);
 
-  let tempo = $derived($appState.tempo === undefined ? "–" : String(Math.round($appState.tempo)));
+  // Ahead of Ableton once set on the pad (lib/optimistic)
+  let tempo = $derived($view.tempo === undefined ? "–" : String(Math.round($view.tempo)));
+  let tempoPad = $state(false);
 
   // Short names for the rail's page button
   const SHORT = { scenes: "scn", loops: "loop", favorites: "fav" } as const;
@@ -86,11 +90,12 @@
        the top, health on the left, page and follow on the right -->
   <aside class="rail">
     <!-- Only shown while everything is connected (otherwise the Outage screen) -->
-    <div class="status" title="hub and Ableton Live connected">
+    <!-- Tapping it types a new tempo -->
+    <button class="status" data-always title="hub and Ableton Live connected" aria-label="tempo {tempo} bpm: set" onclick={() => (tempoPad = true)}>
       <span class="dot"></span>
       <span class="tempo">{tempo}</span>
       <span class="unit">bpm</span>
-    </div>
+    </button>
 
     <!-- Portrait: the padlock sits in the middle of the bar (in landscape it's at
          the end of "now playing": the rail is the Dynamic Island's) -->
@@ -178,6 +183,10 @@
       <Favorite favorite={$appState.favorite} onback={() => (hiddenFavorite = favoriteKey)} />
     {/if}
 
+    {#if tempoPad}
+      <TempoPad tempo={$view.tempo} onclose={() => (tempoPad = false)} />
+    {/if}
+
     <!-- Floats over the bottom of the page: it never resizes the scene list -->
     <div class="tuner-slot">
       <Drawer open={tunerOpen} edge="overlay">
@@ -226,6 +235,19 @@
     flex-direction: column;
     align-items: center;
     gap: var(--space-1);
+  }
+  /* a button, without the rail buttons' look */
+  .rail .status {
+    width: auto;
+    min-height: 0;
+    margin-block: 0; /* not the portrait bar's button overhang */
+    padding: var(--space-1);
+    font-size: inherit;
+    letter-spacing: normal;
+    text-transform: none;
+    color: inherit;
+    background: none;
+    border-color: transparent;
   }
   .tempo {
     margin-top: var(--space-1);
