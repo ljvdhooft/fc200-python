@@ -1,6 +1,7 @@
 <script lang="ts">
   import { fade } from "svelte/transition";
   import { abletonConnected, type Loop } from "../lib/state";
+  import CloseButton from "../lib/CloseButton.svelte";
   import ChainMenu from "./ChainMenu.svelte";
   import MacroView from "./Macro.svelte";
 
@@ -67,7 +68,7 @@
         <span class="label">chain</span>
         <span class="current">{loop.chain}</span>
       </button>
-      <button class="close" onclick={onclose} aria-label="close">✕</button>
+      <CloseButton onclick={onclose} />
     </span>
   </header>
 
@@ -146,13 +147,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .close {
-    flex: none;
-    width: var(--touch);
-    min-width: 0;
-    padding: 0;
-    color: var(--text-muted);
   }
   .macros {
     flex: 1;
