@@ -1,8 +1,6 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
   import { connection } from "../lib/client";
   import { abletonConnected, type Favorite } from "../lib/state";
-  import { FADE } from "../lib/motion";
   import { interactive, keepInteractive } from "../lib/touch";
   import { throttle } from "../lib/throttle";
 
@@ -49,7 +47,6 @@
 
 <div
   class="favorite"
-  class:dragging={!!drag}
   role="slider"
   aria-label={favorite.name}
   aria-valuemin={0}
@@ -62,7 +59,6 @@
   {onpointermove}
   {onpointerup}
   onpointercancel={() => (drag = null)}
-  transition:fade={{ duration: FADE }}
 >
   <!-- the value fills the screen from the bottom -->
   <div class="fill"></div>
@@ -89,10 +85,6 @@
     transform: scaleY(var(--value));
     background: color-mix(in srgb, var(--accent-on) 22%, var(--bg));
     border-top: 2px solid var(--accent-on);
-    transition: transform var(--motion) var(--ease);
-  }
-  .dragging .fill {
-    transition: none;
   }
   .text {
     position: relative;
