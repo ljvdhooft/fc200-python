@@ -7,6 +7,7 @@
   import NowPlaying from "./views/NowPlaying.svelte";
   import Scenes from "./views/Scenes.svelte";
   import Loops from "./views/Loops.svelte";
+  import Favorite from "./views/Favorite.svelte";
   import Outage from "./views/Outage.svelte";
   import Lock from "./lib/Lock.svelte";
   import TunerBar from "./views/Tuner.svelte";
@@ -143,7 +144,8 @@
     <main>
       {#if $shownPage === 0}
         <Scenes />
-      {:else if $shownPage === 1}
+      {:else if $shownPage === 1 || $shownPage === 2}
+        <!-- page 2 (favorites) shows the loops too; a picked favorite goes fullscreen -->
         <Loops />
       {:else}
         <div class="placeholder">
@@ -157,6 +159,10 @@
         </details>
       {/if}
     </main>
+
+    {#if $shownPage === 2 && $appState.favorite}
+      <Favorite favorite={$appState.favorite} />
+    {/if}
 
     <!-- Floats over the bottom of the page: it never resizes the scene list -->
     <div class="tuner-slot">

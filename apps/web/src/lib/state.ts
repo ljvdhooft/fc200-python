@@ -11,6 +11,7 @@ export interface FcState {
   transport?: { playing: boolean; metronome: boolean };
   scenes?: Scenes;
   loops?: Loop[];
+  favorite?: Favorite | null;
   edit?: Record<string, unknown>;
   presets?: Record<string, unknown>;
   tuner?: Tuner;
@@ -54,6 +55,13 @@ export interface Loop {
   chain: string;
   chains: string[];
   favorite: Parameter | null;
+}
+
+/** The favorite the expression pedal controls on page 2 (protocol/frontend.md, `favorite`). */
+export interface Favorite extends Parameter {
+  loop: number;
+  pedal: number;
+  loop_name: string;
 }
 
 export type Changes = Record<string, unknown>;
