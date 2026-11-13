@@ -19,7 +19,7 @@
   aria-valuemin={0}
   aria-valuemax={1}
   aria-valuenow={drag.value}
-  aria-valuetext={favorite.display}
+  aria-valuetext={drag.display}
   tabindex="-1"
   style:--value={drag.value}
   onpointerdown={drag.onpointerdown}
@@ -34,7 +34,7 @@
     <div class="loop"><span class="pedal">{favorite.pedal}</span> {favorite.loop_name}</div>
     <div class="name">{favorite.name}</div>
     <div class="dial"><Dial value={drag.value} dragging={drag.dragging} /></div>
-    <div class="display">{favorite.display}</div>
+    <div class="display">{drag.display}</div>
   </div>
 </div>
 

@@ -6,7 +6,7 @@
   // One of a loop's macros in the edit view: drag the cell up/down to set it
   let { loop, macro }: { loop: number; macro: Macro } = $props();
 
-  const drag = paramDrag(() => ({ loop, parameter: macro.parameter, value: macro.value }));
+  const drag = paramDrag(() => ({ loop, ...macro }));
 </script>
 
 <div
@@ -16,7 +16,7 @@
   aria-valuemin={0}
   aria-valuemax={1}
   aria-valuenow={drag.value}
-  aria-valuetext={macro.display}
+  aria-valuetext={drag.display}
   tabindex="-1"
   onpointerdown={drag.onpointerdown}
   onpointermove={drag.onpointermove}
@@ -25,7 +25,7 @@
 >
   <div class="name">{macro.name}</div>
   <div class="dial"><Dial value={drag.value} dragging={drag.dragging} /></div>
-  <div class="display">{macro.display}</div>
+  <div class="display">{drag.display}</div>
 </div>
 
 <style>

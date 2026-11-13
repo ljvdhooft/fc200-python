@@ -10,9 +10,12 @@ const CONFIRM = 2000;
 /**
  * Drag up/down to set a loop's macro (`loop.param.set`). The value follows the
  * finger, then holds the dragged value until Ableton reports it (or CONFIRM ms).
- * Call during component init: it sets up an effect.
+ * Its text comes from the macro's display table (`loop.param.displays`) until then.
+ * Call during component init: it sets up effects.
  */
-export function paramDrag(target: () => { loop: number; parameter: number; value: number }) {
+export function paramDrag(
+  target: () => { loop: number; parameter: number; value: number; display: string },
+) {
   let drag = $state<{ y: number; start: number; value: number } | null>(null);
   let held = $state<number | undefined>();
   let heldTimer: ReturnType<typeof setTimeout> | undefined;
@@ -27,9 +30,30 @@ export function paramDrag(target: () => { loop: number; parameter: number; value
 
   const value = () => drag?.value ?? held ?? target().value;
 
+  // Live's text for each of the macro's 128 steps, asked again when the macro changes
+  let displays = $state<string[] | null>(null);
+  // Only these two: the value changing must not ask again
+  const loop = $derived(target().loop);
+  const parameter = $derived(target().parameter);
+  $effect(() => {
+    let current = true;
+    displays = null;
+    connection
+      .request<{ displays: string[] }>("loop.param.displays", { loop, parameter })
+      .then((r) => current && (displays = r.displays))
+      .catch(() => {}); // no table: the text just waits for Ableton
+    return () => (current = false);
+  });
+
   return {
     get value() {
       return value();
+    },
+    /** Live's display text, ahead of Ableton while the value is ours */
+    get display() {
+      const ours = drag?.value ?? held;
+      if (ours === undefined || !displays) return target().display;
+      return displays[Math.round(ours * (displays.length - 1))] ?? target().display;
     },
     get dragging() {
       return drag !== null;
