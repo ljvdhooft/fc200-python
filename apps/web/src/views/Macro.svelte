@@ -54,7 +54,9 @@
     aspect-ratio: 1;
     min-height: 0;
     flex-shrink: 1;
-    margin-block: var(--space-1);
+    margin-top: var(--space-1);
+    /* the arc ends well above the box's bottom edge: pull the value up to it */
+    margin-bottom: -14px;
   }
   .display {
     font-size: var(--text-name);
