@@ -3,14 +3,16 @@
   import Dial from "../lib/Dial.svelte";
   import { paramDrag } from "../lib/paramDrag.svelte";
 
-  // One of a loop's macros in the edit view: drag the cell up/down to set it
-  let { loop, macro }: { loop: number; macro: Macro } = $props();
+  // One of a loop's macros in the edit view: drag the cell up/down to set it.
+  // `selected`: the FC-200's expression pedal controls it.
+  let { loop, macro, selected = false }: { loop: number; macro: Macro; selected?: boolean } = $props();
 
   const drag = paramDrag(() => ({ loop, ...macro }));
 </script>
 
 <div
   class="macro"
+  class:selected
   role="slider"
   aria-label={macro.name}
   aria-valuemin={0}
@@ -40,6 +42,13 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     touch-action: none; /* the drag is ours, not a scroll */
+    transition:
+      background var(--motion) var(--ease),
+      border-color var(--motion) var(--ease);
+  }
+  .selected {
+    background: color-mix(in srgb, var(--accent-select) 12%, var(--panel));
+    border-color: var(--accent-select);
   }
   .name {
     max-width: 100%;

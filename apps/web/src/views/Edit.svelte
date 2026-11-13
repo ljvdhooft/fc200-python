@@ -5,12 +5,42 @@
   import MacroView from "./Macro.svelte";
 
   // Parameter control from the app: a loop's 8 macros as dials, and its chain.
-  // Stands alone: the FC-200 stays in whatever mode it is in.
-  let { loop, onclose }: { loop: Loop; onclose: () => void } = $props();
+  // Opened here, it stands alone: the FC-200 stays in whatever mode it is in.
+  // `followed`: opened by the FC-200's parameter control; `selected`: the macro
+  // its expression pedal controls (a position in `loop.macros`).
+  let {
+    loop,
+    selected = null,
+    followed = false,
+    onclose,
+  }: { loop: Loop; selected?: number | null; followed?: boolean; onclose: () => void } = $props();
 
   // The chain button opens the same menu as a long press on a loop tile, against
   // the screen's right edge: an anchor at that edge, which the menu clamps to
   let chainOpen = $state(false);
+
+  // Followed: a chain change on the FC-200 shows the menu briefly. Not for a chain
+  // picked here (its change arrives just after the menu closes).
+  const FLASH = 1500;
+  const OWN = 2000;
+  let closedAt = 0;
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
+  let last: { loop: number; chain: string } | undefined; // what the view showed before
+  $effect(() => {
+    const { index, chain } = loop;
+    const changed = last?.loop === index && last.chain !== chain; // not a switch to another loop
+    last = { loop: index, chain };
+    if (!changed || !followed || Date.now() - closedAt < OWN) return;
+    chainOpen = true;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => (chainOpen = false), FLASH);
+  });
+  $effect(() => () => clearTimeout(flashTimer));
+  function closeChains() {
+    clearTimeout(flashTimer);
+    chainOpen = false;
+    closedAt = Date.now();
+  }
 </script>
 
 <div class="edit" transition:fade={{ duration: 120 }}>
@@ -35,13 +65,13 @@
   </header>
 
   <section class="macros">
-    {#each loop.macros as macro (macro.parameter)}
-      <MacroView loop={loop.index} {macro} />
+    {#each loop.macros as macro, i (macro.parameter)}
+      <MacroView loop={loop.index} {macro} selected={i === selected} />
     {/each}
   </section>
 
   {#if chainOpen}
-    <ChainMenu {loop} anchor={new DOMRect(innerWidth, 0, 0, 0)} onclose={() => (chainOpen = false)} />
+    <ChainMenu {loop} anchor={new DOMRect(innerWidth, 0, 0, 0)} onclose={closeChains} />
   {/if}
 </div>
 

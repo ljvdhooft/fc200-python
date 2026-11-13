@@ -5,6 +5,7 @@
   import { throttle } from "../lib/throttle";
   import ChainMenu from "./ChainMenu.svelte";
   import Edit from "./Edit.svelte";
+  import { follow } from "../lib/pages";
 
   let loops = $derived($appState.loops ?? []);
 
@@ -42,7 +43,23 @@
   // doesn't lock while it is on.
   let editMode = $state(false);
   let editLoop = $state<number | null>(null);
-  let editing = $derived(loops.find((l) => l.index === editLoop));
+  // Following: the FC-200's parameter control opens the same view. One direction:
+  // closing it here hides it until the FC-200 edits another loop, nothing more.
+  let fcLoop = $derived($follow ? $appState.edit?.loop : undefined);
+  let dismissed = $state<number | null>(null);
+  $effect(() => {
+    if (fcLoop === undefined) dismissed = null;
+  });
+  let shownLoop = $derived(editLoop ?? (fcLoop !== dismissed ? fcLoop : undefined));
+  let editing = $derived(loops.find((l) => l.index === shownLoop));
+  // The macro the expression pedal controls, while the FC-200 edits this loop
+  let selected = $derived(
+    $appState.edit && $appState.edit.loop === shownLoop ? $appState.edit.selected : null,
+  );
+  function closeEdit() {
+    editLoop = null;
+    dismissed = fcLoop ?? null;
+  }
   $effect(() => {
     if (editMode) return holdInteractive();
   });
@@ -166,7 +183,7 @@
 
 <!-- Beside the grid in landscape, under it in portrait -->
 {#if editing}
-  <Edit loop={editing} onclose={() => (editLoop = null)} />
+  <Edit loop={editing} {selected} followed={editing.index === fcLoop} onclose={closeEdit} />
 {/if}
 
 <aside class="side">

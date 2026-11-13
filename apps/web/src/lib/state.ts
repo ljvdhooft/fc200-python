@@ -12,7 +12,7 @@ export interface FcState {
   scenes?: Scenes;
   loops?: Loop[];
   favorite?: Favorite | null;
-  edit?: Record<string, unknown>;
+  edit?: EditState | null;
   presets?: Record<string, unknown>;
   tuner?: Tuner;
   hub?: { live_connected: boolean };
@@ -66,6 +66,14 @@ export interface Favorite extends Parameter {
   loop: number;
   pedal: number;
   loop_name: string;
+}
+
+/** Present while the FC-200 is in parameter control (protocol/frontend.md, `edit`). */
+export interface EditState {
+  loop: number;
+  name: string;
+  selected: number | null; // position in `macros` the expression pedal controls
+  macros: (Parameter & { pedal: number })[];
 }
 
 export type Changes = Record<string, unknown>;
