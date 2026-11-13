@@ -10,7 +10,8 @@
 
 <svg class="dial" class:dragging viewBox="0 0 100 100" aria-hidden="true">
   <path class="track" d={ARC} />
-  <path class="arc" d={ARC} pathLength="1" stroke-dasharray="{value} 1" />
+  <!-- a style, not the attribute: only CSS properties glide with the needle -->
+  <path class="arc" d={ARC} pathLength="1" style:stroke-dasharray="{value} 1" />
   <line class="needle" x1="50" y1="50" x2="88" y2="50" style:rotate="{135 + 270 * value}deg" />
 </svg>
 
