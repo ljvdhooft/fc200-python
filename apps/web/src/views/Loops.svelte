@@ -176,8 +176,14 @@
     class:passive={!$interactive}
     disabled={!$interactive}
     aria-pressed={editMode}
+    aria-label="edit"
     onclick={() => (editMode = !editMode)}
-  >edit</button>
+  >
+    <!-- Lucide "sliders-vertical" (ISC) -->
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M2 14h4M10 8h4M18 16h4" />
+    </svg>
+  </button>
   <!-- placeholder: presets come later -->
   <button class="presets" class:passive={!$interactive} disabled={!$interactive}>presets</button>
 </aside>
@@ -196,7 +202,27 @@
     gap: var(--space-2);
     width: calc(var(--touch) + var(--space-3));
   }
-  .edit,
+  /* square, above the presets */
+  .edit {
+    flex: none;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    transition: opacity var(--motion) var(--ease);
+  }
+  .edit svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
   .presets {
     flex: 1;
     writing-mode: vertical-rl;
@@ -415,7 +441,6 @@
       height: calc(var(--touch) * 1.5);
       flex-direction: row;
     }
-    .edit,
     .presets {
       writing-mode: horizontal-tb;
     }
