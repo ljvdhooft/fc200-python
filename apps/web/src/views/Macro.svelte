@@ -24,7 +24,7 @@
   onpointercancel={drag.onpointercancel}
 >
   <div class="name">{macro.name}</div>
-  <div class="dial"><Dial value={drag.value} /></div>
+  <div class="dial"><Dial value={drag.value} dragging={drag.dragging} /></div>
   <div class="display">{macro.display}</div>
 </div>
 
@@ -43,7 +43,7 @@
   }
   .name {
     max-width: 100%;
-    font-size: var(--text-body);
+    font-size: var(--text-name);
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
@@ -54,9 +54,7 @@
     aspect-ratio: 1;
     min-height: 0;
     flex-shrink: 1;
-    margin-top: var(--space-1);
-    /* the value tucks up into the dial's open bottom, like Ableton's */
-    margin-bottom: -22%;
+    margin-block: var(--space-1);
   }
   .display {
     font-size: var(--text-name);

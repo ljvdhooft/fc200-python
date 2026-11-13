@@ -31,6 +31,9 @@ export function paramDrag(target: () => { loop: number; parameter: number; value
     get value() {
       return value();
     },
+    get dragging() {
+      return drag !== null;
+    },
     onpointerdown(e: PointerEvent) {
       if (!get(abletonConnected) || !get(interactive)) return;
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);

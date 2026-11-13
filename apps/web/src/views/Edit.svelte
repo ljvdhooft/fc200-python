@@ -60,7 +60,7 @@
     font-variant-numeric: tabular-nums;
   }
   .name {
-    font-size: var(--text-name);
+    font-size: var(--text-scene);
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;

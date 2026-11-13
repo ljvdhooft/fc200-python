@@ -33,7 +33,7 @@
   <div class="text">
     <div class="loop"><span class="pedal">{favorite.pedal}</span> {favorite.loop_name}</div>
     <div class="name">{favorite.name}</div>
-    <div class="dial"><Dial value={drag.value} /></div>
+    <div class="dial"><Dial value={drag.value} dragging={drag.dragging} /></div>
     <div class="display">{favorite.display}</div>
   </div>
 </div>
