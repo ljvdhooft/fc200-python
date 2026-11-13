@@ -208,6 +208,7 @@
   <button
     class="edit"
     class:on={editMode}
+    class:fc={$follow && $appState.page === 2}
     class:passive={!$interactive}
     disabled={!$interactive}
     aria-pressed={editMode}
@@ -273,6 +274,12 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     transition: opacity var(--motion) var(--ease);
+  }
+  /* following the FC-200 on page 2, where its pedals edit the loops */
+  .edit.fc {
+    color: var(--accent-select);
+    border-color: var(--accent-select);
+    background: color-mix(in srgb, var(--accent-select) 12%, var(--panel-2));
   }
   .edit.on {
     color: var(--accent-on);
