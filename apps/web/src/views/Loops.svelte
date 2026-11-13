@@ -1,7 +1,7 @@
 <script lang="ts">
   import { connection } from "../lib/client";
   import { appState, abletonConnected, type Loop } from "../lib/state";
-  import { holdInteractive, interactive, keepInteractive } from "../lib/touch";
+  import { holdInteractive, interactive, keepInteractive, wake } from "../lib/touch";
   import { throttle } from "../lib/throttle";
   import ChainMenu from "./ChainMenu.svelte";
   import Edit from "./Edit.svelte";
@@ -59,6 +59,13 @@
   let selected = $derived(
     $appState.edit && $appState.edit.loop === shownLoop ? $appState.edit.selected : null,
   );
+  // The FC-200's view opens in touch mode and doesn't lock, like edit mode
+  let followed = $derived(editing !== undefined && editing.index === fcLoop);
+  $effect(() => {
+    if (!followed) return;
+    wake();
+    return holdInteractive();
+  });
   function closeEdit() {
     if (shownLoop !== undefined && shownLoop === fcLoop) connection.send("edit.close");
     editLoop = null;
@@ -187,7 +194,7 @@
 
 <!-- Beside the grid in landscape, under it in portrait -->
 {#if editing}
-  <Edit loop={editing} {selected} followed={editing.index === fcLoop} onclose={closeEdit} />
+  <Edit loop={editing} {selected} {followed} onclose={closeEdit} />
 {/if}
 
 <aside class="side">
