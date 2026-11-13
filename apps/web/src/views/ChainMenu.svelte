@@ -19,12 +19,11 @@
 
   // svelte-ignore state_referenced_locally (only where it starts)
   let before = $state(from);
-  // Two frames: the old highlight is painted first, so the move is a transition
+  // A beat into the fade-in, so the old chain is seen before it moves
+  const MOVE_DELAY = 80;
   $effect(() => {
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => (before = undefined));
-    });
-    return () => cancelAnimationFrame(frame);
+    const timer = setTimeout(() => (before = undefined), MOVE_DELAY);
+    return () => clearTimeout(timer);
   });
 
   $effect(() => holdInteractive());
