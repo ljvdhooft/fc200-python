@@ -7,6 +7,7 @@
   import { throttle } from "../lib/throttle";
 
   // The favorite the expression pedal controls on page 2, over the whole screen.
+  // Shown whatever page this app shows (follow or not): picking it is a pedal action.
   // Dragging up/down sets it, like the tiles on the loops page.
   let { favorite }: { favorite: Favorite } = $props();
 

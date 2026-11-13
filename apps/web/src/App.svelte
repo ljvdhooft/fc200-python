@@ -160,7 +160,7 @@
       {/if}
     </main>
 
-    {#if $shownPage === 2 && $appState.favorite}
+    {#if $appState.favorite}
       <Favorite favorite={$appState.favorite} />
     {/if}
 
