@@ -14,20 +14,25 @@
 </script>
 
 <div class="edit" transition:fade={{ duration: 120 }}>
+  <!-- the same columns as the dials: the chain button starts at the third -->
   <header>
-    <span class="pedal">{loop.pedal}</span>
-    <span class="name">{loop.name}</span>
-    <button
-      class="chain"
-      bind:this={chainButton}
-      aria-haspopup="dialog"
-      disabled={!$abletonConnected}
-      onclick={() => (chainAnchor = chainButton!.getBoundingClientRect())}
-    >
-      <span class="label">chain</span>
-      <span class="current">{loop.chain}</span>
-    </button>
-    <button class="close" onclick={onclose} aria-label="close">✕</button>
+    <span class="title">
+      <span class="pedal">{loop.pedal}</span>
+      <span class="name">{loop.name}</span>
+    </span>
+    <span class="end">
+      <button
+        class="chain"
+        bind:this={chainButton}
+        aria-haspopup="dialog"
+        disabled={!$abletonConnected}
+        onclick={() => (chainAnchor = chainButton!.getBoundingClientRect())}
+      >
+        <span class="label">chain</span>
+        <span class="current">{loop.chain}</span>
+      </button>
+      <button class="close" onclick={onclose} aria-label="close">✕</button>
+    </span>
   </header>
 
   <section class="macros">
@@ -54,9 +59,23 @@
     background: var(--bg);
   }
   header {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: var(--space-2);
+    align-items: center;
+  }
+  .title {
+    grid-column: 1 / 3;
     display: flex;
     align-items: center;
     gap: var(--space-3);
+    min-width: 0;
+  }
+  .end {
+    grid-column: 3 / -1;
+    display: flex;
+    gap: var(--space-2);
+    min-width: 0;
   }
   .pedal {
     color: var(--accent-on);
@@ -70,10 +89,8 @@
     text-overflow: ellipsis;
   }
   .chain {
-    margin-left: auto;
+    flex: 1;
     min-width: 0;
-    width: 240px;
-    max-width: 50%;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -110,6 +127,14 @@
     gap: var(--space-2);
   }
   @media (orientation: portrait) {
+    /* two columns: the name over the first, the chain over the second */
+    .title {
+      grid-column: 1;
+    }
+    .end {
+      grid-column: 2;
+    }
+    header,
     .macros {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       grid-template-rows: repeat(4, minmax(0, 1fr));
