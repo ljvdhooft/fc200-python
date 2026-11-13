@@ -114,8 +114,9 @@
           <!-- tapping anywhere else closes the menu -->
           <button class="backdrop" aria-label="close" onclick={() => (menuOpen = false)}></button>
           <div class="menu" role="menu" transition:fly={portrait ? { y: -8, duration: MOTION, easing: ease } : { x: -8, duration: MOTION, easing: ease }}>
-            <!-- page 0 at the bottom, like stepping up through the FC-200's pages -->
-            {#each [...PAGES.entries()].reverse() as [page, name] (name)}
+            <!-- page 0 at the bottom, like stepping up through the FC-200's pages.
+                 No favorites: here it is the loops page (its favorite opens by pedal) -->
+            {#each [...PAGES.entries()].filter(([, name]) => name !== "favorites").reverse() as [page, name] (name)}
               <button role="menuitem" class:current={$shownPage === page} onclick={() => choose(page)}>{name}</button>
             {/each}
             <button
@@ -283,11 +284,13 @@
     background: transparent;
     border: 0;
   }
-  /* Opens beside the rail, towards the content; its bottom lines up with the page button */
+  /* Opens beside the rail, towards the content. The bottom page item (scenes) lines
+     up with the page button: the tuner bar setting under it hangs lower, past the
+     menu's border and padding, the setting and the gap above it */
   .menu {
     position: absolute;
     left: calc(100% + var(--space-2));
-    bottom: calc(var(--touch) + var(--space-2));
+    bottom: calc(var(--touch) + var(--space-2) - (1px + var(--space-1) + var(--touch) + var(--space-1)));
     z-index: 11;
     display: flex;
     flex-direction: column;
@@ -327,6 +330,7 @@
   .rail .menu .setting {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: var(--space-3);
     border-top: 1px solid var(--border);
     border-radius: 0;
