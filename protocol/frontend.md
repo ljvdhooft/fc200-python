@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.11.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.12.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -15,6 +15,7 @@
 | 0.9.0   | `transport.play`, `transport.stop`, `metronome.set`, `scene.fire_and_stop` |
 | 0.10.0  | `tuner` node: note, cents and tolerance while the volume is 0          |
 | 0.11.0  | `loops[].macros`: every loop carries its 8 macros                       |
+| 0.12.0  | `loop.param.displays`: a macro's display text for each of its 128 steps |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -297,6 +298,7 @@ new state arrives as `state.changed` (the result does not replace it).
 | `loop.chain.select`  | `{"loop": int, "chain": string}`                  | `{"chain": string}`             |
 | `loop.param.set`     | `{"loop": int, "parameter": int, "value": float}` | `{"value": float, "display": string}` |
 | `loop.param.select`  | `{"loop": int, "parameter": int}`                 | `{"parameter": int}`            |
+| `loop.param.displays`| `{"loop": int, "parameter": int}`                 | `{"displays": [string]}`        |
 | `edit.open`          | `{"loop": int}`                                   | `{"loop": int}`                 |
 | `edit.close`         | none                                              | `{}`                            |
 | `preset.list`        | none                                              | `{"names": [string], "missing_json": [string]}`, sorted |
@@ -315,6 +317,7 @@ new state arrives as `state.changed` (the result does not replace it).
 - `loop.set` switches the loop on or off (parameter 0), like a number pedal on page 1.
 - `loop.chain.select` matches the chain by name, like a preset recall. While the loop is being edited, the script keeps `ParameterControl`'s chain index in sync.
 - `loop.param.set` accepts the macros only, `parameter` 1..8 (a loop's favorite is one of its macros). It does **not** change what the expression pedal controls.
+- `loop.param.displays` returns Live's display text (`str_for_value`) for each of a macro's 128 steps: entry `i` is the text at value `i / 127`. Clients show it while dragging, before Ableton reports the new `display`; they can't format it themselves (ms, dB, ratios). Macros only, `parameter` 1..8. Ask again whenever the text may have changed (a remapped macro): the script doesn't notify.
 - `loop.param.select` sets what the expression pedal controls, like a macro pedal in `parameter_control` (`ParameterControl._select_macro`). Only for the loop being edited; otherwise `unavailable`.
 - `edit.open` enters `parameter_control` for a loop, like pressing a favorite's pedal twice on page 2; it goes to page 2 first if needed. `edit.close` returns to the favorites page, like CTL in `parameter_control`; outside it, it does nothing.
 - `preset.store` and `preset.recall` behave exactly as `PresetManager.store` / `recall`; a second `preset.store` for the same name confirms an overwrite, `preset.cancel` drops it. `preset.store` requires `scene_index`: a remote names its target explicitly. `preset.recall` already applies a preset without launching a scene.

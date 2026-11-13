@@ -140,7 +140,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.11.0")
+        self.assertEqual(state["version"], "0.12.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -311,6 +311,12 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.s._racks[0].parameters[2].value, 127)     # clamped
         self.assertEqual(self.error("loop.param.set", loop=0, parameter=9, value=0.5), "not_found")
         self.assertEqual(self.error("loop.param.set", loop=0, parameter=0, value=0.5), "not_found")
+
+    def test_param_displays(self):
+        displays = self.call("loop.param.displays", loop=0, parameter=2)["displays"]
+        self.assertEqual(len(displays), 128)
+        self.assertEqual((displays[0], displays[64], displays[127]), ("0", "64", "127"))
+        self.assertEqual(self.error("loop.param.displays", loop=0, parameter=0), "not_found")
 
     def test_presets(self):
         self.assertEqual(self.call("preset.list"), {"names": ["A", "B"], "missing_json": ["B"]})

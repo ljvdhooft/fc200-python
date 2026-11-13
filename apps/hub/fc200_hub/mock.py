@@ -195,6 +195,11 @@ class Mock:
             self.model.set(f"{base}.display", display)
         return {"value": value, "display": display}
 
+    def _m_loop_param_displays(self, p: dict[str, Any]) -> Any:
+        if self._loop_position(p["loop"]) is None or not 1 <= p["parameter"] <= 8:
+            raise LookupError("loop or parameter")
+        return {"displays": [_pct(i / 127) for i in range(128)]}
+
     def _m_loop_param_select(self, p: dict[str, Any]) -> Any:
         if self._loop_position(p["loop"]) is None:
             raise LookupError("loop")

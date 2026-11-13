@@ -32,9 +32,10 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.11.0"
+VERSION = "0.12.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
+DISPLAY_STEPS = 128     # a macro's steps (0..127), for loop.param.displays
 
 
 def _parameter(p: DeviceParameter) -> dict[str, Any]:
@@ -278,6 +279,7 @@ class UiBindings(presets.PresetEvents):
             "loop.chain.select": self._chain_select,
             "loop.param.set": self._param_set,
             "loop.param.select": self._param_select,
+            "loop.param.displays": self._param_displays,
             "edit.open": self._edit_open,
             "edit.close": self._edit_close,
             "preset.list": self._preset_list,
@@ -367,6 +369,16 @@ class UiBindings(presets.PresetEvents):
         p.value = p.min + value * (p.max - p.min)
         result = _parameter(p)
         return {"value": result["value"], "display": result["display"]}
+
+    def _param_displays(self, params: dict[str, Any]) -> Any:
+        rack = self._loop_param(params)
+        index = _arg(params, "parameter", int)
+        if index not in MACROS:
+            raise MethodError("not_found", f"parameter {index} is not a macro")
+        p = rack.parameters[index]
+        span = p.max - p.min
+        return {"displays": [p.str_for_value(p.min + span * i / (DISPLAY_STEPS - 1))
+                             for i in range(DISPLAY_STEPS)]}
 
     def _param_select(self, params: dict[str, Any]) -> Any:
         self._loop_param(params)
