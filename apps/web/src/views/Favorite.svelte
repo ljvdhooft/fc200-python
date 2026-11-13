@@ -3,23 +3,29 @@
   import type { Favorite } from "../lib/state";
   import Dial from "../lib/Dial.svelte";
   import { paramDrag } from "../lib/paramDrag.svelte";
-  import { holdInteractive, sleep, wake } from "../lib/touch";
+  import { connection } from "../lib/client";
+  import { appState } from "../lib/state";
+  import { holdInteractive, wake } from "../lib/touch";
 
   // The favorite the expression pedal controls on page 2, over the whole screen.
   // Shown whatever page this app shows (follow or not): picking it is a pedal action.
   // Dragging up/down sets it, like the tiles on the loops page.
-  let { favorite }: { favorite: Favorite } = $props();
+  // ← (`onback`) only hides it here; ✕ also drops the favorite on the FC-200.
+  let { favorite, onback }: { favorite: Favorite; onback: () => void } = $props();
+
+  // Re-entering the page drops the favorite, like a bank pedal at the last page
+  // (page.set)
+  function exit() {
+    connection.send("page.set", { page: $appState.page ?? 2 });
+    onback();
+  }
 
   const drag = paramDrag(() => favorite);
 
-  // Touch mode while it is up; it goes when the FC-200 drops the favorite
+  // Touch mode while it is up (App locks it again when the FC-200 drops it)
   $effect(() => {
     wake();
-    const release = holdInteractive();
-    return () => {
-      release();
-      sleep();
-    };
+    return holdInteractive();
   });
 </script>
 
@@ -39,6 +45,10 @@
   onpointercancel={drag.onpointercancel}
   transition:fade={{ duration: 120 }}
 >
+  <!-- buttons, not drags: they keep the pointer from the slider -->
+  <button class="back" aria-label="back" onpointerdown={(e) => e.stopPropagation()} onclick={onback}>←</button>
+  <button class="exit" aria-label="exit on the FC-200" onpointerdown={(e) => e.stopPropagation()} onclick={exit}>✕</button>
+
   <!-- the value fills the screen from the bottom -->
   <div class="fill"></div>
   <div class="text">
@@ -67,6 +77,24 @@
     border-top: 2px solid var(--accent-on);
     /* just smooths the pedal's steps; longer and it trails behind */
     transition: transform 80ms linear;
+  }
+  .back,
+  .exit {
+    position: absolute;
+    z-index: 1;
+    top: calc(var(--space-3) + var(--safe-top));
+    width: var(--touch);
+    min-width: 0;
+    padding: 0;
+    font-size: var(--text-name);
+    color: var(--text-muted);
+    background: var(--panel);
+  }
+  .back {
+    left: max(var(--space-4), var(--safe-left));
+  }
+  .exit {
+    right: max(var(--space-4), var(--safe-right));
   }
   .text {
     position: relative;

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { appState, outage } from "./lib/state";
-  import { interactive } from "./lib/touch";
+  import { interactive, sleep } from "./lib/touch";
   import { follow, localPage, PAGES, shownPage } from "./lib/pages";
   import { fade, fly } from "svelte/transition";
   import { ease, FADE, MOTION } from "./lib/motion";
@@ -41,6 +41,19 @@
   let tunerOpen = $derived(
     !!($tunerBar && $appState.tuner) && (COVERED_PAGES.has($shownPage) || !$interactive),
   );
+
+  // The fullscreen favorite: ← hides it until the FC-200 picks another one
+  let favoriteKey = $derived($appState.favorite ? `${$appState.favorite.loop}` : null);
+  let hiddenFavorite = $state<string | null>(null);
+  // Display mode again as soon as the FC-200 drops the favorite
+  let hadFavorite = false;
+  $effect(() => {
+    if (hadFavorite && !favoriteKey) {
+      hiddenFavorite = null;
+      sleep();
+    }
+    hadFavorite = !!favoriteKey;
+  });
 
   let menuOpen = $state(false);
   // The menu goes when touch mode ends (not before it starts: the page button opens
@@ -160,8 +173,8 @@
       {/if}
     </main>
 
-    {#if $appState.favorite}
-      <Favorite favorite={$appState.favorite} />
+    {#if $appState.favorite && favoriteKey !== hiddenFavorite}
+      <Favorite favorite={$appState.favorite} onback={() => (hiddenFavorite = favoriteKey)} />
     {/if}
 
     <!-- Floats over the bottom of the page: it never resizes the scene list -->
