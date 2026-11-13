@@ -8,7 +8,21 @@
   // Pick the loop's chain (long press on a loop tile): a narrow, full-height list
   // over the blurred page, centred on the held tile as far as the screen (and the
   // Dynamic Island's safe area) allows. Touch mode stays on while it is open.
-  let { loop, anchor, onclose }: { loop: Loop; anchor: DOMRect | null; onclose: () => void } = $props();
+  // `from`: the chain it was on before (a change elsewhere): the highlight starts
+  // there and moves to the current chain once the menu is in
+  let {
+    loop,
+    anchor,
+    from,
+    onclose,
+  }: { loop: Loop; anchor: DOMRect | null; from?: string; onclose: () => void } = $props();
+
+  // svelte-ignore state_referenced_locally (only where it starts)
+  let before = $state(from);
+  $effect(() => {
+    const timer = setTimeout(() => (before = undefined), FADE);
+    return () => clearTimeout(timer);
+  });
 
   $effect(() => holdInteractive());
 
@@ -61,7 +75,7 @@
     {#each loop.chains as chain (chain)}
       <button
         class="chain"
-        class:current={chain === (chosen ?? loop.chain)}
+        class:current={chain === (chosen ?? before ?? loop.chain)}
         class:pressed={pressed === chain}
         data-always
         onpointerdown={() => press(chain)}
@@ -152,6 +166,10 @@
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    transition:
+      color var(--motion) var(--ease),
+      background var(--motion) var(--ease),
+      border-color var(--motion) var(--ease);
   }
   .chain.pressed {
     background: color-mix(in srgb, var(--accent-select) 25%, var(--panel-2));

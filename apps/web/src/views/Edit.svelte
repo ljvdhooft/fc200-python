@@ -18,6 +18,7 @@
   // The chain button opens the same menu as a long press on a loop tile, against
   // the screen's right edge: an anchor at that edge, which the menu clamps to
   let chainOpen = $state(false);
+  let chainFrom = $state<string | undefined>(); // followed: the chain before the change
 
   // Followed: a chain change on the FC-200 shows the menu briefly. Not for a chain
   // picked here (its change arrives just after the menu closes).
@@ -29,16 +30,22 @@
   $effect(() => {
     const { index, chain } = loop;
     const changed = last?.loop === index && last.chain !== chain; // not a switch to another loop
+    const previous = last?.chain;
     last = { loop: index, chain };
     if (!changed || !followed || Date.now() - closedAt < OWN) return;
+    if (!chainOpen) chainFrom = previous;
     chainOpen = true;
     clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => (chainOpen = false), FLASH);
+    flashTimer = setTimeout(() => {
+      chainOpen = false;
+      chainFrom = undefined;
+    }, FLASH);
   });
   $effect(() => () => clearTimeout(flashTimer));
   function closeChains() {
     clearTimeout(flashTimer);
     chainOpen = false;
+    chainFrom = undefined;
     closedAt = Date.now();
   }
 </script>
@@ -71,7 +78,7 @@
   </section>
 
   {#if chainOpen}
-    <ChainMenu {loop} anchor={new DOMRect(innerWidth, 0, 0, 0)} onclose={closeChains} />
+    <ChainMenu {loop} from={chainFrom} anchor={new DOMRect(innerWidth, 0, 0, 0)} onclose={closeChains} />
   {/if}
 </div>
 
