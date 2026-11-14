@@ -1,0 +1,75 @@
+:root {
+  /* surfaces */
+  --bg: #141414;
+  --panel: #1e1e1e;
+  --panel-2: #262626;
+  --border: #333333;
+
+  /* text (no pure white) */
+  --text: #d0d0d0;
+  --text-muted: #8a8a8a;
+
+  /* accents */
+  --accent-on: #f29d38; /* on / active */
+  --accent-select: #5aa9e6; /* selected / focus */
+  --follow: #4fd3e0; /* follow linked (cyan) */
+
+  /* status (muted); red only for errors and overwrite-pending */
+  --status-live: #5bb974;
+  --status-reconnecting: #e0b341;
+  --status-error: #e5534b;
+
+  /* spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --touch: 44px;
+  --scene-row: 56px; /* every scene row, selected or not */
+  --radius: 4px;
+  --corner-concentric: 40px; /* iPhone screen corner (~55pt) minus the content inset */
+
+  /* typography */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-label: 12px;
+  --text-body: 15px;
+  --text-name: 20px;
+  --text-scene: 28px;
+
+  /* motion */
+  --motion: 380ms;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1); /* iOS sheet curve; JS twin in motion.ts */
+
+  /* safe areas */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* Content edges (backgrounds still run to the screen edge). Per Apple's HIG the
+     content sits inside the safe area, which covers the Dynamic Island, the rounded
+     corners and the home indicator. iOS reports the same inset on both sides in
+     landscape: the island side holds the rail (status, follow), which fills that
+     strip; the other side keeps half, which still clears the rounded corners. */
+  --rail: max(56px, var(--safe-left), var(--safe-right));
+  --inset-content: max(var(--space-3), calc(max(var(--safe-left), var(--safe-right)) / 2));
+  --inset-bottom: max(var(--space-3), calc(var(--safe-bottom) / 2));
+}
+
+/* Landscape phones: content runs close to the screen edge opposite the island; the
+   elements that meet the rounded screen corners round theirs to match instead of
+   keeping clear of them */
+@media (orientation: landscape) and (max-height: 500px) {
+  :root {
+    --inset-content: var(--space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion: 0ms;
+  }
+}

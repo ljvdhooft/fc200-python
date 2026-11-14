@@ -61,6 +61,14 @@ class Surface(FakeSurface):
         self._device = SimpleNamespace(name="FC200 Pedalboard")
         self._device_index = 4
         self.settings.MIN_PAGE, self.settings.MAX_PAGE = 0, 2
+        self.settings.TUNER_TOLERANCE = 2
+        self._volume_param = Parameter("Volume", 100)
+        self._tuner_device = SimpleNamespace(parameters=[Parameter(f"Tuner p{i}") for i in range(3)])
+        self._tuner_rack = SimpleNamespace(parameters=[Parameter(f"Tuner rack p{i}") for i in range(2)])
+        self.tuner = ("a#", 0.0)
+
+    def _tuner_reading(self):
+        return self.tuner
 
     def _board_track(self):
         return self._track
@@ -115,6 +123,7 @@ class UiBindingsTest(unittest.TestCase):
         self.events = []
         self.listeners = FakeListeners()
         self.ui = UiBindings(self.s, self.model, self.events.append)
+        self.s._ui = self.ui
         self.ui.setup(self.listeners)
         self.model.flush()
         self.handlers = self.ui.handlers()
@@ -131,7 +140,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.6.0")
+        self.assertEqual(state["version"], "0.13.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -142,10 +151,29 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(state["loops"][5]["pedal"], 6)
         self.assertEqual(state["loops"][0]["chain"], "B")
         self.assertEqual(state["loops"][0]["favorite"]["parameter"], 6)
+        self.assertEqual([m["parameter"] for m in state["loops"][0]["macros"]], list(range(1, 9)))
         self.assertNotIn("edit", state)   # none = missing
         self.assertEqual(state["presets"], {"count": 2, "pending_overwrite": None,
                                             "last": None})
         self.assertEqual(self.s._presets.subscribers, [self.ui])
+
+    def test_tuner_only_while_the_volume_is_0(self):
+        self.assertNotIn("tuner", self.model.dump())
+        self.s._volume_param.value = 0
+        self.s.tuner = ("a#", -3.0)
+        self.listeners.fire(self.s._volume_param, "value")
+        self.assertEqual(self.model.flush(),
+                         {"tuner": {"note": "A#", "cents": -3.0, "in_tune": False, "tolerance": 2}})
+
+        cents = self.s._tuner_device.parameters[1]
+        self.s.tuner = ("a#", 1.0)
+        self.listeners.fire(cents, "value")
+        self.assertEqual(self.model.flush(),
+                         {"tuner": {"note": "A#", "cents": 1.0, "in_tune": True, "tolerance": 2}})
+
+        self.s._volume_param.value = 64
+        self.listeners.fire(cents, "value")
+        self.assertEqual(self.model.flush(), {"tuner": None})
 
     def test_scene_window_is_clipped(self):
         self.s.song_obj.view.selected_scene = self.s.scenes[1]
@@ -169,7 +197,9 @@ class UiBindingsTest(unittest.TestCase):
         favorite.value = 127
         self.listeners.fire(favorite, "value")
         self.assertEqual(self.model.flush(), {"loops.0.favorite.value": 1.0,
-                                              "loops.0.favorite.display": "127"})
+                                              "loops.0.favorite.display": "127",
+                                              "loops.0.macros.5.value": 1.0,
+                                              "loops.0.macros.5.display": "127"})
 
     def test_chain_listener(self):
         rack = self.s._racks[0]
@@ -217,7 +247,8 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual([m["parameter"] for m in edit["macros"]], list(range(1, 9)))
         self.assertEqual([m["pedal"] for m in edit["macros"]], [6, 7, 8, 9, 1, 2, 3, 4])
 
-        # A macro moving updates the edit node; the same parameter on another loop doesn't
+        # A macro moving updates its loop and the edit node; the same parameter on another
+        # loop updates only that loop
         self.model.flush()
         macro = self.s._racks[2].parameters[3]
         macro.value = 63.5
@@ -225,7 +256,11 @@ class UiBindingsTest(unittest.TestCase):
         other = self.s._racks[3].parameters[3]
         other.value = 10
         self.listeners.fire(other, "value")
-        self.assertEqual(self.model.flush(), {"edit.macros.2.value": 0.5,
+        self.assertEqual(self.model.flush(), {"loops.2.macros.2.value": 0.5,
+                                              "loops.2.macros.2.display": "64",
+                                              "loops.3.macros.2.value": 10 / 127,
+                                              "loops.3.macros.2.display": "10",
+                                              "edit.macros.2.value": 0.5,
                                               "edit.macros.2.display": "64"})
 
     def test_preset_events_update_state_and_emit(self):
@@ -277,6 +312,12 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.error("loop.param.set", loop=0, parameter=9, value=0.5), "not_found")
         self.assertEqual(self.error("loop.param.set", loop=0, parameter=0, value=0.5), "not_found")
 
+    def test_param_displays(self):
+        displays = self.call("loop.param.displays", loop=0, parameter=2)["displays"]
+        self.assertEqual(len(displays), 128)
+        self.assertEqual((displays[0], displays[64], displays[127]), ("0", "64", "127"))
+        self.assertEqual(self.error("loop.param.displays", loop=0, parameter=0), "not_found")
+
     def test_presets(self):
         self.assertEqual(self.call("preset.list"), {"names": ["A", "B"], "missing_json": ["B"]})
         self.assertEqual(self.call("preset.get", name="A"), {"0": {"parameters": [], "chain": "A"}})
@@ -298,11 +339,45 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.s.fired, [])
         self.assertEqual(self.error("scene.select", index=10), "not_found")
 
+    def test_scene_list(self):
+        scenes = self.call("scene.list")["scenes"]
+        self.assertEqual(len(scenes), self.model.get("scenes.count"))
+        for entry in self.model.get("scenes.window"):
+            self.assertEqual(scenes[entry["index"]], entry)
+
     def test_scene_fire_works_like_pedal_3_on_any_page(self):
         self.assertEqual(self.call("scene.fire"), {"index": 5})
         self.assertEqual(self.s.fired, ["Scene 5"])
         self.assertEqual(self.model.get("scenes.fired.index"), 5)
         self.assertEqual(self.model.get("scenes.selected"), 6)
+
+    def test_transport_play_and_stop_work_like_pedals_1_and_2(self):
+        self.assertEqual(self.call("transport.play"), {})
+        self.assertEqual(self.call("transport.stop"), {})
+        self.assertEqual(self.s.song_obj.calls, ["start", "stop", "stop_all"])
+
+    def test_tempo_set(self):
+        self.assertEqual(self.call("tempo.set", tempo=98.5), {"tempo": 98.5})
+        self.assertEqual(self.s.song_obj.tempo, 98.5)
+        self.assertEqual(self.call("tempo.set", tempo=5), {"tempo": 20.0})     # clamped
+        self.assertEqual(self.error("tempo.set", tempo="fast"), "bad_params")
+
+    def test_metronome_set_works_like_pedal_6(self):
+        self.assertEqual(self.call("metronome.set", on=False), {"on": False})
+        self.assertFalse(self.s.song_obj.metronome)
+
+    def test_scene_fire_and_stop_works_like_pedal_7(self):
+        self.assertEqual(self.call("scene.fire_and_stop"), {"index": 5})
+        self.assertEqual(self.s.fired, ["Scene 5"])
+        for stop in self.s.pending:
+            stop()
+        self.assertEqual(self.s.song_obj.calls, ["stop", "stop_all"])
+
+    def test_every_fire_is_an_event_also_the_same_scene_again(self):
+        self.ui.scene_fired(5)
+        self.ui.scene_fired(5)
+        fired = [e["data"] for e in self.events if e["event"] == "scene.fired"]
+        self.assertEqual(fired, [{"index": 5, "name": "Scene 5", "color": 5}] * 2)
 
     def test_edit_open_select_close(self):
         self.s._show_page(0)

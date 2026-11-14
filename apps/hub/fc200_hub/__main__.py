@@ -22,12 +22,12 @@ async def serve(args: argparse.Namespace) -> None:
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", args.port).start()
     logging.info("hub on :%s (%s)", args.port, "mock" if args.mock else "live")
-    zc = None if args.no_mdns else await advertise(args.port)
+    mdns = None if args.no_mdns else asyncio.create_task(advertise(args.port))
     try:
         await asyncio.Event().wait()
     finally:
-        if zc:
-            await zc.async_close()
+        if mdns:
+            mdns.cancel()
         await runner.cleanup()
 
 

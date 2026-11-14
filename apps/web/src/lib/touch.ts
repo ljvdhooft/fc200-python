@@ -1,0 +1,104 @@
+import { get, writable } from "svelte/store";
+
+/**
+ * Touch mode: the page is a passive display until it is touched. The first touch
+ * only wakes the controls (the touch itself is swallowed, so it can't hit anything);
+ * after IDLE ms without a touch the page goes back to display only.
+ * Controls marked `data-always` act on the first touch and wake the page as well.
+ */
+export const interactive = writable(false);
+
+export const IDLE = 3_000;
+
+/** Counts touch-mode sessions, so per-session state (like browsing) can tell it's stale. */
+export const session = writable(0);
+
+/** Enter touch mode (a no-op while already in it). */
+export function wake(): void {
+  if (get(interactive)) return;
+  session.update((n) => n + 1);
+  interactive.set(true);
+  keepInteractive();
+}
+
+let timer: ReturnType<typeof setTimeout> | undefined;
+
+let holds = 0;
+
+/** Restart the idle timer, e.g. while a list is being scrolled. */
+export function keepInteractive(): void {
+  if (!get(interactive)) return;
+  clearTimeout(timer);
+  if (holds > 0) return; // held open: no idle timeout until released
+  timer = setTimeout(() => interactive.set(false), IDLE);
+}
+
+/** Stay in touch mode (e.g. while a menu is open) until the returned release runs. */
+export function holdInteractive(): () => void {
+  holds++;
+  keepInteractive();
+  return () => {
+    holds--;
+    keepInteractive();
+  };
+}
+
+/**
+ * Back to display mode now, e.g. when the FC-200 leaves the mode that woke it.
+ * After this tick's unmounts have released their holds; a hold still left
+ * (edit mode, an open menu) keeps touch mode.
+ */
+export function sleep(): void {
+  setTimeout(() => {
+    if (holds > 0) return;
+    clearTimeout(timer);
+    interactive.set(false);
+  });
+}
+
+export function trackTouch(): void {
+  let swallowClick = false;
+  let wakeAfterClick = false;
+
+  window.addEventListener(
+    "pointerdown",
+    (e) => {
+      const waking = !get(interactive);
+      const always = !!(e.target as Element | null)?.closest?.("[data-always]");
+      swallowClick = waking && !always;
+      // iOS drops the click when the page changes under the finger, so a control that
+      // acts on the first touch wakes the page only after its click went through
+      wakeAfterClick = waking && always;
+      // No press look on a waking touch, also not on the controls that act on it.
+      // It lasts until the next touch: iOS keeps :active a moment after the finger
+      // lifts, and clearing it on pointerup let the press look show (and fade) then.
+      if (waking) document.documentElement.dataset.waking = "";
+      else delete document.documentElement.dataset.waking;
+      if (swallowClick) {
+        wake();
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      keepInteractive();
+    },
+    { capture: true },
+  );
+  window.addEventListener(
+    "click",
+    (e) => {
+      if (wakeAfterClick) {
+        wakeAfterClick = false;
+        setTimeout(() => {
+          wake();
+        });
+        return;
+      }
+      // The click that follows the waking touch must not reach the controls that just appeared
+      if (!swallowClick) return;
+      swallowClick = false;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    { capture: true },
+  );
+}

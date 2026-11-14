@@ -1,0 +1,69 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--text-body);
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  /* no rubber-banding / pull-to-refresh; the app scrolls inside its own areas */
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+/* Pinned page: iOS doesn't treat it as scrollable, so no status-bar blur on top and
+   the app gets the full screen height. (Rotating can still leave the page scrolled
+   by the status-bar height, which offsets touches; island.ts scrolls it back.) */
+body {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  min-height: var(--touch);
+  min-width: var(--touch);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* The pressed look of every button, and of anything a finger holds or drags
+   (`.held`). Not on the touch that wakes the page: the controls enable under the
+   finger (touch.ts). Opt out with data-own-press, e.g. rows a scroll can start on. */
+:root:not([data-waking]) button:not([data-own-press]):active:not(:disabled),
+.held {
+  filter: brightness(1.3);
+  transition: none; /* on at once... */
+}
+
+/* ...and off in the same motion as what the press changes (a toggle's colours), so
+   the two read as one change. Elements with their own transition list add
+   `filter var(--motion) var(--ease)` to it. */
+button {
+  transition: filter var(--motion) var(--ease);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-select);
+  outline-offset: 1px;
+}

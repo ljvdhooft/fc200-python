@@ -32,9 +32,11 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.6.0"
+VERSION = "0.13.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
+MIN_TEMPO, MAX_TEMPO = 20.0, 999.0   # Live's tempo range
+DISPLAY_STEPS = 128     # a macro's steps (0..127), for loop.param.displays
 
 
 def _parameter(p: DeviceParameter) -> dict[str, Any]:
@@ -77,6 +79,9 @@ class UiBindings(presets.PresetEvents):
                     listeners.add(rack.parameters[i], "value", partial(self._on_parameter, pos, i))
                 listeners.add(rack.view, "selected_chain", partial(self._on_chain, pos))
                 listeners.add(rack, "chains", partial(self._on_chain, pos))
+            tuner = self.s._tuner_device.parameters
+            for subject in (self.s._volume_param, tuner[1], tuner[2], self.s._tuner_rack.parameters[1]):
+                listeners.add(subject, "value", self._on_tuner)
             assert self.s._presets is not None
             self.s._presets.subscribe(self)
 
@@ -92,6 +97,7 @@ class UiBindings(presets.PresetEvents):
         self._on_transport()
         self.model.set("loops", [self._loop_state(pos) for pos in range(self._loop_count)])
         self._write_presets()
+        self._on_tuner()
         self.refresh()
 
     def refresh(self) -> None:
@@ -141,6 +147,7 @@ class UiBindings(presets.PresetEvents):
             "chain": rack.view.selected_chain.name,
             "chains": [c.name for c in rack.chains],
             "favorite": {"parameter": favorite, **_parameter(rack.parameters[favorite])},
+            "macros": [{"parameter": i, **_parameter(rack.parameters[i])} for i in MACROS],
         }
 
     def _favorite_state(self) -> dict[str, Any] | None:
@@ -200,10 +207,23 @@ class UiBindings(presets.PresetEvents):
                 self.model.set(f"loops.{pos}.favorite.{key}", value)
                 if selected:
                     self.model.set(f"favorite.{key}", value)
+        if index in MACROS:
+            for key, value in _parameter(p).items():
+                self.model.set(f"loops.{pos}.macros.{index - 1}.{key}", value)
         edit = self.model.get("edit")
         if edit is not None and edit["loop"] == self.s.settings.LOOP_MAPPING[pos] and index in MACROS:
             for key, value in _parameter(p).items():
                 self.model.set(f"edit.macros.{index - 1}.{key}", value)
+
+    def _on_tuner(self) -> None:
+        """Only while the volume is 0, like the bank display (FC200._display_tuner)."""
+        if not self.s._has_pedalboard or self.s._volume_param.value > 0:
+            self.model.set("tuner", None)
+            return
+        note, cents = self.s._tuner_reading()
+        tolerance = self.s.settings.TUNER_TOLERANCE
+        self.model.set("tuner", {"note": note.upper(), "cents": cents,
+                                 "in_tune": abs(cents) < tolerance, "tolerance": tolerance})
 
     def _on_chain(self, pos: int) -> None:
         rack = self._rack(pos)
@@ -235,6 +255,10 @@ class UiBindings(presets.PresetEvents):
     def template_clip_missing(self) -> None:
         self._preset_event("template_clip_missing", {})
 
+    def scene_fired(self, index: int) -> None:
+        """TransportPage._fire_scene calls this on every fire, also of the same scene again."""
+        self._emit(proto.event("scene.fired", self._scene(index)))
+
     def _preset_event(self, name: str, data: dict[str, Any]) -> None:
         self._write_presets()
         self._emit(proto.event(f"preset.{name}", data))
@@ -247,10 +271,17 @@ class UiBindings(presets.PresetEvents):
             "page.set": self._page_set,
             "scene.select": self._scene_select,
             "scene.fire": self._scene_fire,
+            "scene.fire_and_stop": self._scene_fire_and_stop,
+            "transport.play": self._play,
+            "transport.stop": self._stop,
+            "metronome.set": self._metronome_set,
+            "tempo.set": self._tempo_set,
+            "scene.list": self._scene_list,
             "loop.set": self._loop_set,
             "loop.chain.select": self._chain_select,
             "loop.param.set": self._param_set,
             "loop.param.select": self._param_select,
+            "loop.param.displays": self._param_displays,
             "edit.open": self._edit_open,
             "edit.close": self._edit_close,
             "preset.list": self._preset_list,
@@ -282,9 +313,37 @@ class UiBindings(presets.PresetEvents):
         self.s.song().view.selected_scene = scenes[index]
         return {"index": index}
 
+    def _scene_list(self, params: dict[str, Any]) -> Any:
+        return {"scenes": [self._scene(i) for i in range(len(self.s._all_scenes))]}
+
     def _scene_fire(self, params: dict[str, Any]) -> Any:
         index = self.s._selected_scene_index
         self.s._transport_page._fire_scene()
+        return {"index": index}
+
+    def _play(self, params: dict[str, Any]) -> Any:
+        self.s._transport_page.play()
+        return {}
+
+    def _stop(self, params: dict[str, Any]) -> Any:
+        self.s._transport_page.stop()
+        return {}
+
+    def _metronome_set(self, params: dict[str, Any]) -> Any:
+        on = _arg(params, "on", bool)
+        self.s._transport_page.set_metronome(on)
+        return {"on": on}
+
+    def _tempo_set(self, params: dict[str, Any]) -> Any:
+        tempo = min(MAX_TEMPO, max(MIN_TEMPO, float(_arg(params, "tempo", (int, float)))))
+        self.s.song().tempo = tempo
+        return {"tempo": tempo}
+
+    def _scene_fire_and_stop(self, params: dict[str, Any]) -> Any:
+        if not self.s._has_pedalboard:
+            raise MethodError("unavailable", "no pedalboard")
+        index = self.s._selected_scene_index
+        self.s._transport_page.fire_and_stop()
         return {"index": index}
 
     def _loop_set(self, params: dict[str, Any]) -> Any:
@@ -317,6 +376,16 @@ class UiBindings(presets.PresetEvents):
         p.value = p.min + value * (p.max - p.min)
         result = _parameter(p)
         return {"value": result["value"], "display": result["display"]}
+
+    def _param_displays(self, params: dict[str, Any]) -> Any:
+        rack = self._loop_param(params)
+        index = _arg(params, "parameter", int)
+        if index not in MACROS:
+            raise MethodError("not_found", f"parameter {index} is not a macro")
+        p = rack.parameters[index]
+        span = p.max - p.min
+        return {"displays": [p.str_for_value(p.min + span * i / (DISPLAY_STEPS - 1))
+                             for i in range(DISPLAY_STEPS)]}
 
     def _param_select(self, params: dict[str, Any]) -> Any:
         self._loop_param(params)

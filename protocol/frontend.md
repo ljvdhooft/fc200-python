@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.6.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.13.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -10,6 +10,13 @@
 | 0.4.0   | `state.dump` method: ask for the full state again without reconnecting |
 | 0.5.0   | `presets.names` replaced by `presets.count`; names via `preset.list`   |
 | 0.6.0   | Presets are listed from the `.alc` files; `preset.list` adds `missing_json` |
+| 0.7.0   | `scene.list`: every scene in the set, for browsing                      |
+| 0.8.0   | `scene.fired` event; `scenes.fired` also follows launches in Ableton    |
+| 0.9.0   | `transport.play`, `transport.stop`, `metronome.set`, `scene.fire_and_stop` |
+| 0.10.0  | `tuner` node: note, cents and tolerance while the volume is 0          |
+| 0.11.0  | `loops[].macros`: every loop carries its 8 macros                       |
+| 0.12.0  | `loop.param.displays`: a macro's display text for each of its 128 steps |
+| 0.13.0  | `tempo.set`                                                              |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -67,6 +74,7 @@ Same conventions as `presets.md` §3 (ableton-dev conventions):
 | `state.changed`      | `{"<path>": value, ...}`      | script, hub   | At most once per `update_display` tick, never empty |
 | `hub.status`         | `{"live_connected": bool}`    | hub           | On client connect, and when the Live link changes |
 | `preset.<event>`     | see below                     | script        | A `PresetEvents` call (transient, not in state)  |
+| `scene.fired`        | `{index, name, color}`        | script        | Every scene launch (pedal, `scene.fire`, Ableton) |
 
 `hub.status` and the `hub` node both carry `live_connected`: the event suits simple
 clients that only show a connection light, the node keeps a dump self-contained.
@@ -77,6 +85,11 @@ Preset events carry the arguments of the matching `PresetEvents` method
 `preset.template_clip_copied {"scene_index"}`, `preset.template_clip_missing {}`.
 The durable part (`pending_overwrite`, `count`, `last`) is also in the state tree, so
 a client that misses an event still converges.
+
+`scene.fired` comes from each scene's `Scene.is_triggered` listener, so it covers
+launches from the pedal, `scene.fire` and Ableton itself. Firing the same
+scene again leaves `scenes.fired` unchanged (so no `state.changed`), but it is still
+an event: a client that shows whether the fired scene is playing needs every fire.
 
 ## 3. State tree
 
@@ -128,13 +141,17 @@ are missing; methods that need it answer `unavailable`.
 |------------|-------------|----------------------------------------------------------|----------------------------------------|
 | `count`    | int         | Number of scenes in the set                              | `len(FC200._all_scenes)`               |
 | `selected` | int         | Index of the selected scene                              | `FC200._selected_scene_index` (`Song.view.selected_scene`) |
-| `fired`    | object/null | Scene last fired from the pedal: `{index, name, color}`  | `FC200._fired_scene` (`TransportPage._fire_scene`) |
+| `fired`    | object/null | Scene last launched (pedal, `scene.fire` or Ableton): `{index, name, color}` | `FC200._fired_scene` (`Scene.is_triggered` listener) |
 | `window`   | list        | Scenes `selected-3 .. selected+3`, clipped to existing scenes, in order | `Song.scenes` |
 
 A `window` / `fired` entry: `index` (int), `name` (string, `Scene.name`), `color`
 (int, `Scene.color`, `0xRRGGBB`). The window replaces `MiraGUI.scene_overview`
 (`prev3..next3`, `cur`); the current scene is the entry whose `index` equals `selected`.
 Near the start or end of the set the window is shorter; clients lay it out by `index`.
+The full list isn't in the state (a set can have hundreds of scenes); a client that
+browses it asks `scene.list`, and asks again when `count` changes or when it starts
+browsing (a renamed or recoloured scene doesn't change `count`). Entries in `window`
+and `fired` are always current.
 
 ### `loops`
 
@@ -150,6 +167,7 @@ is a rack on the pedalboard (`FC200._loop(index)`).
 | `chain`    | string      | Selected chain name                                      | `RackDevice.view.selected_chain.name`                |
 | `chains`   | string[]    | All chain names, in order                                | `[c.name for c in RackDevice.chains]`                |
 | `favorite` | object/null | The loop's favorite parameter (page 2); see below        | `parameters[FAVORITE_PARAMETERS[n]]`                 |
+| `macros`   | list        | The loop's 8 macros, in parameter order                  | `RackDevice.parameters[1..8]`                        |
 
 `favorite`:
 
@@ -159,6 +177,10 @@ is a rack on the pedalboard (`FC200._loop(index)`).
 | `name`      | string | Parameter name                                               | `DeviceParameter.name`                      |
 | `value`     | float  | Normalised value                                             | `DeviceParameter.value`                     |
 | `display`   | string | Live's display string                                        | `DeviceParameter.str_for_value`             |
+
+A `macros` entry: `parameter` (int, 1..8), `name`, `value`, `display` (as for
+`favorite`). Clients edit a loop with them without entering `parameter_control`
+(`loop.param.set`); `edit.macros` adds the pedal mapping for that mode.
 
 Which favorite the expression pedal controls is page-wide state, in the `favorite` node.
 
@@ -215,6 +237,23 @@ The names themselves are not in the state: the list can be long and every dump w
 carry it. A client that shows them asks `preset.list` and asks again when `count`
 changes or a `preset.saved` event arrives.
 
+### `tuner`
+
+The pedalboard's tuner, present only while the volume (EXP, `LOOP_VOLUME`) is at 0,
+which is when the FC-200 shows it on the bank display. Missing/`null` otherwise and
+without a pedalboard. Whether a client shows it, and how, is up to the client.
+
+| Field       | Type   | Meaning                                                       | Source                                                   |
+|-------------|--------|---------------------------------------------------------------|----------------------------------------------------------|
+| `note`      | string | Detected note: `"C"`, `"C#"` .. `"B"`                         | tuner device `parameters[2]` mod 12                      |
+| `cents`     | float  | Deviation in cents, including the reference offset (~-50..50) | tuner `parameters[1]` - 50 + (rack `parameters[1]` - 64) |
+| `in_tune`   | bool   | `abs(cents) < tolerance`, as on the bank display              | `FC200._tuner_reading`                                   |
+| `tolerance` | float  | Cents either side of 0 that count as in tune                  | `config.Settings.TUNER_TOLERANCE`                        |
+
+The tuner device is `track.devices[TUNER_RACK].chains[TUNER_CHAIN].devices[TUNER_DEVICE]`
+(`config.Settings`). The values follow its listeners, so they change often while a
+string sounds; the model drops repeats.
+
 ### `hub`
 
 Added by the hub, never by the script.
@@ -251,10 +290,17 @@ new state arrives as `state.changed` (the result does not replace it).
 | `page.set`           | `{"page": int}`                                   | `{"page": int}`                 |
 | `scene.select`       | `{"index": int}`                                  | `{"index": int}`                |
 | `scene.fire`         | none                                              | `{"index": int}` (fired scene)  |
+| `scene.fire_and_stop`| none                                              | `{"index": int}` (fired scene)  |
+| `transport.play`     | none                                              | `{}`                            |
+| `transport.stop`     | none                                              | `{}`                            |
+| `metronome.set`      | `{"on": bool}`                                    | `{"on": bool}`                  |
+| `tempo.set`          | `{"tempo": float}`                                | `{"tempo": float}`              |
+| `scene.list`         | none                                              | `{"scenes": [{index, name, color}]}`, in set order |
 | `loop.set`           | `{"loop": int, "on": bool}`                       | `{"on": bool}`                  |
 | `loop.chain.select`  | `{"loop": int, "chain": string}`                  | `{"chain": string}`             |
 | `loop.param.set`     | `{"loop": int, "parameter": int, "value": float}` | `{"value": float, "display": string}` |
 | `loop.param.select`  | `{"loop": int, "parameter": int}`                 | `{"parameter": int}`            |
+| `loop.param.displays`| `{"loop": int, "parameter": int}`                 | `{"displays": [string]}`        |
 | `edit.open`          | `{"loop": int}`                                   | `{"loop": int}`                 |
 | `edit.close`         | none                                              | `{}`                            |
 | `preset.list`        | none                                              | `{"names": [string], "missing_json": [string]}`, sorted |
@@ -267,9 +313,14 @@ new state arrives as `state.changed` (the result does not replace it).
 - `state.dump` sends the `state.dump` event again, to the requesting connection only, right after the response. A client resyncs without reconnecting (debugging with `nc`, an iPad waking from sleep). It is the one method the hub answers itself, from its cache (including the `hub` node), so it also works while `live_connected` is false. The method shares the event's name on purpose: whatever asks for a dump handles it in the same place as any other dump.
 - `page.set` calls `FC200._show_page`: it leaves `parameter_control` and drops a favorite or pending overwrite, like a bank pedal.
 - `scene.select` selects a scene without launching it (`Song.view.selected_scene`). `scene.fire` does what pedal 3 does on page 0 (`TransportPage._fire_scene`): it launches the selected scene and selects the next one. It works on any page.
+- `scene.fire_and_stop` does what pedal 7 does on page 0 (`TransportPage.fire_and_stop`): it fires the selected scene and stops right away, so its clips recall their presets without anything playing. Needs a pedalboard (`unavailable` otherwise).
+- `transport.play` / `transport.stop` do what pedals 1 and 2 do on page 0; stop also stops all clips. Both work on any page.
+- `tempo.set` sets the song tempo (`Song.tempo`) in BPM, clamped to Live's 20..999; the result is the tempo set. Works on any page.
+- `metronome.set` switches the metronome on or off (`Song.metronome`), like pedal 6 on page 0. Works on any page.
 - `loop.set` switches the loop on or off (parameter 0), like a number pedal on page 1.
 - `loop.chain.select` matches the chain by name, like a preset recall. While the loop is being edited, the script keeps `ParameterControl`'s chain index in sync.
 - `loop.param.set` accepts the macros only, `parameter` 1..8 (a loop's favorite is one of its macros). It does **not** change what the expression pedal controls.
+- `loop.param.displays` returns Live's display text (`str_for_value`) for each of a macro's 128 steps: entry `i` is the text at value `i / 127`. Clients show it while dragging, before Ableton reports the new `display`; they can't format it themselves (ms, dB, ratios). Macros only, `parameter` 1..8. Ask again whenever the text may have changed (a remapped macro): the script doesn't notify.
 - `loop.param.select` sets what the expression pedal controls, like a macro pedal in `parameter_control` (`ParameterControl._select_macro`). Only for the loop being edited; otherwise `unavailable`.
 - `edit.open` enters `parameter_control` for a loop, like pressing a favorite's pedal twice on page 2; it goes to page 2 first if needed. `edit.close` returns to the favorites page, like CTL in `parameter_control`; outside it, it does nothing.
 - `preset.store` and `preset.recall` behave exactly as `PresetManager.store` / `recall`; a second `preset.store` for the same name confirms an overwrite, `preset.cancel` drops it. `preset.store` requires `scene_index`: a remote names its target explicitly. `preset.recall` already applies a preset without launching a scene.

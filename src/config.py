@@ -14,6 +14,7 @@ class Settings:
     TUNER_RACK: int = 1
     TUNER_CHAIN: int = 1
     TUNER_DEVICE: int = 1
+    TUNER_TOLERANCE: float = 2  # cents either side that count as in tune
     HIGHLIGHT_NOTES: dict[str, int] = {
             "tuner": 0,
             "board": 1,
