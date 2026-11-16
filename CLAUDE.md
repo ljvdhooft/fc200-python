@@ -1,12 +1,12 @@
 ## Ableton
 Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extension work.
-- Live version pinned: 12.4b14
+- Live versions pinned: Suite 12.4.16 for production (reselecting a control surface doesn't re-import the script: restart Live), Beta 12.4b16 for development (Tools → Reload MIDI Remote Scripts)
 - Components:
   - MIDI Remote Script: `src/` (symlinked into Live User Library as `_FC200_SysEx_dev`; `_FC200_SysEx` points to the sibling `fc200-python-main` checkout)
   - Virtual pedal: `virtual-pedal/FC200_virtual-pedal.maxpat`, an air-gapped Max patch that emulates the FC-200 in Exclusive (SysEx) mode, for testing without the hardware. MIDI only (no OSC): in Live, select the Remote Script with MIDI in/out "from Max 1" / "to Max 1"; the patch uses the same virtual MIDI ports.
   - M4L device: `FC200 Mira.amxd` (repo root), a GUI for the script; to be refactored later
 - Protocol: `protocol/presets.md` v0.2.0. Preset files and core API are implemented; the remote interface for a frontend is a **draft** (not implemented, needs approval). Change the spec first, then the code.
-- Hub in production: a launchd agent (`apps/hub/launchd/`, installed by `install.sh`, port 200) that the Remote Script starts on load and stops on unload (`src/hub_service.py`), only when the agent runs from the script's own checkout. `~/Applications/FC200 Hub.app` starts it by hand. Dev: run the hub yourself on 20031.
+- Hub in production: a launchd agent (`apps/hub/launchd/`, installed by `install.sh`, port 200) that the Remote Script starts on load (`src/hub_service.py`), only when the agent runs from the script's own checkout. The hub exits 10 minutes after Live is gone (`--idle-exit 600`). `~/Applications/FC200 Hub.app` is a launcher window to start, stop and open it. Dev: run the hub yourself on 20031.
 - Unit tests: `python3.11 -m unittest discover -s tests` (Live-free modules only)
 - Type check: `mypy` (config in `mypy.ini`: Python 3.11 rules, skips vendored `xmltodict` and `MiraGUI`; mypy is installed system-wide, not in a venv)
 - Live listeners: always add them through a `Listeners` registry (`src/listeners.py`): `listeners.add(subject, "<prop>", callback)`. FC200 keeps `_listeners` (added by `_setup`, removed on config reload and unload) and `_script_listeners` (the Link-toggle reload trigger, removed on unload). Callbacks are wrapped so exceptions are logged with a traceback.

@@ -29,20 +29,15 @@ class HubServiceTest(unittest.TestCase):
             return code
         return HubService(self.logs.append, checkout or self.checkout, self.plist, run)
 
-    def test_own_checkout_starts_and_stops_the_agent(self):
+    def test_own_checkout_starts_the_agent(self):
         self.install(os.path.join(self.checkout, "apps", "hub"))
-        hub = self.service()
-        hub.start()
-        hub.stop()
-        self.assertEqual([c[0] for c in self.calls], ["kickstart", "kill"])
-        self.assertEqual(self.calls[1][1], "SIGTERM")
+        self.service().start()
+        self.assertEqual(self.calls[0][0], "kickstart")
         self.assertTrue(self.calls[0][1].endswith("/nl.fc200.hub"))
 
     def test_other_checkout_leaves_the_agent_alone(self):
         self.install(os.path.join(self.checkout, "apps", "hub"))
-        hub = self.service(checkout=os.path.join(self.tmp.name, "dev"))
-        hub.start()
-        hub.stop()
+        self.service(checkout=os.path.join(self.tmp.name, "dev")).start()
         self.assertEqual(self.calls, [])
         self.assertIn("not this checkout", self.logs[0])
 
