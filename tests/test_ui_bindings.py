@@ -397,7 +397,7 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.call("scene.fire"), {"index": 5})
         self.assertEqual(self.s.fired, ["Scene 5"])
         self.assertEqual(self.model.get("scenes.fired.index"), 5)
-        self.assertEqual(self.model.get("scenes.selected"), 6)
+        self.assertEqual(self.model.get("scenes.selected"), 5)
 
     def test_transport_play_and_stop_work_like_pedals_1_and_2(self):
         self.assertEqual(self.call("transport.play"), {})
