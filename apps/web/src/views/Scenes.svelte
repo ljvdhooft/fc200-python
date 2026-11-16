@@ -539,7 +539,7 @@
             >
             {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
           </span>
-          {#if scene.index === fired?.index}<span class="led" title="playing" transition:fade={{ duration: FADE }}></span>{/if}
+          {#if scene.index === fired?.index}<span class="led" class:waiting={scene.index === scenes?.triggered} title="playing" transition:fade={{ duration: FADE }}></span>{/if}
         </button>
       </li>
     {/each}
@@ -1011,6 +1011,21 @@
     background: var(--accent-on);
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent-on) 60%, transparent);
     flex: none;
+  }
+  /* Fired, waiting for its launch (launch quantization): a quick on/off blink,
+     like a triggered clip in Ableton */
+  .led.waiting {
+    animation: led-blink 0.3s steps(1) infinite;
+  }
+  @keyframes led-blink {
+    50% {
+      opacity: 0.15;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .led.waiting {
+      animation: none;
+    }
   }
   /* Zero wide, its glyph spilling left (rtl), so it takes no room in the row
      and sits on the digits' baseline */
