@@ -1012,13 +1012,13 @@
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent-on) 60%, transparent);
     flex: none;
   }
-  /* Fired, waiting for its launch (launch quantization): a quick on/off blink,
+  /* Fired, waiting for its launch (launch quantization): a quick fading blink,
      like a triggered clip in Ableton */
   .led.waiting {
-    animation: led-blink 0.3s steps(1) infinite;
+    animation: led-blink 0.2s ease-in-out infinite alternate;
   }
   @keyframes led-blink {
-    50% {
+    to {
       opacity: 0.15;
     }
   }
