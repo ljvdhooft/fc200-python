@@ -668,7 +668,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text-muted);
-    font-size: var(--text-body);
+    font-size: var(--text-name);
     text-align: left;
     overflow: hidden;
     transition:
