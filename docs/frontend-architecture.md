@@ -70,9 +70,15 @@ the cost stays proportional to what is actually on screen.
 - **B** is only worth it if Max-specific parts must live there. The one candidate is
   the existing standalone OSC→MIDI patch for ForScore, and Python can send to the IAC
   bus directly (see section 8).
-- **C** is a plain **Python** process run by a **launchd LaunchAgent** with
-  `KeepAlive`. It is always running and idles while Live is closed. That removes
+- **C** is a plain **Python** process run by a **launchd LaunchAgent**. That removes
   the "I have to start it separately" con: you never start it at all.
+  - *Update 2026-11-16:* the Remote Script kickstarts the agent on load (only the
+    production checkout's script, `src/hub_service.py`). The hub exits cleanly 10
+    minutes after Live is gone (`--idle-exit 600`), which also covers a Live crash.
+    `KeepAlive` restarts it only after a crash; as a side effect launchd also runs
+    it once at login, after which the idle exit stops it.
+  - `~/Applications/FC200 Hub.app` (from `install.sh`) is a launcher window to
+    start, stop and open the hub by hand. Production listens on port 200.
 
 **Decision: C, in Python.** Running the same hub inside Max for shows and outside it
 for development was considered and rejected: it doubles the environments to test,
