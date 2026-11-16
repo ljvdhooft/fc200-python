@@ -1,7 +1,7 @@
 # TODO
 
 - [x] Replace `MiraGUI` with a frontend: Python hub + web app (`docs/frontend-architecture.md`).
-- [ ] WP6: remove Mira (`MiraGUI.py`, `FC200 Mira.amxd`) after the hardware test.
+- [x] WP6: remove Mira (`MiraGUI.py`, `FC200 Mira.amxd`).
 - [ ] Test Freeze. With emulator it looks fixed.
 - [ ] Bug: Nowplaying doesn't update when launching scene from "stop" state.
 - [ ] Refactor: MIDI loopback into Ableton, replace the clunky osc-remote patch. Test if python remote midi script internal loopback works, otherwise via Hub.

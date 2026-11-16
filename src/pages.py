@@ -115,10 +115,6 @@ class TransportPage(Page):
     """Page 0: transport, scenes, presets and ForScore page turns.
     LEDs: pedal 1 is lit while playing, pedal 6 while the metronome is on."""
 
-    def on_enter(self) -> None:
-        self.s._mira.scene_overview()
-        self.s._mira.highlight_parameter(-1)
-
     def on_exit(self) -> None:
         if self.s._presets is not None:
             self.s._presets.cancel()
@@ -178,7 +174,6 @@ class TransportPage(Page):
         scene.fire()
         self._move_scene(1)
         self.s._fired_scene = scene  # the scene's is_triggered listener tells the frontend
-        self.s._mira.scene_overview()
         self.s.show_message(f"Fired: {scene.name}")
 
     def _move_scene(self, direction: int) -> None:
@@ -212,10 +207,6 @@ class LoopsPage(Page):
     """Page 1: number pedals switch the loops on and off. LEDs follow the
     loops' on/off state."""
 
-    def on_enter(self) -> None:
-        self.s._mira.scene_overview()
-        self.s._mira.highlight_parameter(-1)
-
     def on_number_pedal(self, pedal: se.Pedal) -> None:
         loops = self.s.settings.LOOP_MAPPING
         if not self.s._has_pedalboard or pedal >= len(loops):
@@ -239,10 +230,6 @@ class FavoritesPage(Page):
     def shows_tuner(self) -> bool:
         return self.parameter is None
 
-    def on_enter(self) -> None:
-        self.s._mira.page_2()
-        self.s._mira.highlight_parameter(-1)
-
     def on_exit(self) -> None:
         self.parameter = None
         self.pedal = None
@@ -265,7 +252,6 @@ class FavoritesPage(Page):
         self.on_exit()
         self.hw.leds_off()
         self.hw.flash(se.Pedal.CTL)
-        self.s._mira.highlight_parameter(-1)
 
     def on_number_pedal(self, pedal: se.Pedal) -> None:
         settings = self.s.settings
@@ -279,7 +265,6 @@ class FavoritesPage(Page):
         self.pedal = pedal
         self.hw.leds_off()
         self.hw.led(pedal, 127)
-        self.s._mira.highlight_parameter(pedal)
 
 
 class ParameterControl(Mode):
@@ -313,8 +298,6 @@ class ParameterControl(Mode):
         v = str(self.device_index + 1).rjust(2)
         self.hw.set_bank_display(v[-2], v[-1])
         self._blink = self.s._every(0.5, self._blink_leds)
-        self.s._mira.parameter_control()
-        self.s._mira.highlight_parameter(-1)
 
     def on_exit(self) -> None:
         if self._blink is not None:
@@ -351,7 +334,6 @@ class ParameterControl(Mode):
         self.parameter = self.rack.parameters[parameter_index]
         self.s.show_message(f"{self.rack.name} - {self.parameter.name}")
         self.hw.led(pedal, 127)
-        self.s._mira.highlight_parameter(pedal)
 
     def _blink_leds(self) -> None:
         value = 127 if self._blink_on else 0

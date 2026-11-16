@@ -13,7 +13,6 @@ from .preset_feedback import PresetFeedback
 from .ui_bindings import UiBindings
 from .ui_gateway import UiGateway
 from .ui_protocol import StateModel
-from .MiraGUI import MiraGUI
 from .OSCremote import OSCremote
 
 import importlib
@@ -47,7 +46,6 @@ class FC200(ControlSurface):
         self.settings = config.Settings()
         self._hw = FC200Hardware(self._send_midi, self._tasks, self.log_message if DEBUG else None)
         self._setup_track()
-        self._mira = MiraGUI(self, self._track_index, self._device_index)
         self._oscremote = OSCremote(self.settings.OSC_REMOTE_HOST, self.settings.OSC_REMOTE_PORT)
 
         # Live for the whole script: toggling Link reloads the config
@@ -93,7 +91,7 @@ class FC200(ControlSurface):
         return cast("RackDevice", self._pedalboard().devices[index])
 
     # Scenes are read from the song on access, so they stay current when scenes
-    # are added or removed. MiraGUI reads these too.
+    # are added or removed
     @property
     def _all_scenes(self) -> list[Scene]:
         return list(self.song().scenes)
@@ -105,13 +103,6 @@ class FC200(ControlSurface):
     @property
     def _selected_scene_index(self) -> int:
         return self._all_scenes.index(self._selected_scene)
-
-    @property
-    def _parameter_control(self) -> int | None:
-        """Board device index being edited in ParameterControl, if any. MiraGUI reads this."""
-        if isinstance(self._mode, pages.ParameterControl):
-            return self._mode.device_index
-        return None
 
     # --- Setup ----------------------------------------------------------------
 
@@ -142,10 +133,9 @@ class FC200(ControlSurface):
         self._pages = [self._transport_page, self._loops_page, self._favorites_page]
         self._mode = self._pages[self._page]
 
-        # Page 0: transport LEDs and the scene overview
+        # Page 0: transport LEDs
         self._listeners.add(self.song(), "is_playing", self._on_is_playing_changed)
         self._listeners.add(self.song(), "metronome", self._on_metronome_changed)
-        self._listeners.add(self.song().view, "selected_scene", self._on_selected_scene_changed)
         self._listeners.add(self.song(), "scenes", self._watch_scenes)
 
         self._fired_scene = None
@@ -153,7 +143,6 @@ class FC200(ControlSurface):
         self._highlight_tuner_true = False
         self._on_is_playing_changed()
         self._on_metronome_changed()
-        self._on_selected_scene_changed()
 
         if self._has_pedalboard:
             track = self._board_track()
@@ -186,7 +175,6 @@ class FC200(ControlSurface):
             return
         self._fired_scene = scene
         self._ui.scene_fired(self._all_scenes.index(scene))
-        self._mira.scene_overview()
 
     def _reload_config(self) -> None:
         importlib.reload(config)
@@ -271,10 +259,6 @@ class FC200(ControlSurface):
             if DEBUG:
                 self.log_message(f"{parameter.name} changed, updating LED {pedal}")
             self._loops_page.set_led(pedal, 127 if str(parameter) == "On" else 0)
-            if isinstance(self._mode, pages.FavoritesPage):
-                self._mira.page_2()
-            elif isinstance(self._mode, pages.ParameterControl):
-                self._mira.parameter_control()
 
         for index, loop in enumerate(self.settings.LOOP_MAPPING):
             pedal = se.Pedal(index)
@@ -287,10 +271,6 @@ class FC200(ControlSurface):
 
     def _on_metronome_changed(self) -> None:
         self._transport_page.set_led(se.Pedal.P6, 127 if self.song().metronome else 0)
-
-    def _on_selected_scene_changed(self) -> None:
-        if self._page < 2:
-            self._mira.scene_overview()
 
     # --- Volume and tuner -----------------------------------------------------
 

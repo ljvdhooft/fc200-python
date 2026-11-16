@@ -45,7 +45,6 @@ class FakeSurface:
 
     def __init__(self):
         self._hw = Recorder()
-        self._mira = Recorder()
         self._oscremote = Recorder()
         self._presets = None
         self._has_pedalboard = True
