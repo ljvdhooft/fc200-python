@@ -11,11 +11,13 @@
     <string>fc200_hub</string>
     <string>--port</string>
     <string>200</string>
+    <string>--idle-exit</string>
+    <string>600</string>
   </array>
   <key>WorkingDirectory</key>
   <string>@HUB_DIR@</string>
-  <!-- Not at login: the Remote Script starts it with Live and stops it on unload
-       (src/hub_service.py). launchd only restarts it after a crash -->
+  <!-- Not at login: the Remote Script starts it with Live (src/hub_service.py) and
+       it exits 10 minutes after Live is gone. launchd only restarts it after a crash -->
   <key>RunAtLoad</key>
   <false/>
   <key>KeepAlive</key>

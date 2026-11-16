@@ -1,8 +1,9 @@
-"""Starts and stops the frontend hub's launchd agent with the script.
+"""Starts the frontend hub's launchd agent with the script.
 
 No Live imports. The agent (apps/hub/launchd/nl.fc200.hub.plist) doesn't run at
-login; the script kickstarts it on load and sends it SIGTERM on unload. launchd
-only restarts it after a crash. The script manages the agent only when the
+login; the script kickstarts it on load. The hub exits by itself 10 minutes after
+Live is gone (--idle-exit), which also covers Live crashing; launchd only restarts
+it after a crash. The script starts the agent the agent only when the
 installed agent runs the hub from this script's own checkout, so a development
 checkout loaded in Live leaves the installed (production) hub alone.
 """
@@ -46,17 +47,13 @@ class HubService:
         if self.enabled:
             self._call(["kickstart", f"gui/{os.getuid()}/{LABEL}"], "started")
 
-    def stop(self) -> None:
-        if self.enabled:
-            self._call(["kill", "SIGTERM", f"gui/{os.getuid()}/{LABEL}"], "stopped")
-
     def _call(self, args: list[str], done: str) -> None:
         code = self._run(args)
         self._log(f"Hub: {done}" if code == 0 else f"Hub: launchctl {args[0]} failed ({code})")
 
 
 def _launchctl(args: list[str]) -> int:
-    # Called on load and unload only; launchctl returns within milliseconds
+    # Called on load only; launchctl returns within milliseconds
     try:
         return subprocess.run(["/bin/launchctl", *args], capture_output=True, timeout=5).returncode
     except (OSError, subprocess.TimeoutExpired):

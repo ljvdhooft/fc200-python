@@ -9,7 +9,7 @@ launchctl bootout "gui/$(id -u)" "$dest" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$dest"
 echo "installed $dest"
 
-# A manual start button: ~/Applications/FC200 Hub.app starts the hub without Live
+# A launcher window: ~/Applications/FC200 Hub.app shows the state, starts, stops and opens the hub
 app="$HOME/Applications/FC200 Hub.app"
 mkdir -p "$HOME/Applications"
 rm -rf "$app"

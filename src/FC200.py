@@ -62,7 +62,8 @@ class FC200(ControlSurface):
         ui_model = StateModel()
         self._ui = UiBindings(self, ui_model, lambda message: self._ui_gateway.emit(message))
         self._ui_gateway = UiGateway(ui_model, self._ui.handlers(), self.log_message)
-        # The hub runs while the script does (launchd agent, production checkout only)
+        # Start the hub (launchd agent, production checkout only); it exits by itself
+        # 10 minutes after Live is gone
         self._hub = HubService(self.log_message)
         self._hub.start()
 
@@ -352,7 +353,6 @@ class FC200(ControlSurface):
         """Clean up when the script is unloaded."""
         # First: a failure below must not leave the hub's port taken for the next load
         self._ui_gateway.close()
-        self._hub.stop()
         self.log_message(f"Removing {len(self._listeners) + len(self._scene_listeners) + len(self._script_listeners)} listeners...")
         self._mode.on_exit()
         if self._presets is not None:
