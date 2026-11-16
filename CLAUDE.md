@@ -7,6 +7,10 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
   - M4L device: `FC200 Mira.amxd` (repo root), the old GUI for the script; removed in WP6
   - Test set: `live/fc200-python Project/`. `tools/`: standalone helpers (`backwards-compatible.py` downgrades an `.als` to an older Live version)
 - Protocol: `protocol/presets.md` v0.2.0. Preset files and core API are implemented; the remote interface for a frontend is a **draft** (not implemented, needs approval). Change the spec first, then the code.
+- Live sets (outside the repo, in `~/Documents/01 AUDIO - 05 Worship Multitracks/_eGit FC200 2026 =BASIC= Project/`), all with the "FC200 Pedalboard" rack on the eGit track:
+  - `_eGit FC200 2026 Live.als`: production, opened in Suite.
+  - `_eGit FC200 2026 Live dev.als`: development, usually opened in Beta (saving there makes it unreadable for Suite; accepted).
+  - `_eGit FC200 2026 Live dev LIGHT.als`: the dev set with every third-party plugin on eGit replaced by stock devices (same rack/chain/device order and macro names, so the script's indices still hold); loads much faster. Some macros have no stock equivalent and do nothing, and values were estimated, so it sounds different: for testing the script, not for gigs.
 - Hub in production: a launchd agent (`apps/hub/launchd/`, installed by `install.sh`, port 200) that the Remote Script starts on load (`src/hub_service.py`), only when the agent runs from the script's own checkout. The hub exits 10 minutes after Live is gone (`--idle-exit 600`). `~/Applications/FC200 Hub.app` is a launcher window to start, stop and open it. Dev: run the hub yourself on 20031.
 - Unit tests: `python3.11 -m unittest discover -s tests` (Live-free modules only)
 - Type check: `mypy` (config in `mypy.ini`: Python 3.11 rules, skips vendored `xmltodict` and `MiraGUI`; mypy is installed system-wide, not in a venv)
