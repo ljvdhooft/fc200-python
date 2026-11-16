@@ -50,6 +50,11 @@ FC200.py ─OSC/UDP 20022─► standalone Max patch (OSC → MIDI; not in this 
 
 Why the detour: the Remote Script used to send this MIDI to Live directly, which caused feedback loops that crashed Live. Offloading the MIDI output to Max is the current fix — don't move it back into the Remote Script.
 
+## Dev servers
+- When the user starts working on this project, start the dev servers yourself with the Bash tool's `run_in_background` (not in the user's terminal), so you can read their output: `make dev` when Live is running, otherwise `make mock`.
+- First check that :5173 and :20031 are free (`lsof -nP -iTCP:5173 -iTCP:20031 -sTCP:LISTEN`); if something already listens, say so instead of starting a second copy.
+- Give the user the phone URL: `http://<Mac IP>:5173` (`ipconfig getifaddr en0`).
+
 ## Review workflow (revdiff)
 - After making changes, open them in revdiff for review.
 - Annotations that are questions or remarks without a change request: answer them in the terminal, not in revdiff. Put the answers at the end of the turn, just before re-opening revdiff, so they aren't buried under later tool output.
