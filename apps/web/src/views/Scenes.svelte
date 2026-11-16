@@ -1023,7 +1023,11 @@
   .down {
     position: absolute;
     right: 100%;
+    top: 50%;
+    transform: translateY(-50%);
     padding-right: 1px;
+    font-size: var(--text-row); /* also on the selected row, whose text grows */
+    line-height: 1;
     font-weight: 200;
     opacity: 0.5;
   }
