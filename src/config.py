@@ -15,6 +15,8 @@ class Settings:
     TUNER_CHAIN: int = 1
     TUNER_DEVICE: int = 1
     TUNER_TOLERANCE: float = 2  # cents either side that count as in tune
+    TUNER_LEVEL_THRESHOLD: float = 0.05  # tuner `level` above this: a note sounds (silence 0, a string ~0.2)
+    TUNER_HOLD: float = 3.0  # seconds the tuner stays after the note stops
     FORSCORE_PREV_PAGE: int = 0
     FORSCORE_NEXT_PAGE: int = 1
     FORSCORE_PREV_SCORE: int = 2

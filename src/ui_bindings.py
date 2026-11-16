@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.14.0"
+VERSION = "0.16.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 MIN_TEMPO, MAX_TEMPO = 20.0, 999.0   # Live's tempo range
@@ -79,9 +79,9 @@ class UiBindings(presets.PresetEvents):
                     listeners.add(rack.parameters[i], "value", partial(self._on_parameter, pos, i))
                 listeners.add(rack.view, "selected_chain", partial(self._on_chain, pos))
                 listeners.add(rack, "chains", partial(self._on_chain, pos))
-            tuner = self.s._tuner_device.parameters
-            for subject in (self.s._volume_param, tuner[1], tuner[2], self.s._tuner_rack.parameters[1]):
-                listeners.add(subject, "value", self._on_tuner)
+            # Showing and hiding comes from FC200 (tuner_changed); these keep the reading fresh
+            for subject in (self.s._tuner_cents, self.s._tuner_note, self.s._tuner_rack.parameters[1]):
+                listeners.add(subject, "value", self.tuner_changed)
             assert self.s._presets is not None
             self.s._presets.subscribe(self)
 
@@ -97,7 +97,7 @@ class UiBindings(presets.PresetEvents):
         self._on_transport()
         self.model.set("loops", [self._loop_state(pos) for pos in range(self._loop_count)])
         self._write_presets()
-        self._on_tuner()
+        self.tuner_changed()
         self.refresh()
 
     def refresh(self) -> None:
@@ -218,9 +218,9 @@ class UiBindings(presets.PresetEvents):
             for key, value in _parameter(p).items():
                 self.model.set(f"edit.macros.{index - 1}.{key}", value)
 
-    def _on_tuner(self) -> None:
-        """Only while the volume is 0, like the bank display (FC200._display_tuner)."""
-        if not self.s._has_pedalboard or self.s._volume_param.value > 0:
+    def tuner_changed(self) -> None:
+        """Only while the tuner shows, like the bank display (FC200._tuner, a TunerGate)."""
+        if not self.s._has_pedalboard or not self.s._tuner.active:
             self.model.set("tuner", None)
             return
         note, cents = self.s._tuner_reading()
