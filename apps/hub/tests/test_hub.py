@@ -1,6 +1,8 @@
 import asyncio
 import copy
 
+import aiohttp
+
 from conftest import DUMP, recv
 
 
@@ -133,3 +135,13 @@ async def test_state_dump_request_answered_from_cache_while_offline(env):
     assert dump["event"] == "state.dump"
     assert dump["data"]["hub"] == {"live_connected": False}
     assert dump["data"]["tempo"] == DUMP["tempo"]
+
+
+async def test_shutdown_closes_clients(env):
+    # Otherwise aiohttp waits ~30 s for clients to leave before the hub exits
+    _, _, client = env
+    ws = await client.ws_connect("/ws")
+    await recv(ws)  # hub.status
+    await client.app.shutdown()
+    msg = await asyncio.wait_for(ws.receive(), 2)
+    assert msg.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSED)
