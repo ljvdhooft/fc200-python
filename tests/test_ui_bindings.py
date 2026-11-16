@@ -46,7 +46,7 @@ class Surface(FakeSurface):
         for rack in self._racks:
             rack.parameters = [Parameter(f"{rack.name} p{i}") for i in range(10)]
         self.fired = []
-        self.scenes = [SimpleNamespace(name=f"Scene {i}", color=i) for i in range(10)]
+        self.scenes = [SimpleNamespace(name=f"Scene {i}", color=i, is_triggered=False) for i in range(10)]
         for scene in self.scenes:
             scene.fire = lambda scene=scene: self.fired.append(scene.name)
         self.song_obj.view.selected_scene = self.scenes[5]
@@ -140,7 +140,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.13.0")
+        self.assertEqual(state["version"], "0.14.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -372,6 +372,15 @@ class UiBindingsTest(unittest.TestCase):
         for stop in self.s.pending:
             stop()
         self.assertEqual(self.s.song_obj.calls, ["stop", "stop_all"])
+
+    def test_triggered_while_the_fired_scene_waits_for_its_launch(self):
+        self.s._fired_scene = self.s.scenes[5]
+        self.s.scenes[5].is_triggered = True
+        self.ui.refresh()
+        self.assertEqual(self.model.get("scenes.triggered"), 5)
+        self.s.scenes[5].is_triggered = False
+        self.ui.refresh()
+        self.assertIsNone(self.model.get("scenes.triggered"))
 
     def test_every_fire_is_an_event_also_the_same_scene_again(self):
         self.ui.scene_fired(5)

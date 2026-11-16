@@ -37,6 +37,7 @@ export interface Scenes {
   count: number;
   selected: number;
   fired: Scene | null;
+  triggered?: number | null; // index of `fired` while it waits for its launch
   window: Scene[];
 }
 
