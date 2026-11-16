@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import { get } from "svelte/store";
-import { applyChanges, applyDump, applyStateChanged, appState, synced, type FcState } from "./state";
+import { applyChanges, applyDump, applyStateChanged, appState, outage, socket, synced, type FcState } from "./state";
 
 const fixture = (): FcState => JSON.parse(readFileSync("../../protocol/fixtures/dump.json", "utf8"));
 
@@ -75,5 +75,27 @@ describe("store", () => {
     // untouched parts equal the fixture; the fixture object itself is not mutated
     expect(s.scenes).toEqual(fx.scenes);
     expect(fx.tempo).toBe(120);
+  });
+});
+
+describe("outage", () => {
+  beforeEach(() => {
+    appState.set({});
+    synced.set(false);
+    socket.set("open");
+  });
+
+  it("is connecting while the first dump is on its way", () => {
+    expect(get(outage)).toBe("connecting");
+  });
+
+  it("is ableton when the hub says Live doesn't answer, even before any dump", () => {
+    appState.update((s) => ({ ...s, hub: { live_connected: false } }));
+    expect(get(outage)).toBe("ableton");
+  });
+
+  it("is healthy once a dump from a connected Live arrived", () => {
+    applyDump({ ...fixture(), hub: { live_connected: true } });
+    expect(get(outage)).toBeNull();
   });
 });

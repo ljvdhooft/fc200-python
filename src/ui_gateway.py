@@ -10,6 +10,10 @@ queued per client.
 Handlers raise MethodError for an error response. Any other exception becomes
 an `internal` error and is logged with a traceback, so a bad request never
 breaks the script. No Live imports, so it can be unit-tested.
+
+Live can create a new script instance without disconnecting the old one, which
+then keeps the port but never polls again. Every instance runs in Live's one
+Python process, so the newest gateway closes the previous one and takes the port.
 """
 
 from __future__ import annotations
@@ -26,6 +30,9 @@ PORT = 20030
 MAX_QUEUE = 1 << 20     # bytes; a client that falls this far behind is dropped
 
 Handler = Callable[[dict[str, Any]], Any]
+
+# The gateway listening on each (host, port), for the takeover. Port 0 (tests) isn't kept
+_listening: dict[tuple[str, int], UiGateway] = {}
 
 
 class MethodError(Exception):
@@ -51,7 +58,12 @@ class UiGateway:
         self._handlers = handlers
         self._log = log
         self._clients: list[_Client] = []
+        self._address: tuple[str, int] | None = None
         self._server: socket.socket | None = None
+        earlier = _listening.get((host, port))
+        if earlier is not None:
+            earlier.close()
+            log("Frontend gateway: took the port over from an earlier FC200 instance")
         try:
             server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -59,8 +71,11 @@ class UiGateway:
             server.listen()
             server.setblocking(False)
             self._server = server
+            if port != 0:
+                self._address = (host, port)
+                _listening[self._address] = self
         except OSError as e:
-            # Most likely a second FC200 script holds the port: run without a frontend
+            # Most likely another Live (Suite and Beta) runs the script: run without a frontend
             log(f"Frontend gateway disabled, can't listen on {host}:{port}: {e}")
 
     @property
@@ -97,6 +112,8 @@ class UiGateway:
         if self._server is not None:
             self._server.close()
             self._server = None
+        if self._address is not None and _listening.get(self._address) is self:
+            del _listening[self._address]
 
     def _accept(self) -> None:
         assert self._server is not None

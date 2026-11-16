@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.19.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.20.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -23,6 +23,7 @@
 | 0.17.0  | Scene entries carry `preset`: the clip name on the pedalboard track     |
 | 0.18.0  | `scene.rename`, `preset.rename`, `preset.renamed` event                  |
 | 0.19.0  | Scene entries carry `down`: a ClyphX `DOWN` command in the scene         |
+| 0.20.0  | `live_connected` waits for the script's first `state.dump`              |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -281,9 +282,10 @@ Added by the hub, never by the script.
 
 | Field            | Type | Meaning                                  | Source              |
 |------------------|------|------------------------------------------|---------------------|
-| `live_connected` | bool | The hub has a live link to the script    | hub's TCP client    |
+| `live_connected` | bool | The script answered with a `state.dump`  | hub's TCP client    |
 
-While `live_connected` is false the rest of the tree is the **last known** state and is stale.
+`live_connected` turns true on the first `state.dump` of a link, not on the TCP connect
+(section 7). While it is false the rest of the tree is the **last known** state and is stale.
 
 ## 4. Changes
 
@@ -377,10 +379,10 @@ An unknown method or a failing handler never crashes the script.
 
 ## 7. Reconnect
 
-- **Hub - script:** the hub reconnects with exponential backoff (0.5 s doubling to 5 s). The script sends a full `state.dump` first on every new connection. The hub replaces its cache with it and forwards it to every client. While disconnected the hub sets `hub.live_connected` false, sends `hub.status`, keeps the stale cache and answers requests with `live_offline`.
+- **Hub - script:** the hub reconnects with exponential backoff (0.5 s doubling to 5 s). The script sends a full `state.dump` first on every new connection. The hub replaces its cache with it, sets `hub.live_connected` true and forwards it to every client. A connection without that dump doesn't count: a script instance that Live dropped without `disconnect()` can still accept connections but never answers (the hub logs a warning after 5 s). While disconnected the hub sets `hub.live_connected` false, sends `hub.status`, keeps the stale cache and answers requests with `live_offline`.
 - **Client - hub:** the client reconnects with backoff (0.5 s doubling to 5 s, with jitter) and finds the hub by name (`fc200.local`), not IP. On connect the hub sends `state.dump` (cache + `hub`) and then `hub.status`. A client replaces its whole state with each dump.
 - Open requests fail when their connection drops; requests are not retried automatically.
-- The script closes its socket on `disconnect()` (`SO_REUSEADDR`), so a reload doesn't leave the port bound.
+- The script closes its socket on `disconnect()` (`SO_REUSEADDR`), so a reload doesn't leave the port bound. Live can also create a new script instance without disconnecting the old one; the new instance's gateway then closes the old one's socket and takes the port over (same Python process).
 - If the hub has never connected to the script, it sends no dump, only `hub.status` with `live_connected` false (mock mode uses `protocol/fixtures/dump.json` instead).
 - The backoff and timeout numbers are starting values, to be tuned on the stage network.
 

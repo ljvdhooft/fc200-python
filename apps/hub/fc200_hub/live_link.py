@@ -1,4 +1,9 @@
-"""TCP client to the Remote Script (127.0.0.1:20030) with reconnect and backoff."""
+"""TCP client to the Remote Script (127.0.0.1:20030) with reconnect and backoff.
+
+Live counts as connected once the script's first state.dump arrives, not on the
+TCP connect: a script instance that Live dropped without disconnect() can still
+accept the connection but never answers.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +14,8 @@ from . import ui_protocol as proto
 from .hub import Hub
 
 log = logging.getLogger(__name__)
+
+DUMP_TIMEOUT = 5.0  # s; warn when a connected script hasn't sent its dump by then
 
 
 class LiveLink:
@@ -39,19 +46,22 @@ class LiveLink:
                 continue
             delay = self.backoff_min
             self._writer = writer
-            self.hub.set_live(True)
             log.info("connected to Live at %s:%s", self.host, self.port)
+            silent = asyncio.get_running_loop().call_later(
+                DUMP_TIMEOUT, log.warning,
+                "no state.dump from Live within %g s: is the Remote Script stuck? Restart Live", DUMP_TIMEOUT)
             try:
-                await self._read(reader)
+                await self._read(reader, silent)
             except (OSError, asyncio.IncompleteReadError, ValueError):
                 pass
             finally:
+                silent.cancel()
                 self._writer = None
                 writer.close()
                 self.hub.set_live(False)
                 log.info("Live link lost")
 
-    async def _read(self, reader: asyncio.StreamReader) -> None:
+    async def _read(self, reader: asyncio.StreamReader, silent: asyncio.TimerHandle) -> None:
         while line := await reader.readline():
             try:
                 message = proto.decode(line)
@@ -60,6 +70,8 @@ class LiveLink:
                 continue
             name = message.get("event")
             if name == "state.dump":
+                silent.cancel()
+                self.hub.set_live(True)  # before the dump, so the dump carries it
                 self.hub.on_dump(message["data"])
             elif name == "state.changed":
                 self.hub.on_changes(message["data"])
