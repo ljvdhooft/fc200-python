@@ -532,6 +532,7 @@
           oncontextmenu={(e) => e.preventDefault()}
         >
           <span class="strip" style:background={hex(scene.color)}></span>
+          <span class="down" title={scene.down ? "moves down" : undefined}>{scene.down ? "↓" : ""}</span>
           <span class="num">{number(scene)}</span>
           <span class="title" use:stackSmoothly={{ selected: scene.index === selected, name: scene.name, preset: scene.preset }}>
             <span class="name" use:scrollToEnd={{ active: scene.index === selected, name: scene.name }}
@@ -1011,6 +1012,12 @@
     background: var(--accent-on);
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent-on) 60%, transparent);
     flex: none;
+  }
+  .down {
+    flex: none;
+    width: 1ch;
+    margin-right: calc(-1 * var(--space-3) + 2px);
+    color: var(--text-muted);
   }
   .num {
     color: var(--text-muted);

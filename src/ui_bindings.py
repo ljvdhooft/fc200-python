@@ -32,11 +32,12 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.18.0"
+VERSION = "0.19.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 MIN_TEMPO, MAX_TEMPO = 20.0, 999.0   # Live's tempo range
 DISPLAY_STEPS = 128     # a macro's steps (0..127), for loop.param.displays
+CLYPHX_TRACK = "ClyphX"  # tracks whose clip names are ClyphX commands
 
 
 def _parameter(p: DeviceParameter) -> dict[str, Any]:
@@ -44,6 +45,14 @@ def _parameter(p: DeviceParameter) -> dict[str, Any]:
     return {"name": p.name,
             "value": (p.value - p.min) / span if span else 0.0,
             "display": p.str_for_value(p.value)}
+
+
+def _clyphx_commands(name: str) -> list[str]:
+    """The commands in a ClyphX clip name, `[] UP; SCENE SEL` -> ["UP", "SCENE SEL"];
+    none for a name without the `[]` prefix."""
+    if not name.startswith("[]"):
+        return []
+    return [c.strip().upper() for c in name[2:].split(";")]
 
 
 def _macro_pedal(parameter: int) -> int:
@@ -135,7 +144,7 @@ class UiBindings(presets.PresetEvents):
     def _scene(self, index: int) -> dict[str, Any]:
         scene = self.s._all_scenes[index]
         return {"index": index, "name": scene.name, "color": scene.color,
-                "preset": self._preset_name(index)}
+                "preset": self._preset_name(index), "down": self._moves_down(index)}
 
     def _preset_name(self, index: int) -> str | None:
         """The clip in the scene's slot on the pedalboard track: its name is the preset's."""
@@ -143,6 +152,16 @@ class UiBindings(presets.PresetEvents):
             return None
         slot = self.s._board_track().clip_slots[index]
         return slot.clip.name if slot.has_clip else None
+
+    def _moves_down(self, index: int) -> bool:
+        """A clip in the scene on a ClyphX track has the DOWN command."""
+        for track in self.s.song().tracks:
+            if track.name != CLYPHX_TRACK:
+                continue
+            slot = track.clip_slots[index]
+            if slot.has_clip and "DOWN" in _clyphx_commands(slot.clip.name):
+                return True
+        return False
 
     def _rack(self, pos: int) -> RackDevice:
         return self.s._loop(self.s.settings.LOOP_MAPPING[pos])
