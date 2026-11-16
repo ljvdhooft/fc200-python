@@ -286,6 +286,12 @@
     presetName = scene.preset ?? "";
     renameError = null;
   }
+  // Focusing a field puts the cursor at the end, wherever the tap landed; after
+  // that, taps place it as usual. iOS places it after focus, so this waits a tick.
+  function caretToEnd(e: FocusEvent) {
+    const input = e.currentTarget as HTMLInputElement;
+    setTimeout(() => input.setSelectionRange(input.value.length, input.value.length));
+  }
   // The dialog keeps touch mode on until it closes
   $effect(() => {
     if (renaming !== null) return holdInteractive();
@@ -427,12 +433,12 @@
     <form class="card" onsubmit={saveRename}>
       <label>
         <span class="label">scene {number(renaming)}</span>
-        <input bind:value={sceneName} enterkeyhint="done" autocomplete="off" autocorrect="off" spellcheck="false" />
+        <input bind:value={sceneName} enterkeyhint="done" onfocus={caretToEnd} autocomplete="off" autocorrect="off" spellcheck="false" />
       </label>
       {#if renaming.preset !== null}
         <label>
           <span class="label">⟡ preset</span>
-          <input bind:value={presetName} enterkeyhint="done" autocomplete="off" autocorrect="off" spellcheck="false" />
+          <input bind:value={presetName} enterkeyhint="done" onfocus={caretToEnd} autocomplete="off" autocorrect="off" spellcheck="false" />
         </label>
       {/if}
       {#if renameError !== null}<p class="error">{renameError}</p>{/if}
