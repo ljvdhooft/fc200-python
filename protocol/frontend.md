@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.13.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.14.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -17,6 +17,7 @@
 | 0.11.0  | `loops[].macros`: every loop carries its 8 macros                       |
 | 0.12.0  | `loop.param.displays`: a macro's display text for each of its 128 steps |
 | 0.13.0  | `tempo.set`                                                              |
+| 0.14.0  | `scenes.triggered`: a fired scene waiting for its launch                 |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -145,6 +146,7 @@ are missing; methods that need it answer `unavailable`.
 | `count`    | int         | Number of scenes in the set                              | `len(FC200._all_scenes)`               |
 | `selected` | int         | Index of the selected scene                              | `FC200._selected_scene_index` (`Song.view.selected_scene`) |
 | `fired`    | object/null | Scene last launched (pedal, `scene.fire` or Ableton): `{index, name, color}` | `FC200._fired_scene` (`Scene.is_triggered` listener) |
+| `triggered`| int/null    | Index of `fired` while it waits for its launch (launch quantization); null once it plays. Never set from a stopped transport: the scene starts at once | `Scene.is_triggered` of `FC200._fired_scene` |
 | `window`   | list        | Scenes `selected-3 .. selected+3`, clipped to existing scenes, in order | `Song.scenes` |
 
 A `window` / `fired` entry: `index` (int), `name` (string, `Scene.name`), `color`

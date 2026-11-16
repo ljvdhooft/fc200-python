@@ -8,6 +8,8 @@
   // Ahead of Ableton: a fire or play/stop from this client shows at once
   let fired = $derived($view.scenes?.fired ?? null);
   let playing = $derived($view.transport?.playing ?? false);
+  // Fired, waiting for its launch (launch quantization)
+  let waiting = $derived(fired != null && $view.scenes?.triggered === fired.index);
 
   // "playing" while the fired scene is what's playing. Once the transport stops it
   // is the "last" scene, also when the transport starts again without firing a
@@ -30,8 +32,8 @@
   });
 </script>
 
-<div class="now">
-  <span class="label">{fired && !stopped ? "playing" : "last"}</span>
+<div class="now" class:waiting>
+  <span class="label">{waiting ? "fired" : fired && !stopped ? "playing" : "last"}</span>
   {#if fired}
     <span class="led" class:off={stopped}></span>
     <span class="strip" style:background={hex(fired.color)}></span>
@@ -104,6 +106,32 @@
   .lock {
     margin-left: auto;
     flex: none;
+  }
+  /* Fired, waiting for its launch: the accent line and the light pulse, like a
+     triggered clip in Ableton. The label says "fired" too */
+  .now.waiting {
+    animation: wait-line 0.5s ease-in-out infinite alternate;
+  }
+  .now.waiting .led,
+  .now.waiting::before {
+    animation: wait-blink 0.5s ease-in-out infinite alternate;
+  }
+  @keyframes wait-line {
+    to {
+      border-left-color: var(--border);
+    }
+  }
+  @keyframes wait-blink {
+    to {
+      opacity: 0.2;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .now.waiting,
+    .now.waiting .led,
+    .now.waiting::before {
+      animation: none;
+    }
   }
   /* portrait: in the middle of the top bar instead */
   @media (orientation: portrait) {

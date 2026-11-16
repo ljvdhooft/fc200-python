@@ -18,6 +18,7 @@ from .hub import Hub
 FIXTURE = Path(__file__).resolve().parents[3] / "protocol" / "fixtures" / "dump.json"
 TICK = 0.1
 SCENE_EVERY = 3.0  # seconds
+LAUNCH_AFTER = 1.0  # seconds a fired scene waits, like launch quantization
 
 
 def _pct(value: float) -> str:
@@ -36,6 +37,7 @@ class Mock:
         self._presets = ["Song A", "Song B", "Song C"]
         self.model.set("presets.count", len(self._presets))
         self._t = 0.0
+        self._launch_in: float | None = None  # until the fired scene launches
 
     def _scene_names(self) -> list[str]:
         count = self.model.get("scenes.count", 0)
@@ -63,6 +65,11 @@ class Mock:
             if scene_clock >= SCENE_EVERY:
                 scene_clock = 0.0
                 self._next_scene()
+            if self._launch_in is not None:
+                self._launch_in -= TICK
+                if self._launch_in <= 0:
+                    self._launch_in = None
+                    self.model.set("scenes.triggered", None)
             self._sweep()
             if changes := self.model.flush():
                 self.hub.on_changes(changes)
@@ -82,6 +89,8 @@ class Mock:
         """Like pedal 3 on page 0: fire the selected scene, select the next."""
         fired = self.model.get("scenes.selected")
         self.model.set("scenes.fired", self._scene_entry(fired))
+        self.model.set("scenes.triggered", fired)
+        self._launch_in = LAUNCH_AFTER
         self.hub.on_event(proto.event("scene.fired", self._scene_entry(fired)))
         self._select_scene((fired + 1) % self.model.get("scenes.count"))
         return fired

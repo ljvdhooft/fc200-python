@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.13.0"
+VERSION = "0.14.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 MIN_TEMPO, MAX_TEMPO = 20.0, 999.0   # Live's tempo range
@@ -114,6 +114,9 @@ class UiBindings(presets.PresetEvents):
             "count": len(scenes),
             "selected": selected,
             "fired": self._scene(scenes.index(s._fired_scene)) if s._fired_scene in scenes else None,
+            # Every fire sets _fired_scene, so a waiting scene is always that one
+            "triggered": scenes.index(s._fired_scene)
+            if s._fired_scene in scenes and s._fired_scene.is_triggered else None,
             "window": window,
         })
 
