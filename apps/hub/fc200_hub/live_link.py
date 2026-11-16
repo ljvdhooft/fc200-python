@@ -65,5 +65,7 @@ class LiveLink:
                 self.hub.on_changes(message["data"])
             elif name is not None:
                 self.hub.on_event(message)
+            elif "command" in message:
+                self.hub.on_command(message)
             else:
                 self.hub.on_response(message)

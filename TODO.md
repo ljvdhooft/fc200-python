@@ -4,7 +4,7 @@
 - [x] WP6: remove Mira (`MiraGUI.py`, `FC200 Mira.amxd`).
 - [ ] Test Freeze. With emulator it looks fixed.
 - [x] Bug: Nowplaying doesn't update when launching scene from "stop" state.
-- [ ] Refactor: MIDI loopback into Ableton, replace the clunky osc-remote patch. Test if python remote midi script internal loopback works, otherwise via Hub.
+- [x] Refactor: MIDI loopback into Ableton. The script's own output can't loop back (Live jams the IAC track input), so the ForScore pedals go through the hub (`midi.send`, protocol 0.15.0).
 - [ ] Feat: Add "preset name" next to scene name in frontend if there is a clip on the eGit track. Both "scene name" and "preset name" (.alc clip)
 - [ ] Feat: Add preset name edit support in WebUI.
 - [ ] Come up with an easier workflow for saving presets.

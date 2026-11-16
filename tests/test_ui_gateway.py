@@ -90,6 +90,15 @@ class UiGatewayTest(unittest.TestCase):
         self.assertEqual(b.read(), expected)
         a.nothing_more()
 
+    def test_flush_sends_without_a_poll(self):
+        client = self.connect()
+        client.read()
+        self.gateway.emit(proto.command("midi.send", {"bytes": [207, 1]}))
+        self.gateway.flush()
+        client.sock.settimeout(1)
+        self.assertEqual(json.loads(client.sock.recv(65536)),
+                         {"command": "midi.send", "params": {"bytes": [207, 1]}})
+
     def test_new_client_gets_pending_changes_in_its_dump(self):
         self.model.set("tempo", 90.0)
         client = self.connect()

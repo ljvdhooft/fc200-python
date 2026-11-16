@@ -36,19 +36,16 @@ A dummy audio clip on the guitar track's clip slots doubles as a preset slot —
 - `PRESET_FOLDER` is set in `src/config.py` (`~/Music/Ableton/User Library/eGit presets`, expanded per user).
 - The `.json` and `.alc` are a loosely coupled pair kept in sync only by this store flow; renaming a clip in Live does **not** rename its shadow file.
 
-### OSC side-channel
-`src/OSCremote.py` opens an outbound UDP/OSC socket (hand-rolled OSC packing, no library); host/port come from `config.Settings` (`OSC_REMOTE_HOST`/`OSC_REMOTE_PORT`, 127.0.0.1:20022). No `protocol/` spec exists for these messages yet.
-
-`OSCremote` (UDP 20022) is how the script gets MIDI to ForScore and back into Live:
+### MIDI to ForScore (through the hub)
+The ForScore pedals (page 0, 9/10) send a program change on channel 16 as a `midi.send` hub command (`FC200._midi_send`, `protocol/frontend.md` section 8); the hub (`apps/hub/fc200_hub/midi_out.py`) sends it to CoreMIDI:
 
 ```
-FC200.py ─OSC/UDP 20022─► standalone Max patch (OSC → MIDI; not in this repo)
-  ─IAC "FC200 > Ableton"─► MIDI track in Live
+FC200.py ─TCP 20030, midi.send─► hub ─CoreMIDI─► IAC "FC200 > Ableton" ─► MIDI track in Live
        ├─ M4L "page_turner" (MIDI middleware, e.g. makes automation possible)
        └─ output → Network MIDI ─► ForScore on iPad
 ```
 
-Why the detour: the Remote Script used to send this MIDI to Live directly, which caused feedback loops that crashed Live. Offloading the MIDI output to Max is the current fix — don't move it back into the Remote Script.
+Why not from the script: its own output (`_send_midi`) carries only the FC-200's SysEx. Looped back into Live through IAC and a MIDI track, the first channel message makes Live stop passing the script's SysEx until the script reloads. The hub stamps each packet with the host time: a packet stamped 0 jams Live's IAC track input until the port is toggled. Without a running hub the pedals send nothing.
 
 ## Dev servers
 - When the user starts working on this project, start the dev servers yourself with the Bash tool's `run_in_background` (not in the user's terminal), so you can read their output: `make dev` when Live is running, otherwise `make mock`.

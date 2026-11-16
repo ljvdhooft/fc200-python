@@ -12,8 +12,7 @@ from .listeners import Listeners
 from .preset_feedback import PresetFeedback
 from .ui_bindings import UiBindings
 from .ui_gateway import UiGateway
-from .ui_protocol import StateModel
-from .OSCremote import OSCremote
+from .ui_protocol import StateModel, command
 
 import importlib
 from collections.abc import Callable
@@ -47,7 +46,6 @@ class FC200(ControlSurface):
         self.settings = config.Settings()
         self._hw = FC200Hardware(self._send_midi, self._tasks, self.log_message if DEBUG else None)
         self._setup_track()
-        self._oscremote = OSCremote(self.settings.OSC_REMOTE_HOST, self.settings.OSC_REMOTE_PORT)
 
         # Live for the whole script: toggling Link reloads the config
         self._script_listeners = Listeners(self.log_message)
@@ -142,7 +140,7 @@ class FC200(ControlSurface):
         self._fired_scene = None
         self._triggered_scenes = set()
         self._watch_scenes()
-        self._highlight_tuner_true = False
+        self._volume_at_zero = False
         self._on_is_playing_changed()
         self._on_metronome_changed()
 
@@ -152,7 +150,7 @@ class FC200(ControlSurface):
             self._tuner_rack = cast("RackDevice", track.devices[self.settings.TUNER_RACK])
             self._tuner_device = self._tuner_rack.chains[self.settings.TUNER_CHAIN].devices[self.settings.TUNER_DEVICE]
             self._volume = self._volume_param.value
-            self._listeners.add(self._volume_param, "value", self._highlight_tuner)
+            self._listeners.add(self._volume_param, "value", self._on_volume_changed)
             self._listeners.add(self._tuner_device.parameters[1], "value", self._display_tuner)
             self._presets = presets.PresetManager(
                 presets.PresetStore(self.settings.PRESET_FOLDER, self.log_message),
@@ -259,6 +257,12 @@ class FC200(ControlSurface):
         """Run fn every `seconds` until the returned task is killed."""
         return self._tasks.add(Task.loop(Task.sequence(Task.wait(seconds), Task.run(fn))))
 
+    def _midi_send(self, msg: tuple[int, ...]) -> None:
+        """MIDI for other apps (ForScore) goes out through the hub, not the script's own
+        output: that carries only the FC-200's SysEx (protocol/frontend.md section 8)."""
+        self._ui_gateway.emit(command("midi.send", {"bytes": list(msg)}))
+        self._ui_gateway.flush()  # not on the next tick: a page turn should be instant
+
     # --- Listeners ------------------------------------------------------------
 
     def _add_loop_listeners(self) -> None:
@@ -317,25 +321,17 @@ class FC200(ControlSurface):
             binary += 1
         if cents >= tolerance:
             binary += 8
-        # Stays until the volume goes up again (see _highlight_tuner)
+        # Stays until the volume goes up again (see _on_volume_changed)
         self._hw.set_bank_display_segments(se.segments(note_a), binary)
 
-    def _highlight_tuner(self) -> None:
-        if self._volume_param.value > 0:
-            if not self._highlight_tuner_true:
-                return
-            # Select self._board (Note C#-2)
-            self._oscremote._send_osc(f"/remote/note/{self.settings.HIGHLIGHT_NOTES['board']}/1", 127)
-            self._highlight_tuner_true = False
-            # The tuner display no longer applies: show the page again
-            if self._mode.shows_tuner:
-                self._hw.set_bank_display(' ', self._page)
+    def _on_volume_changed(self) -> None:
+        at_zero = self._volume_param.value <= 0
+        if at_zero == self._volume_at_zero:
             return
-        if self._highlight_tuner_true:
-            return
-        # Select Tuner (Note C-2)
-        self._oscremote._send_osc(f"/remote/note/{self.settings.HIGHLIGHT_NOTES['tuner']}/1", 127)
-        self._highlight_tuner_true = True
+        self._volume_at_zero = at_zero
+        # Leaving volume 0: the tuner display no longer applies, show the page again
+        if not at_zero and self._mode.shows_tuner:
+            self._hw.set_bank_display(' ', self._page)
 
     def disconnect(self) -> None:
         """Clean up when the script is unloaded."""

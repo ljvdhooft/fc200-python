@@ -197,10 +197,8 @@ class TransportPage(Page):
         self.s._after(0.1, stop)
 
     def _forscore(self, program: int, pedal: se.Pedal) -> None:
-        def send() -> None:
-            self.s._oscremote._send_osc(f"/remote/pc/{program}/2", 127)
-            self.hw.flash(pedal)
-        self.s._after(0, send)
+        self.s._midi_send((0xCF, program))  # program change, channel 16
+        self.hw.flash(pedal)
 
 
 class LoopsPage(Page):

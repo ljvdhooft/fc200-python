@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.14.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.15.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -18,6 +18,7 @@
 | 0.12.0  | `loop.param.displays`: a macro's display text for each of its 128 steps |
 | 0.13.0  | `tempo.set`                                                              |
 | 0.14.0  | `scenes.triggered`: a fired scene waiting for its launch                 |
+| 0.15.0  | Hub commands: `midi.send`, MIDI out through the hub                      |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -28,6 +29,7 @@
 | 5. Methods            | Approved, implemented (mock hub: 0.2 methods only) |
 | 6. Versioning         | Approved                                   |
 | 7. Reconnect          | Approved, implemented                      |
+| 8. Hub commands       | Approved, implemented                      |
 
 The Remote Script is the single source of truth for the FC200 state. It pushes
 the state to a **hub** (`apps/hub`), which relays it to **clients** (web app,
@@ -62,6 +64,7 @@ Same conventions as `presets.md` §3 (ableton-dev conventions):
 | Request  | `{"id", "method", "params"}`                            | client - hub - script    |
 | Response | `{"id", "result"}` or `{"id", "error": {"code", "message"}}` | script - hub - client |
 | Event    | `{"event", "data"}`                                     | pushed unsolicited       |
+| Command  | `{"command", "params"}`                                 | script - hub (section 8) |
 
 - `id` is a string or integer chosen by the requester, unique among its open requests. `params` may be omitted when a method takes none.
 - Every request gets exactly one response.
@@ -363,6 +366,32 @@ An unknown method or a failing handler never crashes the script.
 - The script closes its socket on `disconnect()` (`SO_REUSEADDR`), so a reload doesn't leave the port bound.
 - If the hub has never connected to the script, it sends no dump, only `hub.status` with `live_connected` false (mock mode uses `protocol/fixtures/dump.json` instead).
 - The backoff and timeout numbers are starting values, to be tuned on the stage network.
+
+## 8. Hub commands
+
+A command is an instruction from the script to the hub itself: something the
+script can't do from inside Live. It is not part of the state and not for clients.
+
+- Shape: `{"command": "<object>.<verb>", "params": {...}}`. No `id`, no response: the script sends it and carries on.
+- The hub handles it and never forwards it to clients. A hub that doesn't know the command logs it and ignores it.
+- With no hub connected, the command is lost. The script doesn't queue it.
+- The script sends it at once, not on its next poll like events: a pedal's MIDI should not wait for Live's tick.
+
+| Command     | Params                    | Hub does                                                   |
+|-------------|---------------------------|------------------------------------------------------------|
+| `midi.send` | `{"bytes": [int, ...]}`   | Sends one MIDI message to the CoreMIDI destination `IAC Driver FC200 > Ableton` |
+
+`midi.send` exists because MIDI sent from the Remote Script's own output can't be
+routed back into Live: once the script sends any channel message to a port that a
+MIDI track takes as input, Live stops passing the script's SysEx through that track
+until the script reloads (Live 12.4b17). The script's output therefore carries only
+the FC-200's SysEx; channel messages for other apps (ForScore) go through the hub,
+and a MIDI track in Live routes them on.
+
+- `bytes`: one complete channel message, status byte first (`[207, 1]` = program change 1 on channel 16). No SysEx.
+- The mapping (which channel and number means what) lives in the script's `config.py`; the hub sends the bytes as they are.
+- If the destination is missing, the hub logs a warning and drops the message.
+- The hub stamps each message with the current host time, never 0: a packet stamped 0 on the IAC bus stops Live's MIDI track input from that bus until the port is switched off and on.
 
 ## Fixture
 

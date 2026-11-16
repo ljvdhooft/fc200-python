@@ -45,7 +45,6 @@ class FakeSurface:
 
     def __init__(self):
         self._hw = Recorder()
-        self._oscremote = Recorder()
         self._presets = None
         self._has_pedalboard = True
         self._racks = [fake_rack(f"Loop {i}") for i in range(11)]
@@ -60,6 +59,7 @@ class FakeSurface:
             stop_playing=lambda: self.song_obj.calls.append("stop"),
             stop_all_clips=lambda: self.song_obj.calls.append("stop_all"))
         self.messages = []
+        self.midi = []
         self.volume = []
         self.pending = []           # functions passed to _after
         self.every = []
@@ -78,6 +78,9 @@ class FakeSurface:
 
     def _volume_control(self, value):
         self.volume.append(value)
+
+    def _midi_send(self, msg):
+        self.midi.append(msg)
 
     def _after(self, seconds, fn):
         self.pending.append(fn)
@@ -148,6 +151,11 @@ class TransportPageTest(unittest.TestCase):
     def test_metronome_toggle(self):
         self.page.handle(press(P.P6))
         self.assertFalse(self.s.song_obj.metronome)
+
+    def test_forscore_pedals_send_program_change(self):
+        self.page.handle(press(P.P9))
+        self.page.handle(press(P.P10))
+        self.assertEqual(self.s.midi, [(0xCF, 0), (0xCF, 1)])
 
     def test_expression_sets_volume(self):
         self.page.handle(move(P.EXP, 64))
