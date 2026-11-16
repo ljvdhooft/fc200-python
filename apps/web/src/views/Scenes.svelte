@@ -7,6 +7,7 @@
   import { hex, number } from "../lib/scene";
   import { expect, localFires, view } from "../lib/optimistic";
   import Drawer from "../lib/Drawer.svelte";
+  import { firedStopped } from "../lib/fired";
 
   let scenes = $derived($appState.scenes);
   let serverSelected = $derived($appState.scenes?.selected ?? -1);
@@ -539,7 +540,8 @@
             >
             {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
           </span>
-          {#if scene.index === fired?.index}<span class="led" class:waiting={scene.index === scenes?.triggered} title="playing" transition:fade={{ duration: FADE }}></span>{/if}
+          {#if scene.index === fired?.index}<span class="led" class:waiting={scene.index === scenes?.triggered}
+              class:off={$firedStopped} title="playing" transition:fade={{ duration: FADE }}></span>{/if}
         </button>
       </li>
     {/each}
@@ -1011,6 +1013,14 @@
     background: var(--accent-on);
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent-on) 60%, transparent);
     flex: none;
+    transition:
+      background var(--motion) var(--ease),
+      box-shadow var(--motion) var(--ease);
+  }
+  /* the fired scene stopped: the last one played, like Now Playing */
+  .led.off {
+    background: var(--text-muted);
+    box-shadow: none;
   }
   /* Fired, waiting for its launch (launch quantization): a quick fading blink,
      like a triggered clip in Ableton */
