@@ -108,6 +108,8 @@
   .preset {
     flex: 0 100 auto;
     min-width: 6ch;
+    margin-left: auto;
+    text-align: right;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -117,6 +119,10 @@
   .lock {
     margin-left: auto;
     flex: none;
+  }
+  /* the preset already pushes it to the end */
+  .preset + .lock {
+    margin-left: 0;
   }
   /* Fired, waiting for its launch: the accent line and the light pulse, like a
      triggered clip in Ableton. The label says "fired" too */
