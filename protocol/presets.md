@@ -11,7 +11,7 @@
 |-----------------------------|------------------------------------------|
 | 1. Preset files             | Implemented (`src/presets.py`)           |
 | 2. Core API and events      | Implemented (`src/presets.py`)           |
-| 3. Remote interface         | **Draft, not implemented.** Needs approval. |
+| 3. Remote interface         | **Superseded** by `frontend.md` (draft)  |
 
 A preset is the state of the pedalboard loops: for each loop (a rack on chain 0 of
 the "FC200 Pedalboard" rack), its first 8 parameter values and its selected chain.
@@ -96,6 +96,9 @@ Subclass it and override what you need; the defaults do nothing.
 | `template_clip_missing()`          | An empty slot, and no dummy clip in slot 0 to copy        |
 
 ## 3. Remote interface (DRAFT)
+
+> **Superseded by [`frontend.md`](frontend.md)** (v0.1.0), which folds these methods
+> and events into the frontend protocol. Kept for history; don't implement from here.
 
 > **Not implemented. Nothing below is final until approved.** This is how a
 > frontend (web, Node, M4L) would drive presets. Only the Remote Script can read

@@ -36,6 +36,19 @@ class ListenersTest(unittest.TestCase):
         self.assertEqual(calls, [1])
         self.assertEqual(len(self.listeners), 1)
 
+    def test_remove_all_survives_a_deleted_subject(self):
+        dead, alive = FakeSubject(), FakeSubject()
+
+        def gone(f):
+            raise RuntimeError("scene was deleted")
+        dead.value_has_listener = gone
+        self.listeners.add(dead, "value", lambda: None)
+        self.listeners.add(alive, "value", lambda: None)
+        self.listeners.remove_all()
+        self.assertEqual(alive.callbacks, [])
+        self.assertEqual(len(self.listeners), 0)
+        self.assertIn("Error removing a listener", self.log[0])
+
     def test_remove_all(self):
         a, b = FakeSubject(), FakeSubject()
         self.listeners.add(a, "value", lambda: None)

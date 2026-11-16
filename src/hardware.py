@@ -41,26 +41,40 @@ class FC200Hardware:
         for pedal in se.NUMBER_PEDALS:
             self.led(pedal, se.OFF)
 
-    def flash(self, pedal: se.Pedal) -> None:
-        self.led(pedal, se.ON)
+    # only_if: the LED is only written while it returns True (e.g. while the page
+    # that owns the pedal is shown); a running flash or blink skips its writes
+    # otherwise, and a blink (a state) shows again when it returns True
+
+    def _led_if(self, pedal: se.Pedal, value: int, only_if: Callable[[], bool] | None) -> None:
+        if only_if is None or only_if():
+            self.led(pedal, value)
+
+    def flash(self, pedal: se.Pedal, only_if: Callable[[], bool] | None = None) -> None:
+        self._led_if(pedal, se.ON, only_if)
         self._tasks.add(Task.sequence(
             Task.wait(0.1),
-            Task.run(lambda: self.led(pedal, se.OFF))
+            Task.run(lambda: self._led_if(pedal, se.OFF, only_if))
         ))
 
-    def flash_repeatedly(self, pedal: se.Pedal, times: int, interval: float = 0.2) -> None:
-        """Flash one LED `times` times, `interval` seconds apart."""
+    def flash_repeatedly(self, pedal: se.Pedal, times: int, interval: float = 0.2,
+                         only_if: Callable[[], bool] | None = None) -> None:
+        """Flash one LED `times` times, `interval` seconds apart. An event, not a
+        state: skipped entirely when only_if is False at the start, so arriving on
+        the page later doesn't replay it."""
+        if only_if is not None and not only_if():
+            return
         steps: list[Task.Task] = []
         for _ in range(times):
-            steps += [Task.wait(interval), Task.run(lambda: self.flash(pedal))]
+            steps += [Task.wait(interval), Task.run(lambda: self.flash(pedal, only_if))]
         self._tasks.add(Task.sequence(*steps))
 
-    def blink_loop(self, pedal: se.Pedal, interval: float) -> Task.Task:
+    def blink_loop(self, pedal: se.Pedal, interval: float,
+                   only_if: Callable[[], bool] | None = None) -> Task.Task:
         """Blink one LED until the returned task is killed."""
         values = itertools.cycle((se.ON, se.OFF))
         return self._tasks.add(Task.loop(Task.sequence(
             Task.wait(interval),
-            Task.run(lambda: self.led(pedal, next(values)))
+            Task.run(lambda: self._led_if(pedal, next(values), only_if))
         )))
 
     def set_bank_display(self, left: str | int, right: str | int) -> None:

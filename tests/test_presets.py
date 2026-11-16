@@ -94,6 +94,18 @@ class PresetStoreTest(unittest.TestCase):
         self.assertFalse(self.store.save("x", PRESET))
         self.assertEqual(len(self.log), 1)
 
+    def test_names_come_from_the_alc_files(self):
+        self.store.save("Song A", PRESET)                   # .json only (no template)
+        open(self.store.alc_path("Song A"), "w").close()
+        open(self.store.alc_path("Untitled"), "w").close()  # .alc only
+        self.store.save("Orphan", PRESET)                   # .json only: not listed
+        self.assertEqual(self.store.names(), ["Song A", "Untitled"])
+        self.assertEqual(self.store.missing_json(), ["Untitled"])
+
+    def test_names_without_folder(self):
+        store = presets.PresetStore(os.path.join(self._tmp.name, "nope"), self.log.append)
+        self.assertEqual(store.names(), [])
+
     def test_load_missing(self):
         self.assertFalse(self.store.exists("nope"))
         self.assertIsNone(self.store.load("nope"))
@@ -156,12 +168,14 @@ class FakeHardware:
     def __init__(self):
         self.calls = []
 
-    def blink_loop(self, pedal, interval):
+    def blink_loop(self, pedal, interval, only_if=None):
         self.calls.append("blink")
+        self.only_if = only_if
         return SimpleNamespace(kill=lambda: self.calls.append("kill"))
 
-    def flash_repeatedly(self, pedal, times):
+    def flash_repeatedly(self, pedal, times, only_if=None):
         self.calls.append("flash")
+        self.only_if = only_if
 
     def led(self, pedal, value):
         self.calls.append(("led", value))
@@ -274,6 +288,9 @@ class PresetManagerTest(unittest.TestCase):
         self.assertEqual(rack.view.selected_chain.name, "B")
 
     def test_preset_names(self):
+        # Listed by their .alc, which store writes from the template
+        with open(os.path.join(self.store.folder, "template.alc.xml"), "w") as f:
+            f.write(TEMPLATE)
         self.manager.store(3)
         self.manager.store(1)
         self.assertEqual(self.manager.preset_names(), ["Song A", "Song B"])
@@ -310,6 +327,17 @@ class PresetFeedbackTest(unittest.TestCase):
         self.feedback.overwrite_pending("Song A")
         self.feedback.overwrite_cancelled("Song A")
         self.assertEqual(self.hw.calls[-1], "kill")
+
+
+    def test_blink_and_flash_only_touch_the_led_on_the_store_page(self):
+        self.feedback.overwrite_pending("Song A")
+        self.assertTrue(self.hw.only_if())
+        self.page = 2
+        self.assertFalse(self.hw.only_if())
+        self.feedback.saved("Song A")
+        self.assertFalse(self.hw.only_if())
+        self.page = 0
+        self.assertTrue(self.hw.only_if())
 
 
 class AlcTest(unittest.TestCase):

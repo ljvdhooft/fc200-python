@@ -108,11 +108,15 @@ class PresetStore:
         return os.path.exists(self.json_path(name))
 
     def names(self) -> list[str]:
-        """Names of all stored presets, sorted."""
-        folder = os.path.join(self.folder, "_json")
-        if not os.path.isdir(folder):
+        """Names of all presets, sorted. The .alc files lead: they are what the user
+        manages in Live's browser."""
+        if not os.path.isdir(self.folder):
             return []
-        return sorted(f[:-len(".json")] for f in os.listdir(folder) if f.endswith(".json"))
+        return sorted(f[:-len(".alc")] for f in os.listdir(self.folder) if f.endswith(".alc"))
+
+    def missing_json(self) -> list[str]:
+        """Presets with an .alc but no .json: they can't be recalled."""
+        return [name for name in self.names() if not self.exists(name)]
 
     def save(self, name: str, preset: Preset) -> bool:
         """Write the JSON file and the .alc clip. Return False if that failed (logged)."""
@@ -220,6 +224,13 @@ class PresetManager:
 
     def preset_names(self) -> list[str]:
         return self._store.names()
+
+    def missing_json(self) -> list[str]:
+        return self._store.missing_json()
+
+    def get(self, name: str) -> Preset | None:
+        """The stored preset with this name, without applying it."""
+        return self._store.load(name)
 
     def store(self, scene_index: int) -> None:
         """Store the board as the preset named after the clip on this scene."""
