@@ -9,13 +9,20 @@
     <string>@HUB_DIR@/.venv/bin/python</string>
     <string>-m</string>
     <string>fc200_hub</string>
+    <string>--port</string>
+    <string>200</string>
   </array>
   <key>WorkingDirectory</key>
   <string>@HUB_DIR@</string>
+  <!-- Not at login: the Remote Script starts it with Live and stops it on unload
+       (src/hub_service.py). launchd only restarts it after a crash -->
   <key>RunAtLoad</key>
-  <true/>
+  <false/>
   <key>KeepAlive</key>
-  <true/>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
   <key>StandardOutPath</key>
   <string>@HOME@/Library/Logs/fc200-hub.log</string>
   <key>StandardErrorPath</key>
