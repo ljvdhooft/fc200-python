@@ -267,12 +267,13 @@
   // there, since the end usually names the song part. It starts once the row has
   // settled (it grows on selection: every resize restarts the wait) and snaps
   // back on deselection. A "…" in front shows that the start is cut off; it grows
-  // in with the glide, so the two read as one motion.
+  // in with the glide while the one at the end shrinks out (quicker), so it all
+  // reads as one motion.
   const NAME_PAUSE = 600; // ms on the start before the glide
   const NAME_SPEED = 60; // px per second
+  const TAIL_SHARE = 0.4; // of the glide's time, for the "…" at the end to go
   function scrollToEnd(node: HTMLElement, params: { active: boolean; name: string }) {
-    const dots = node.firstElementChild as HTMLElement;
-    const clip = node.lastElementChild as HTMLElement;
+    const [dots, clip, tail] = Array.from(node.children) as HTMLElement[];
     const text = clip.firstElementChild as HTMLElement;
     const portrait = matchMedia("(orientation: portrait)");
     let active = params.active;
@@ -291,6 +292,8 @@
       text.style.transform = `translateX(${-px}px)`;
       dots.style.width = `${dotsWidth}px`;
       dots.style.opacity = "1";
+      tail.style.width = "0";
+      tail.style.opacity = "0";
     }
     function reset() {
       clearTimeout(timer);
@@ -300,6 +303,7 @@
       text.style.display = "";
       clip.style.textOverflow = "";
       dots.style.cssText = "";
+      tail.style.cssText = "";
     }
     function start() {
       reset();
@@ -311,9 +315,12 @@
         dots.style.display = "inline-block";
         dotsWidth = dots.offsetWidth;
         const px = shift();
-        // Start from where the text is now: no "…" yet, nothing moved
+        // Start from where the text is now: no "…" in front, nothing moved, and the
+        // ellipsis at the end (which can't animate) swapped for a "…" that can
         dots.style.width = "0";
         dots.style.opacity = "0";
+        tail.style.display = "inline-block";
+        tail.style.width = `${dotsWidth}px`;
         clip.style.textOverflow = "clip";
         text.style.display = "inline-block"; // inline keeps the ellipsis, but can't move
         void text.offsetWidth; // lay that out first, so the glide starts from there
@@ -321,6 +328,9 @@
         const curve = `${time}ms cubic-bezier(0.45, 0, 0.55, 1)`;
         text.style.transition = time ? `transform ${curve}` : "";
         dots.style.transition = time ? `width ${curve}, opacity ${curve}` : "";
+        // the end's "…" goes sooner: the text starts moving at once
+        const tailCurve = `${time * TAIL_SHARE}ms cubic-bezier(0.45, 0, 0.55, 1)`;
+        tail.style.transition = time ? `width ${tailCurve}, opacity ${tailCurve}` : "";
         show(px);
       }, MOTION + NAME_PAUSE);
     }
@@ -522,7 +532,7 @@
           <span class="num">{number(scene)}</span>
           <span class="title" use:stackSmoothly={{ selected: scene.index === selected, name: scene.name, preset: scene.preset }}>
             <span class="name" use:scrollToEnd={{ active: scene.index === selected, name: scene.name }}
-              ><span class="dots" aria-hidden="true">…</span><span class="clip"><span class="text">{scene.name}</span></span></span
+              ><span class="dots" aria-hidden="true">…</span><span class="clip"><span class="text">{scene.name}</span></span><span class="dots" aria-hidden="true">…</span></span
             >
             {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
           </span>
@@ -1015,7 +1025,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* shown by scrollToEnd while the start is cut off */
+  /* the "…" in front and at the end, shown by scrollToEnd while the name glides */
   .name .dots {
     display: none;
     flex: none;
