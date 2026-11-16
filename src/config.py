@@ -15,13 +15,6 @@ class Settings:
     TUNER_CHAIN: int = 1
     TUNER_DEVICE: int = 1
     TUNER_TOLERANCE: float = 2  # cents either side that count as in tune
-    HIGHLIGHT_NOTES: dict[str, int] = {
-            "tuner": 0,
-            "board": 1,
-            "0": 2
-            }
-    OSC_REMOTE_HOST: str = "127.0.0.1"
-    OSC_REMOTE_PORT: int = 20022
     FORSCORE_PREV_PAGE: int = 0
     FORSCORE_NEXT_PAGE: int = 1
     FORSCORE_PREV_SCORE: int = 2

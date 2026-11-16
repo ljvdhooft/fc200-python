@@ -45,7 +45,6 @@ class FakeSurface:
 
     def __init__(self):
         self._hw = Recorder()
-        self._oscremote = Recorder()
         self._presets = None
         self._has_pedalboard = True
         self._racks = [fake_rack(f"Loop {i}") for i in range(11)]
