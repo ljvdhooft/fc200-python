@@ -103,6 +103,9 @@
     const glide = centred !== null && (selected !== centred || wasBrowsing);
     wasBrowsing = browsing;
     if (browsing) return;
+    // Ableton's update (new window, so new rows) lands mid-glide: let the glide
+    // finish, it re-aims every frame. Restarting it here jumped to the end.
+    if (gliding && selected === centred) return;
     centre(glide);
     if (target() !== null) centred = selected;
   });
