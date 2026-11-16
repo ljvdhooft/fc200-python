@@ -1143,8 +1143,11 @@
     align-items: baseline;
     gap: var(--space-2);
   }
-  /* the scene name wins: the preset gives way first, down to a few letters */
+  /* the scene name wins: the preset gives way first, down to a few letters.
+     Centred, not on the name's baseline: on the selected row the name is much
+     larger and the preset would sit low */
   .preset {
+    align-self: center;
     flex: 0 100 auto;
     min-width: 6ch;
     margin-left: auto;
