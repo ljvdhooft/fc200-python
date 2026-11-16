@@ -198,6 +198,30 @@ class UiGatewayTest(unittest.TestCase):
         self.assertEqual(again.port, port)
         again.close()
 
+    def test_new_gateway_takes_the_port_over_from_an_earlier_one(self):
+        # Live dropped the earlier instance without disconnect(): it never polls again
+        port = self.gateway.port
+        self.gateway.close()
+        earlier = UiGateway(self.model, {}, self.logs.append, port=port)
+        stale = Client(earlier)
+        stale.read()
+        newer = UiGateway(self.model, {}, self.logs.append, port=port)
+        self.assertEqual(newer.port, port)
+        self.assertIsNone(earlier.port)
+        self.assertIn("took the port over", self.logs[-1])
+        stale.sock.settimeout(1)
+        self.assertEqual(stale.sock.recv(1), b"")  # the earlier one's clients are closed
+        stale.sock.close()
+
+        # closing the earlier one again (a late disconnect) leaves the newer one alone
+        earlier.close()
+        self.assertEqual(newer.port, port)
+        newer.close()
+        logged = len(self.logs)
+        again = UiGateway(self.model, {}, self.logs.append, port=port)
+        self.assertEqual(len(self.logs), logged)  # nothing left to take over
+        again.close()
+
 
 if __name__ == "__main__":
     unittest.main()

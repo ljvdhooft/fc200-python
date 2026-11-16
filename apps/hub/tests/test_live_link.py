@@ -17,7 +17,8 @@ async def until(cond, timeout=3.0):
 class FakeScript:
     """A tiny TCP server speaking the script side of the protocol."""
 
-    def __init__(self):
+    def __init__(self, dump=True):
+        self.dump = dump  # False: a stuck script that accepts but never answers
         self.writers = []
         self.received = []
         self.server = None
@@ -28,7 +29,8 @@ class FakeScript:
 
     async def _on_client(self, reader, writer):
         self.writers.append(writer)
-        writer.write(proto.encode(proto.event("state.dump", DUMP)))
+        if self.dump:
+            writer.write(proto.encode(proto.event("state.dump", DUMP)))
         while line := await reader.readline():
             msg = json.loads(line)
             self.received.append(msg)
@@ -74,9 +76,30 @@ async def test_link_drop_and_recovery():
         # recovery: a new script on the same port, dump replaces the cache
         script2 = FakeScript()
         await script2.start(port)
-        # live_connected flips on connect, the dump follows a moment later
         await until(lambda: hub.live_connected and hub.state["tempo"] == DUMP["tempo"])
         assert hub.state["hub"]["live_connected"] is True
         await script2.stop()
+    finally:
+        task.cancel()
+
+
+async def test_live_connected_waits_for_the_dump():
+    script = FakeScript(dump=False)
+    port = await script.start()
+    hub = Hub(timeout=1)
+    link = LiveLink(hub, port=port, backoff_min=0.05, backoff_max=0.1)
+    task = asyncio.create_task(link.run())
+    try:
+        await until(lambda: script.writers)
+        await asyncio.sleep(0.1)
+        # connected over TCP, but the script never answered: still offline
+        assert not hub.live_connected
+        assert hub.state is None
+        assert (await hub.request("page.set", {}))["error"]["code"] == "live_offline"
+
+        script.writers[0].write(proto.encode(proto.event("state.dump", DUMP)))
+        await until(lambda: hub.live_connected)
+        assert hub.state["hub"]["live_connected"] is True
+        await script.stop()
     finally:
         task.cancel()

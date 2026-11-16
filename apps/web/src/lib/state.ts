@@ -138,11 +138,13 @@ export type Outage = "hub" | "ableton" | "connecting" | "pedalboard";
 const forced = import.meta.env.VITE_FORCE_OUTAGE as Outage | undefined;
 
 /** What is down, or null when healthy: the hub (the WebSocket, so also Wi-Fi), Ableton
- *  Live behind a hub that is up, the first state hasn't arrived yet, or Ableton Live is
- *  up but the set has no pedalboard device. */
+ *  Live behind a hub that is up (also before any state arrived: the hub says so in
+ *  hub.status), the first state hasn't arrived yet, or Ableton Live is up but the set
+ *  has no pedalboard device. */
 export const outage = derived([socket, synced, abletonConnected, appState], ([$socket, $synced, $ableton, $s]): Outage | null => {
   if (forced) return forced;
   if ($socket !== "open") return "hub";
+  if ($s.hub?.live_connected === false) return "ableton";
   if (!$synced) return "connecting";
   if (!$ableton) return "ableton";
   return $s.pedalboard?.found === false ? "pedalboard" : null;
