@@ -753,6 +753,28 @@
     color: var(--accent-select);
     border-color: var(--accent-select);
   }
+  /* Landscape: the keyboard takes half the height, so everything goes on one row
+     at the very top */
+  @media (orientation: landscape) {
+    .rename {
+      padding-top: var(--space-2);
+    }
+    .rename .card {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      padding: var(--space-3) var(--space-4);
+      width: min(900px, 100%);
+    }
+    .rename label {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    .rename .error {
+      order: 1; /* its own line, under the fields */
+      flex-basis: 100%;
+    }
+  }
   /* the store's outcome, for a moment */
   .store.saved {
     color: var(--status-live);
