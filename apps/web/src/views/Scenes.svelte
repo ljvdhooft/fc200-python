@@ -286,11 +286,15 @@
     presetName = scene.preset ?? "";
     renameError = null;
   }
-  // Focusing a field puts the cursor at the end, wherever the tap landed; after
-  // that, taps place it as usual. iOS places it after focus, so this waits a tick.
+  // Focusing a field puts the cursor at the end, wherever the tap landed, and
+  // scrolls a long name to its end; after that, taps place it as usual. iOS
+  // places the cursor after focus, so this waits a tick.
   function caretToEnd(e: FocusEvent) {
     const input = e.currentTarget as HTMLInputElement;
-    setTimeout(() => input.setSelectionRange(input.value.length, input.value.length));
+    setTimeout(() => {
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.scrollLeft = input.scrollWidth;
+    });
   }
   // The dialog keeps touch mode on until it closes
   $effect(() => {
