@@ -1,7 +1,8 @@
 # TODO
 
-- [ ] Refactor `MiraGUI` into a Node-based GUI. Architecture unsure — likely an externally hosted server, driven from an M4L device.
-- [ ] General code refactor (using Claude).
+- [x] Replace `MiraGUI` with a frontend: Python hub + web app (`docs/frontend-architecture.md`).
+- [ ] WP6: remove Mira (`MiraGUI.py`, `FC200 Mira.amxd`) after the hardware test.
+- [x] General code refactor (using Claude).
 - [ ] Fix startup bug where all LEDs light up.
 - [ ] Fix Freeze.
 - [ ] Come up with an easier workflow for saving presets.
