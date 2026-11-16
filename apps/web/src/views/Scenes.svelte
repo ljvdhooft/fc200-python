@@ -447,8 +447,12 @@
       {/if}
       {#if renameError !== null}<p class="error">{renameError}</p>{/if}
       <div class="actions">
-        <button type="button" onclick={() => (renaming = null)}>cancel</button>
-        <button type="submit" class="save" disabled={renameBusy || !$abletonConnected}>rename</button>
+        <button type="button" onclick={() => (renaming = null)} aria-label="cancel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+        <button type="submit" class="save" disabled={renameBusy || !$abletonConnected} aria-label="rename">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </button>
       </div>
     </form>
   </div>
@@ -757,7 +761,16 @@
     gap: var(--space-2);
   }
   .rename .actions button {
-    padding: 0 var(--space-4);
+    padding: 0;
+  }
+  .rename .actions svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linejoin: round;
+    stroke-linecap: round;
   }
   .rename .save {
     color: var(--accent-select);
