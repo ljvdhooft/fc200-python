@@ -1,6 +1,13 @@
+<script lang="ts" module>
+  import type { Scene } from "../lib/state";
+
+  // scene.list's last answer, kept while the page is closed
+  let lastList: Scene[] = [];
+</script>
+
 <script lang="ts">
   import { connection } from "../lib/client";
-  import { appState, abletonConnected, type Scene } from "../lib/state";
+  import { appState, abletonConnected } from "../lib/state";
   import { holdInteractive, interactive, keepInteractive, session, wake } from "../lib/touch";
   import { fade } from "svelte/transition";
   import { ease, FADE, GLIDE, MOTION } from "../lib/motion";
@@ -35,10 +42,12 @@
   // The full list comes from scene.list (it isn't in the state). Fetched again when
   // the scene count changes and whenever touch mode starts (catches renames);
   // window and fired entries are always current, so they override it.
-  let all = $state<Scene[]>([]);
+  // Opening the page starts from the last list: starting empty showed only the
+  // window until scene.list answered, and the other rows popped in (a flicker).
+  let all = $state<Scene[]>(lastList);
   async function loadAll() {
     try {
-      all = (await connection.request<{ scenes: Scene[] }>("scene.list")).scenes;
+      all = lastList = (await connection.request<{ scenes: Scene[] }>("scene.list")).scenes;
     } catch {
       // offline: keep what we have, the window still shows
     }
