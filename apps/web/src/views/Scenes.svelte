@@ -668,7 +668,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text-muted);
-    font-size: var(--text-name);
+    font-size: var(--text-row);
     text-align: left;
     overflow: hidden;
     transition:
@@ -777,19 +777,15 @@
     }
   }
 
-  /* Portrait: the preset goes under the scene name */
+  /* Portrait: the preset moves under the scene name when they don't fit on one line */
   @media (orientation: portrait) {
     .title {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0;
-    }
-    .title > * {
-      max-width: 100%;
+      flex-wrap: wrap;
+      row-gap: 0;
     }
     .preset {
       min-width: 0;
-      align-self: flex-end;
+      max-width: 100%;
     }
   }
 

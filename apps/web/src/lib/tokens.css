@@ -36,6 +36,7 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --text-label: 12px;
   --text-body: 15px;
+  --text-row: 17px; /* unselected scene rows */
   --text-name: 20px;
   --text-scene: 28px;
 
