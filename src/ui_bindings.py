@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.16.0"
+VERSION = "0.17.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 MIN_TEMPO, MAX_TEMPO = 20.0, 999.0   # Live's tempo range
@@ -134,7 +134,15 @@ class UiBindings(presets.PresetEvents):
 
     def _scene(self, index: int) -> dict[str, Any]:
         scene = self.s._all_scenes[index]
-        return {"index": index, "name": scene.name, "color": scene.color}
+        return {"index": index, "name": scene.name, "color": scene.color,
+                "preset": self._preset_name(index)}
+
+    def _preset_name(self, index: int) -> str | None:
+        """The clip in the scene's slot on the pedalboard track: its name is the preset's."""
+        if not self.s._has_pedalboard:
+            return None
+        slot = self.s._board_track().clip_slots[index]
+        return slot.clip.name if slot.has_clip else None
 
     def _rack(self, pos: int) -> RackDevice:
         return self.s._loop(self.s.settings.LOOP_MAPPING[pos])

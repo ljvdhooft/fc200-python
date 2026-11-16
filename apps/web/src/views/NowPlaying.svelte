@@ -39,6 +39,7 @@
     <span class="strip" style:background={hex(fired.color)}></span>
     <span class="num">{number(fired)}</span>
     <span class="name">{fired.name}</span>
+    {#if fired.preset}<span class="preset">⟡ {fired.preset}</span>{/if}
   {:else}
     <span class="name muted">nothing fired yet</span>
   {/if}
@@ -103,9 +104,25 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* the scene name wins: the preset gives way first, down to a few letters */
+  .preset {
+    flex: 0 100 auto;
+    min-width: 6ch;
+    margin-left: auto;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-size: var(--text-label);
+  }
   .lock {
     margin-left: auto;
     flex: none;
+  }
+  /* the preset already pushes it to the end */
+  .preset + .lock {
+    margin-left: 0;
   }
   /* Fired, waiting for its launch: the accent line and the light pulse, like a
      triggered clip in Ableton. The label says "fired" too */

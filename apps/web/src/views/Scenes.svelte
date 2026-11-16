@@ -262,7 +262,10 @@
         >
           <span class="strip" style:background={hex(scene.color)}></span>
           <span class="num">{number(scene)}</span>
-          <span class="name">{scene.name}</span>
+          <span class="title">
+            <span class="name">{scene.name}</span>
+            {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
+          </span>
           {#if scene.index === fired?.index}<span class="led" title="playing" transition:fade={{ duration: FADE }}></span>{/if}
         </button>
       </li>
@@ -665,7 +668,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     color: var(--text-muted);
-    font-size: var(--text-body);
+    font-size: var(--text-row);
     text-align: left;
     overflow: hidden;
     transition:
@@ -694,8 +697,24 @@
     width: 10px;
     opacity: 1;
   }
-  .row .name {
+  .title {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+  /* the scene name wins: the preset gives way first, down to a few letters */
+  .preset {
+    flex: 0 100 auto;
+    min-width: 6ch;
+    margin-left: auto;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-size: var(--text-label);
   }
 
   .controls {
@@ -755,6 +774,18 @@
     }
     :global(:root[data-island="right"]) .list {
       border-bottom-left-radius: var(--corner-concentric);
+    }
+  }
+
+  /* Portrait: the preset moves under the scene name when they don't fit on one line */
+  @media (orientation: portrait) {
+    .title {
+      flex-wrap: wrap;
+      row-gap: 0;
+    }
+    .preset {
+      min-width: 0;
+      max-width: 100%;
     }
   }
 
