@@ -38,6 +38,7 @@ class FC200(ControlSurface):
     _track: Track | None
     _board: Chain | None                    # chain 0 of the "FC200 Pedalboard" rack
     _fired_scene: Scene | None
+    _triggered_scenes: set[Scene]
     _presets: presets.PresetManager | None  # None without a pedalboard
     _pages: list[pages.Page]
     _mode: pages.Mode                       # receives the pedal events
@@ -149,6 +150,7 @@ class FC200(ControlSurface):
         self._listeners.add(self.song(), "scenes", self._watch_scenes)
 
         self._fired_scene = None
+        self._triggered_scenes = set()
         self._watch_scenes()
         self._highlight_tuner_true = False
         self._on_is_playing_changed()
@@ -182,7 +184,13 @@ class FC200(ControlSurface):
             self._scene_listeners.add(scene, "is_triggered", partial(self._on_scene_triggered, scene))
 
     def _on_scene_triggered(self, scene: Scene) -> None:
-        if not scene.is_triggered:
+        # While playing, is_triggered goes up at the fire and down at the launch. From
+        # a stopped transport the scene starts at once: Live only reports it going
+        # down. So a fall without a rise before it is a fire too.
+        if scene.is_triggered:
+            self._triggered_scenes.add(scene)
+        elif scene in self._triggered_scenes:
+            self._triggered_scenes.discard(scene)  # launched (or replaced): already told
             return
         self._fired_scene = scene
         self._ui.scene_fired(self._all_scenes.index(scene))

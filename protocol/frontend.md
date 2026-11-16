@@ -88,7 +88,9 @@ The durable part (`pending_overwrite`, `count`, `last`) is also in the state tre
 a client that misses an event still converges.
 
 `scene.fired` comes from each scene's `Scene.is_triggered` listener, so it covers
-launches from the pedal, `scene.fire` and Ableton itself. Firing the same
+launches from the pedal, `scene.fire` and Ableton itself. From a stopped transport
+Live reports `is_triggered` only going down (the scene starts at once), so a fall
+without a rise before it counts as a fire too. Firing the same
 scene again leaves `scenes.fired` unchanged (so no `state.changed`), but it is still
 an event: a client that shows whether the fired scene is playing needs every fire.
 
