@@ -249,21 +249,26 @@
   // Portrait: a selected name too long for its row glides to its end and stays
   // there, since the end usually names the song part. It starts once the row has
   // settled (it grows on selection: every resize restarts the wait) and snaps
-  // back on deselection. A fade on the left shows that the start is cut off.
+  // back on deselection. A "…" in front shows that the start is cut off; it grows
+  // in with the glide, so the two read as one motion.
   const NAME_PAUSE = 600; // ms on the start before the glide
   const NAME_SPEED = 60; // px per second
   function scrollToEnd(node: HTMLElement, params: { active: boolean; name: string }) {
-    const text = node.firstElementChild as HTMLElement;
+    const dots = node.firstElementChild as HTMLElement;
+    const clip = node.lastElementChild as HTMLElement;
+    const text = clip.firstElementChild as HTMLElement;
     const portrait = matchMedia("(orientation: portrait)");
     let active = params.active;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let scrolled = false;
+    let dotsWidth = 0;
 
-    const shift = () => Math.max(0, text.offsetWidth - node.clientWidth);
+    // Against the room left once the "…" is in, which the row (node) doesn't change
+    const shift = () => Math.max(0, text.offsetWidth - (node.clientWidth - dotsWidth));
     function show(px: number) {
       text.style.transform = `translateX(${-px}px)`;
-      node.style.setProperty("mask-image", "linear-gradient(to right, transparent, #000 1.5em)");
-      node.style.setProperty("-webkit-mask-image", "linear-gradient(to right, transparent, #000 1.5em)");
+      dots.style.width = `${dotsWidth}px`;
+      dots.style.opacity = "1";
     }
     function reset() {
       clearTimeout(timer);
@@ -271,22 +276,29 @@
       text.style.transition = "";
       text.style.transform = "";
       text.style.display = "";
-      node.style.textOverflow = "";
-      node.style.removeProperty("mask-image");
-      node.style.removeProperty("-webkit-mask-image");
+      clip.style.textOverflow = "";
+      dots.style.cssText = "";
     }
     function start() {
       reset();
       if (!active || !portrait.matches) return;
       timer = setTimeout(() => {
-        const px = shift();
-        if (px === 0) return;
+        dotsWidth = 0;
+        if (shift() === 0) return;
         scrolled = true;
-        node.style.textOverflow = "clip";
+        dots.style.display = "inline-block";
+        dotsWidth = dots.offsetWidth;
+        const px = shift();
+        // Start from where the text is now: no "…" yet, nothing moved
+        dots.style.width = "0";
+        dots.style.opacity = "0";
+        clip.style.textOverflow = "clip";
         text.style.display = "inline-block"; // inline keeps the ellipsis, but can't move
-        void text.offsetWidth; // lay it out at the start first, so the glide starts from there
+        void text.offsetWidth; // lay that out first, so the glide starts from there
         const time = MOTION ? Math.min(4000, Math.max(800, (px / NAME_SPEED) * 1000)) : 0;
-        text.style.transition = time ? `transform ${time}ms cubic-bezier(0.45, 0, 0.55, 1)` : "";
+        const curve = `${time}ms cubic-bezier(0.45, 0, 0.55, 1)`;
+        text.style.transition = time ? `transform ${curve}` : "";
+        dots.style.transition = time ? `width ${curve}, opacity ${curve}` : "";
         show(px);
       }, MOTION + NAME_PAUSE);
     }
@@ -409,7 +421,9 @@
           <span class="strip" style:background={hex(scene.color)}></span>
           <span class="num">{number(scene)}</span>
           <span class="title">
-            <span class="name" use:scrollToEnd={{ active: scene.index === selected, name: scene.name }}><span class="text">{scene.name}</span></span>
+            <span class="name" use:scrollToEnd={{ active: scene.index === selected, name: scene.name }}
+              ><span class="dots" aria-hidden="true">…</span><span class="clip"><span class="text">{scene.name}</span></span></span
+            >
             {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
           </span>
           {#if scene.index === fired?.index}<span class="led" title="playing" transition:fade={{ duration: FADE }}></span>{/if}
@@ -892,9 +906,20 @@
     text-align: right;
   }
   .name {
+    display: flex;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .name .clip {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+  /* shown by scrollToEnd while the start is cut off */
+  .name .dots {
+    display: none;
+    flex: none;
+    overflow: hidden;
   }
 
   .list {
