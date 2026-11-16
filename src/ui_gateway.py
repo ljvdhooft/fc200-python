@@ -85,6 +85,11 @@ class UiGateway:
         for client in list(self._clients):
             self._queue(client, message)
 
+    def flush(self) -> None:
+        """Send what is queued now instead of on the next poll (in order)."""
+        for client in list(self._clients):
+            self._send(client)
+
     def close(self) -> None:
         for client in self._clients:
             client.sock.close()

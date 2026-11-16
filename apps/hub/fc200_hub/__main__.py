@@ -11,6 +11,7 @@ from .app import attach_backend, make_app
 from .hub import Hub
 from .live_link import LiveLink
 from .mdns import advertise
+from .midi_out import MidiOut
 from .mock import Mock
 
 
@@ -27,6 +28,8 @@ async def exit_when_idle(hub: Hub, grace: float, stop: asyncio.Event, poll: floa
 
 async def serve(args: argparse.Namespace) -> None:
     hub = Hub()
+    midi = MidiOut()
+    hub.commands["midi.send"] = lambda params: midi.send(params.get("bytes"))
     backend = Mock(hub) if args.mock else LiveLink(hub, port=args.live_port)
     app = make_app(hub)
     attach_backend(app, backend)

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import logging
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from aiohttp import WSCloseCode, web
@@ -34,6 +35,8 @@ class Hub:
         self.live_connected = False
         self.clients: set[web.WebSocketResponse] = set()
         self._pending: dict[int, asyncio.Future[proto.Message]] = {}
+        # Hub commands from the script (protocol section 8), by name; they take the params
+        self.commands: dict[str, Callable[[dict[str, Any]], object]] = {}
         self._next_id = 1
 
     # --- feed from the backend -------------------------------------------------
@@ -55,6 +58,17 @@ class Hub:
 
     def on_event(self, message: proto.Message) -> None:
         self._broadcast(message)
+
+    def on_command(self, message: proto.Message) -> None:
+        """Run a hub command; never forwarded to clients."""
+        handler = self.commands.get(message["command"])
+        if handler is None:
+            log.warning("unknown command, ignored: %r", message["command"])
+            return
+        try:
+            handler(message.get("params", {}))
+        except Exception:
+            log.exception("command %r failed", message["command"])
 
     def on_response(self, message: proto.Message) -> None:
         future = self._pending.pop(message.get("id"), None)  # type: ignore[arg-type]

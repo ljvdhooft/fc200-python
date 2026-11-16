@@ -127,6 +127,7 @@ class CodecTest(unittest.TestCase):
             p.response(1, {"ok": True}),
             p.error_response(1, "bad_params", "nope"),
             p.event("state.changed", {"tempo": 90.0}),
+            p.command("midi.send", {"bytes": [207, 1]}),
         ):
             line = p.encode(message)
             self.assertTrue(line.endswith(b"\n"))
@@ -141,7 +142,8 @@ class CodecTest(unittest.TestCase):
     def test_malformed_lines(self):
         for bad in (b"", b"not json", b"[1, 2]", b"42", b'{"foo": 1}', b"\xff\xfe",
                     b'{"id": 1}', b'{"id": 1, "method": 5}',
-                    b'{"id": 1, "method": "a", "params": []}', b'{"event": 3}'):
+                    b'{"id": 1, "method": "a", "params": []}', b'{"event": 3}',
+                    b'{"command": 3}', b'{"command": "a", "params": []}'):
             with self.assertRaises(p.ProtocolError, msg=bad):
                 p.decode(bad)
 

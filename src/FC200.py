@@ -12,7 +12,7 @@ from .listeners import Listeners
 from .preset_feedback import PresetFeedback
 from .ui_bindings import UiBindings
 from .ui_gateway import UiGateway
-from .ui_protocol import StateModel
+from .ui_protocol import StateModel, command
 from .OSCremote import OSCremote
 
 import importlib
@@ -258,6 +258,12 @@ class FC200(ControlSurface):
     def _every(self, seconds: float, fn: Callable[[], None]) -> Task.Task:
         """Run fn every `seconds` until the returned task is killed."""
         return self._tasks.add(Task.loop(Task.sequence(Task.wait(seconds), Task.run(fn))))
+
+    def _midi_send(self, msg: tuple[int, ...]) -> None:
+        """MIDI for other apps (ForScore) goes out through the hub, not the script's own
+        output: that carries only the FC-200's SysEx (protocol/frontend.md section 8)."""
+        self._ui_gateway.emit(command("midi.send", {"bytes": list(msg)}))
+        self._ui_gateway.flush()  # not on the next tick: a page turn should be instant
 
     # --- Listeners ------------------------------------------------------------
 

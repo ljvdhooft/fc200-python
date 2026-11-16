@@ -4,6 +4,7 @@ Messages are JSON objects, one per line:
   request   {"id", "method", "params"}
   response  {"id", "result"} or {"id", "error": {"code", "message"}}
   event     {"event", "data"}
+  command   {"command", "params"}  (script to hub only)
 
 StateModel is the producer's nested dict. Writers call set() with dotted paths
 ("loops.2.favorite.value"; an integer segment indexes a list). The model records
@@ -37,7 +38,7 @@ def encode(message: Message) -> bytes:
 
 
 def decode(line: bytes | str) -> Message:
-    """Parse one line; raises ProtocolError unless it is a request, response or event."""
+    """Parse one line; raises ProtocolError unless it is a request, response, event or command."""
     try:
         message = json.loads(line)
     except (ValueError, UnicodeDecodeError) as e:
@@ -47,6 +48,11 @@ def decode(line: bytes | str) -> Message:
     if "event" in message:
         if not isinstance(message["event"], str):
             raise ProtocolError("event name is not a string")
+    elif "command" in message:
+        if not isinstance(message["command"], str):
+            raise ProtocolError("command name is not a string")
+        if not isinstance(message.get("params", {}), dict):
+            raise ProtocolError("params is not an object")
     elif "id" in message:
         if "method" in message:
             if not isinstance(message["method"], str):
@@ -56,7 +62,7 @@ def decode(line: bytes | str) -> Message:
         elif "result" not in message and "error" not in message:
             raise ProtocolError("response has neither result nor error")
     else:
-        raise ProtocolError("message has no id or event")
+        raise ProtocolError("message has no id, event or command")
     return message
 
 
@@ -74,6 +80,10 @@ def error_response(id: int | str | None, code: str, message: str) -> Message:
 
 def event(name: str, data: Any = None) -> Message:
     return {"event": name, "data": data}
+
+
+def command(name: str, params: dict[str, Any] | None = None) -> Message:
+    return {"command": name, "params": params or {}}
 
 
 def _same(a: Any, b: Any) -> bool:
