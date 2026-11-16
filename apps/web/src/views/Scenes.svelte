@@ -757,7 +757,8 @@
      at the very top */
   @media (orientation: landscape) {
     .rename {
-      padding-top: var(--space-2);
+      /* between the rails, clear of the rounded screen corners */
+      padding: var(--space-2) var(--rail) 0;
     }
     .rename .card {
       flex-direction: row;
