@@ -246,6 +246,23 @@
     connection.send("scene.fire");
   }
 
+  // A copy of a row, laid out at its final sizes: a fresh element has no
+  // transition to run. The inline styles the actions set are cleared, so it shows
+  // the layout the CSS gives. `selected` is set on the copy: the actions can run
+  // before Svelte has put the class on the row itself.
+  function measureSettled<T>(row: HTMLElement, selected: boolean, measure: (copy: HTMLElement) => T): T {
+    const copy = row.cloneNode(true) as HTMLElement;
+    copy.classList.toggle("selected", selected);
+    copy.querySelectorAll<HTMLElement>("[style]").forEach((el) => (el.style.cssText = ""));
+    copy.style.cssText = `position: absolute; visibility: hidden; pointer-events: none; width: ${row.offsetWidth}px`;
+    row.after(copy);
+    try {
+      return measure(copy);
+    } finally {
+      copy.remove();
+    }
+  }
+
   // Portrait: a selected name too long for its row glides to its end and stays
   // there, since the end usually names the song part. It starts once the row has
   // settled (it grows on selection: every resize restarts the wait) and snaps
@@ -263,8 +280,13 @@
     let scrolled = false;
     let dotsWidth = 0;
 
-    // Against the room left once the "…" is in, which the row (node) doesn't change
-    const shift = () => Math.max(0, text.offsetWidth - (node.clientWidth - dotsWidth));
+    // Against the room left once the "…" is in, which the row (node) doesn't change.
+    // Exact widths: offsetWidth rounds, so a name that just fits could come out a
+    // pixel too long, and then the "…" pushed it a whole character along.
+    const shift = () => {
+      const over = text.getBoundingClientRect().width - (node.getBoundingClientRect().width - dotsWidth);
+      return over > 0.5 ? over : 0;
+    };
     function show(px: number) {
       text.style.transform = `translateX(${-px}px)`;
       dots.style.width = `${dotsWidth}px`;
@@ -318,6 +340,84 @@
         clearTimeout(timer);
         observer.disconnect();
         portrait.removeEventListener("change", start);
+      },
+    };
+  }
+
+  // Portrait: whether the preset shares the name's line is decided per state
+  // (selected or not), at the start of the change, and the switch glides (FLIP).
+  // Left to the browser, the wrap flips halfway through the font-size transition
+  // and the name and preset jump.
+  function stackSmoothly(title: HTMLElement, params: { selected: boolean; name: string; preset: string | null }) {
+    const portrait = matchMedia("(orientation: portrait)");
+    const name = title.querySelector<HTMLElement>(".name")!;
+    const presetIn = (t: Element) => t.querySelector<HTMLElement>(".preset");
+    let settling: ReturnType<typeof setTimeout> | undefined; // the font-size transition runs
+
+    function apply(t: HTMLElement, stacked: boolean) {
+      t.style.flexWrap = stacked ? "" : "nowrap";
+      const preset = presetIn(t);
+      if (preset) preset.style.flexBasis = stacked ? "100%" : "";
+    }
+    // Whether the preset wraps when the browser decides, at the title's current size
+    function wraps(t: HTMLElement): boolean {
+      t.style.flexWrap = "";
+      const preset = presetIn(t);
+      if (!preset) return false;
+      preset.style.flexBasis = "";
+      return preset.getBoundingClientRect().top >= t.querySelector(".name")!.getBoundingClientRect().bottom - 2;
+    }
+    // The same, once the row has its new size
+    const wrapsWhenSettled = () =>
+      measureSettled(title.closest<HTMLElement>(".row")!, params.selected, (copy) =>
+        wraps(copy.querySelector<HTMLElement>(".title")!),
+      );
+    function sync() {
+      if (!settling) apply(title, wraps(title));
+    }
+    function glide(el: HTMLElement, dx: number, dy: number) {
+      if (!MOTION || (Math.abs(dx) < 1 && Math.abs(dy) < 1)) return;
+      el.style.transition = "none";
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      void el.offsetWidth;
+      el.style.transition = `transform ${MOTION}ms var(--ease)`;
+      el.style.transform = "";
+    }
+    function select() {
+      clearTimeout(settling);
+      settling = setTimeout(() => {
+        settling = undefined;
+        sync();
+      }, MOTION + 50);
+      const preset = presetIn(title);
+      if (!portrait.matches || !preset) return;
+      const stacked = wrapsWhenSettled();
+      if (stacked === (title.style.flexWrap !== "nowrap")) return; // no switch: the font change alone is smooth
+      // Measured at the old font size: the transition has only just started
+      const name0 = name.getBoundingClientRect();
+      const preset0 = preset.getBoundingClientRect();
+      apply(title, stacked);
+      const name1 = name.getBoundingClientRect();
+      const preset1 = preset.getBoundingClientRect();
+      glide(name, name0.left - name1.left, name0.top - name1.top);
+      // right-aligned: its right edge is where the text is
+      glide(preset, preset0.right - preset1.right, preset0.top - preset1.top);
+    }
+
+    const observer = new ResizeObserver(sync);
+    observer.observe(title);
+    portrait.addEventListener("change", sync);
+    return {
+      update(next: { selected: boolean; name: string; preset: string | null }) {
+        const was = params;
+        params = next;
+        if (next.selected !== was.selected) select();
+        else if (next.name !== was.name || next.preset !== was.preset) sync();
+      },
+      destroy() {
+        clearTimeout(settling);
+        observer.disconnect();
+        portrait.removeEventListener("change", sync);
       },
     };
   }
@@ -420,7 +520,7 @@
         >
           <span class="strip" style:background={hex(scene.color)}></span>
           <span class="num">{number(scene)}</span>
-          <span class="title">
+          <span class="title" use:stackSmoothly={{ selected: scene.index === selected, name: scene.name, preset: scene.preset }}>
             <span class="name" use:scrollToEnd={{ active: scene.index === selected, name: scene.name }}
               ><span class="dots" aria-hidden="true">…</span><span class="clip"><span class="text">{scene.name}</span></span></span
             >
