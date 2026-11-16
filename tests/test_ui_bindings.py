@@ -118,6 +118,10 @@ class FakePresets:
     def recall(self, name):
         return name == "A"
 
+    def rename(self, scene_index, name):
+        self.renamed = (scene_index, name)
+        return {"B": "linked", "fail": "failed"}.get(name, "renamed")
+
 
 class UiBindingsTest(unittest.TestCase):
     def setUp(self):
@@ -144,7 +148,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.17.0")
+        self.assertEqual(state["version"], "0.18.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -283,6 +287,13 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.model.get("presets.last"), "Song A")
         self.assertEqual(self.events, [{"event": "preset.saved", "data": {"name": "Song A"}}])
 
+    def test_preset_renamed_event_follows_last(self):
+        self.ui.recalled("Song A")
+        self.events.clear()
+        self.ui.renamed("Song A", "Song Z")
+        self.assertEqual(self.model.get("presets.last"), "Song Z")
+        self.assertEqual(self.events, [{"event": "preset.renamed", "data": {"from": "Song A", "to": "Song Z"}}])
+
     def test_no_pedalboard(self):
         s = Surface()
         s._has_pedalboard = False
@@ -344,6 +355,17 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.call("preset.recall", name="A"), {"found": True})
         self.assertEqual(self.call("preset.cancel"), {"cancelled": False})
 
+    def test_preset_rename(self):
+        self.assertEqual(self.call("preset.rename", scene_index=5, name=" Song Z "),
+                         {"name": "Song Z", "linked": False})
+        self.assertEqual(self.s._presets.renamed, (5, "Song Z"))
+        self.assertEqual(self.call("preset.rename", scene_index=5, name="B"), {"name": "B", "linked": True})
+        self.assertEqual(self.error("preset.rename", scene_index=5, name="fail"), "internal")
+        self.assertEqual(self.error("preset.rename", scene_index=5, name="  "), "bad_params")
+        self.assertEqual(self.error("preset.rename", scene_index=5, name="a/b"), "bad_params")
+        self.assertEqual(self.error("preset.rename", scene_index=99, name="x"), "bad_params")
+        self.assertEqual(self.error("preset.rename", scene_index=4, name="x"), "not_found")  # empty slot
+
     def test_pedalboard(self):
         self.assertEqual(self.model.get("pedalboard"), {
             "found": True, "track": "Guitar", "track_index": 31,
@@ -354,6 +376,14 @@ class UiBindingsTest(unittest.TestCase):
         self.assertEqual(self.model.get("scenes.selected"), 8)
         self.assertEqual(self.s.fired, [])
         self.assertEqual(self.error("scene.select", index=10), "not_found")
+
+    def test_scene_rename(self):
+        self.assertEqual(self.call("scene.rename", index=8, name="Bridge"), {"index": 8, "name": "Bridge"})
+        self.assertEqual(self.s.scenes[8].name, "Bridge")
+        self.assertEqual(self.model.get("scenes.window.6.name"), "Bridge")    # refreshed
+        self.assertEqual(self.call("scene.rename", index=8, name=""), {"index": 8, "name": ""})
+        self.assertEqual(self.error("scene.rename", index=10, name="x"), "not_found")
+        self.assertEqual(self.error("scene.rename", index=1), "bad_params")
 
     def test_scene_list(self):
         scenes = self.call("scene.list")["scenes"]

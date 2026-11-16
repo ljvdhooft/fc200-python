@@ -3,7 +3,7 @@
   import { appState, abletonConnected, type Scene } from "../lib/state";
   import { holdInteractive, interactive, keepInteractive, session, wake } from "../lib/touch";
   import { fade } from "svelte/transition";
-  import { ease, FADE, GLIDE } from "../lib/motion";
+  import { ease, FADE, GLIDE, MOTION } from "../lib/motion";
   import { hex, number } from "../lib/scene";
   import { expect, localFires, view } from "../lib/optimistic";
   import Drawer from "../lib/Drawer.svelte";
@@ -103,6 +103,9 @@
     const glide = centred !== null && (selected !== centred || wasBrowsing);
     wasBrowsing = browsing;
     if (browsing) return;
+    // Ableton's update (new window, so new rows) lands mid-glide: let the glide
+    // finish, it re-aims every frame. Restarting it here jumped to the end.
+    if (gliding && selected === centred) return;
     centre(glide);
     if (target() !== null) centred = selected;
   });
@@ -245,6 +248,269 @@
     if (selected + 1 < count) optimistic(selected + 1);
     connection.send("scene.fire");
   }
+
+  // A copy of a row, laid out at its final sizes: a fresh element has no
+  // transition to run. The inline styles the actions set are cleared, so it shows
+  // the layout the CSS gives. `selected` is set on the copy: the actions can run
+  // before Svelte has put the class on the row itself.
+  function measureSettled<T>(row: HTMLElement, selected: boolean, measure: (copy: HTMLElement) => T): T {
+    const copy = row.cloneNode(true) as HTMLElement;
+    copy.classList.toggle("selected", selected);
+    copy.querySelectorAll<HTMLElement>("[style]").forEach((el) => (el.style.cssText = ""));
+    copy.style.cssText = `position: absolute; visibility: hidden; pointer-events: none; width: ${row.offsetWidth}px`;
+    row.after(copy);
+    try {
+      return measure(copy);
+    } finally {
+      copy.remove();
+    }
+  }
+
+  // Portrait: a selected name too long for its row glides to its end and stays
+  // there, since the end usually names the song part. It starts once the row has
+  // settled (it grows on selection: every resize restarts the wait) and snaps
+  // back on deselection. A "…" in front shows that the start is cut off; it grows
+  // in with the glide while the one at the end shrinks out (quicker), so it all
+  // reads as one motion.
+  const NAME_PAUSE = 600; // ms on the start before the glide
+  const NAME_SPEED = 60; // px per second
+  const TAIL_SHARE = 0.4; // of the glide's time, for the "…" at the end to go
+  function scrollToEnd(node: HTMLElement, params: { active: boolean; name: string }) {
+    const [dots, clip, tail] = Array.from(node.children) as HTMLElement[];
+    const text = clip.firstElementChild as HTMLElement;
+    const portrait = matchMedia("(orientation: portrait)");
+    let active = params.active;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let scrolled = false;
+    let dotsWidth = 0;
+
+    // Against the room left once the "…" is in, which the row (node) doesn't change.
+    // Exact widths: offsetWidth rounds, so a name that just fits could come out a
+    // pixel too long, and then the "…" pushed it a whole character along.
+    const shift = () => {
+      const over = text.getBoundingClientRect().width - (node.getBoundingClientRect().width - dotsWidth);
+      return over > 0.5 ? over : 0;
+    };
+    function show(px: number) {
+      text.style.transform = `translateX(${-px}px)`;
+      dots.style.width = `${dotsWidth}px`;
+      dots.style.opacity = "1";
+      tail.style.width = "0";
+      tail.style.opacity = "0";
+    }
+    function reset() {
+      clearTimeout(timer);
+      scrolled = false;
+      text.style.transition = "";
+      text.style.transform = "";
+      text.style.display = "";
+      clip.style.textOverflow = "";
+      dots.style.cssText = "";
+      tail.style.cssText = "";
+    }
+    function start() {
+      reset();
+      if (!active || !portrait.matches) return;
+      timer = setTimeout(() => {
+        dotsWidth = 0;
+        if (shift() === 0) return;
+        scrolled = true;
+        dots.style.display = "inline-block";
+        dotsWidth = dots.offsetWidth;
+        const px = shift();
+        // Start from where the text is now: no "…" in front, nothing moved, and the
+        // ellipsis at the end (which can't animate) swapped for a "…" that can
+        dots.style.width = "0";
+        dots.style.opacity = "0";
+        tail.style.display = "inline-block";
+        tail.style.width = `${dotsWidth}px`;
+        clip.style.textOverflow = "clip";
+        text.style.display = "inline-block"; // inline keeps the ellipsis, but can't move
+        void text.offsetWidth; // lay that out first, so the glide starts from there
+        const time = MOTION ? Math.min(4000, Math.max(800, (px / NAME_SPEED) * 1000)) : 0;
+        const curve = `${time}ms cubic-bezier(0.45, 0, 0.55, 1)`;
+        text.style.transition = time ? `transform ${curve}` : "";
+        dots.style.transition = time ? `width ${curve}, opacity ${curve}` : "";
+        // the end's "…" goes sooner: the text starts moving at once
+        const tailCurve = `${time * TAIL_SHARE}ms cubic-bezier(0.45, 0, 0.55, 1)`;
+        tail.style.transition = time ? `width ${tailCurve}, opacity ${tailCurve}` : "";
+        show(px);
+      }, MOTION + NAME_PAUSE);
+    }
+    // Touch mode narrows the row: once at the end, follow it there instead of restarting
+    const observer = new ResizeObserver(() => (scrolled ? show(shift()) : start()));
+    observer.observe(node);
+    portrait.addEventListener("change", start);
+    start();
+    return {
+      update(next: { active: boolean; name: string }) {
+        const changed = next.active !== active || next.name !== params.name;
+        active = next.active;
+        params = next;
+        if (changed) start();
+      },
+      destroy() {
+        clearTimeout(timer);
+        observer.disconnect();
+        portrait.removeEventListener("change", start);
+      },
+    };
+  }
+
+  // Portrait: whether the preset shares the name's line is decided per state
+  // (selected or not), at the start of the change, and the switch glides (FLIP).
+  // Left to the browser, the wrap flips halfway through the font-size transition
+  // and the name and preset jump.
+  function stackSmoothly(title: HTMLElement, params: { selected: boolean; name: string; preset: string | null }) {
+    const portrait = matchMedia("(orientation: portrait)");
+    const name = title.querySelector<HTMLElement>(".name")!;
+    const presetIn = (t: Element) => t.querySelector<HTMLElement>(".preset");
+    let settling: ReturnType<typeof setTimeout> | undefined; // the font-size transition runs
+
+    function apply(t: HTMLElement, stacked: boolean) {
+      t.style.flexWrap = stacked ? "" : "nowrap";
+      const preset = presetIn(t);
+      if (preset) preset.style.flexBasis = stacked ? "100%" : "";
+    }
+    // Whether the preset wraps when the browser decides, at the title's current size
+    function wraps(t: HTMLElement): boolean {
+      t.style.flexWrap = "";
+      const preset = presetIn(t);
+      if (!preset) return false;
+      preset.style.flexBasis = "";
+      return preset.getBoundingClientRect().top >= t.querySelector(".name")!.getBoundingClientRect().bottom - 2;
+    }
+    // The same, once the row has its new size
+    const wrapsWhenSettled = () =>
+      measureSettled(title.closest<HTMLElement>(".row")!, params.selected, (copy) =>
+        wraps(copy.querySelector<HTMLElement>(".title")!),
+      );
+    function sync() {
+      if (!settling) apply(title, wraps(title));
+    }
+    function glide(el: HTMLElement, dx: number, dy: number) {
+      if (!MOTION || (Math.abs(dx) < 1 && Math.abs(dy) < 1)) return;
+      el.style.transition = "none";
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      void el.offsetWidth;
+      el.style.transition = `transform ${MOTION}ms var(--ease)`;
+      el.style.transform = "";
+    }
+    function select() {
+      clearTimeout(settling);
+      settling = setTimeout(() => {
+        settling = undefined;
+        sync();
+      }, MOTION + 50);
+      const preset = presetIn(title);
+      if (!portrait.matches || !preset) return;
+      const stacked = wrapsWhenSettled();
+      if (stacked === (title.style.flexWrap !== "nowrap")) return; // no switch: the font change alone is smooth
+      // Measured at the old font size: the transition has only just started
+      const name0 = name.getBoundingClientRect();
+      const preset0 = preset.getBoundingClientRect();
+      apply(title, stacked);
+      const name1 = name.getBoundingClientRect();
+      const preset1 = preset.getBoundingClientRect();
+      glide(name, name0.left - name1.left, name0.top - name1.top);
+      // right-aligned: its right edge is where the text is
+      glide(preset, preset0.right - preset1.right, preset0.top - preset1.top);
+    }
+
+    const observer = new ResizeObserver(sync);
+    observer.observe(title);
+    portrait.addEventListener("change", sync);
+    return {
+      update(next: { selected: boolean; name: string; preset: string | null }) {
+        const was = params;
+        params = next;
+        if (next.selected !== was.selected) select();
+        else if (next.name !== was.name || next.preset !== was.preset) sync();
+      },
+      destroy() {
+        clearTimeout(settling);
+        observer.disconnect();
+        portrait.removeEventListener("change", sync);
+      },
+    };
+  }
+
+  // Long-press a row: rename its scene and, if it has one, its preset. A finger
+  // that moves (a scroll) or lifts early is a tap or a scroll, not a press.
+  const LONG_PRESS = 500;
+  const SLOP = 10; // px a press may drift
+  let press: { x: number; y: number; timer: ReturnType<typeof setTimeout> } | null = null;
+  let longPressed = false; // swallows the click that ends a long press
+  function pressStart(e: PointerEvent, scene: Scene) {
+    if (!$interactive || !$abletonConnected) return;
+    pressEnd();
+    longPressed = false;
+    const timer = setTimeout(() => {
+      press = null;
+      longPressed = true;
+      openRename(scene);
+    }, LONG_PRESS);
+    press = { x: e.clientX, y: e.clientY, timer };
+  }
+  function pressMove(e: PointerEvent) {
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > SLOP) pressEnd();
+  }
+  function pressEnd() {
+    if (press) clearTimeout(press.timer);
+    press = null;
+  }
+  function tap(index: number) {
+    if (longPressed) longPressed = false;
+    else select(index);
+  }
+
+  let renaming = $state<Scene | null>(null);
+  let sceneName = $state("");
+  let presetName = $state("");
+  let renameBusy = $state(false);
+  let renameError = $state<string | null>(null);
+  function openRename(scene: Scene) {
+    renaming = { ...scene }; // a copy: saving updates it, not the row in the state
+    sceneName = scene.name;
+    presetName = scene.preset ?? "";
+    renameError = null;
+  }
+  // Focusing a field puts the cursor at the end, wherever the tap landed, and
+  // scrolls a long name to its end; after that, taps place it as usual. iOS
+  // places the cursor after focus, so this waits a tick.
+  function caretToEnd(e: FocusEvent) {
+    const input = e.currentTarget as HTMLInputElement;
+    setTimeout(() => {
+      input.setSelectionRange(input.value.length, input.value.length);
+      input.scrollLeft = input.scrollWidth;
+    });
+  }
+  // The dialog keeps touch mode on until it closes
+  $effect(() => {
+    if (renaming !== null) return holdInteractive();
+  });
+  async function saveRename(e: SubmitEvent) {
+    e.preventDefault();
+    const scene = renaming;
+    if (!scene || renameBusy) return;
+    renameBusy = true;
+    renameError = null;
+    try {
+      if (sceneName !== scene.name) {
+        await connection.request("scene.rename", { index: scene.index, name: sceneName });
+        scene.name = sceneName; // a failing preset rename below doesn't send it again
+      }
+      if (scene.preset !== null && presetName.trim() !== scene.preset) {
+        await connection.request("preset.rename", { scene_index: scene.index, name: presetName });
+      }
+      renaming = null;
+      loadAll(); // the list may have rows outside the window that changed too
+    } catch (err) {
+      renameError = err instanceof Error ? err.message : String(err);
+    } finally {
+      renameBusy = false;
+    }
+  }
 </script>
 
 <section class="scenes" class:open={$interactive}>
@@ -258,12 +524,19 @@
           class:fired={scene.index === fired?.index}
           class:passive={!$interactive}
           disabled={!$abletonConnected || !$interactive}
-          onclick={() => select(scene.index)}
+          onclick={() => tap(scene.index)}
+          onpointerdown={(e) => pressStart(e, scene)}
+          onpointermove={pressMove}
+          onpointerup={pressEnd}
+          onpointercancel={pressEnd}
+          oncontextmenu={(e) => e.preventDefault()}
         >
           <span class="strip" style:background={hex(scene.color)}></span>
           <span class="num">{number(scene)}</span>
-          <span class="title">
-            <span class="name">{scene.name}</span>
+          <span class="title" use:stackSmoothly={{ selected: scene.index === selected, name: scene.name, preset: scene.preset }}>
+            <span class="name" use:scrollToEnd={{ active: scene.index === selected, name: scene.name }}
+              ><span class="dots" aria-hidden="true">…</span><span class="clip"><span class="text">{scene.name}</span></span><span class="dots" aria-hidden="true">…</span></span
+            >
             {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
           </span>
           {#if scene.index === fired?.index}<span class="led" title="playing" transition:fade={{ duration: FADE }}></span>{/if}
@@ -348,6 +621,33 @@
 </div>
 </Drawer>
 </aside>
+
+{#if renaming !== null}
+  <!-- Tapping beside the card cancels -->
+  <div class="rename" transition:fade={{ duration: FADE }} onclick={(e) => e.target === e.currentTarget && (renaming = null)} role="presentation">
+    <form class="card" onsubmit={saveRename}>
+      <label>
+        <span class="label">scene {number(renaming)}</span>
+        <input bind:value={sceneName} enterkeyhint="done" onfocus={caretToEnd} autocomplete="off" autocorrect="off" spellcheck="false" />
+      </label>
+      {#if renaming.preset !== null}
+        <label>
+          <span class="label">⟡ preset</span>
+          <input bind:value={presetName} enterkeyhint="done" onfocus={caretToEnd} autocomplete="off" autocorrect="off" spellcheck="false" />
+        </label>
+      {/if}
+      {#if renameError !== null}<p class="error">{renameError}</p>{/if}
+      <div class="actions">
+        <button type="button" onclick={() => (renaming = null)} aria-label="cancel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
+        <button type="submit" class="save" disabled={renameBusy || !$abletonConnected} aria-label="rename">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </button>
+      </div>
+    </form>
+  </div>
+{/if}
 </section>
 
 <style>
@@ -593,6 +893,103 @@
     color: var(--status-error);
     overflow-wrap: anywhere;
   }
+  /* Rename dialog: near the top, so the keyboard leaves it in view */
+  .rename {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: max(var(--space-5), var(--safe-top)) var(--space-4) 0;
+    background: color-mix(in srgb, var(--bg) 30%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .rename .card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    background: var(--panel);
+    border: 1px solid var(--accent-select);
+    border-radius: calc(var(--radius) * 2);
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.6);
+    width: min(560px, 100%);
+  }
+  .rename label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .rename .label {
+    font-size: var(--text-label);
+    color: var(--text-muted);
+  }
+  .rename input {
+    font: inherit;
+    font-size: var(--text-name); /* 16px or more: iOS doesn't zoom in on focus */
+    color: var(--text);
+    min-height: var(--touch);
+    padding: 0 var(--space-3);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    -webkit-user-select: text; /* the page turns selection off, which blocks typing */
+    user-select: text;
+  }
+  .rename input:focus {
+    outline: none;
+    border-color: var(--accent-select);
+  }
+  .rename .error {
+    margin: 0;
+    color: var(--status-error);
+  }
+  .rename .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+  .rename .actions button {
+    padding: 0;
+  }
+  .rename .actions svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .rename .save {
+    color: var(--accent-select);
+    border-color: var(--accent-select);
+  }
+  /* Landscape: the keyboard takes half the height, so everything goes on one row
+     at the very top */
+  @media (orientation: landscape) {
+    .rename {
+      /* between the rails, clear of the rounded screen corners */
+      padding: var(--space-2) var(--rail) 0;
+    }
+    .rename .card {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      padding: var(--space-3) var(--space-4);
+      width: min(900px, 100%);
+    }
+    .rename label {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    .rename .error {
+      order: 1; /* its own line, under the fields */
+      flex-basis: 100%;
+    }
+  }
   /* the store's outcome, for a moment */
   .store.saved {
     color: var(--status-live);
@@ -622,9 +1019,20 @@
     text-align: right;
   }
   .name {
+    display: flex;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .name .clip {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+  }
+  /* the "…" in front and at the end, shown by scrollToEnd while the name glides */
+  .name .dots {
+    display: none;
+    flex: none;
+    overflow: hidden;
   }
 
   .list {

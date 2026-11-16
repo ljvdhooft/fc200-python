@@ -20,7 +20,7 @@ import json
 import os
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, NotRequired, TypedDict, cast
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, cast
 
 from . import xmltodict
 from .listeners import Listeners
@@ -107,6 +107,10 @@ class PresetStore:
     def exists(self, name: str) -> bool:
         return os.path.exists(self.json_path(name))
 
+    def has_files(self, name: str) -> bool:
+        """True if the preset has a .json or an .alc."""
+        return self.exists(name) or os.path.exists(self.alc_path(name))
+
     def names(self) -> list[str]:
         """Names of all presets, sorted. The .alc files lead: they are what the user
         manages in Live's browser."""
@@ -128,6 +132,23 @@ class PresetStore:
             self._write_alc(name)
         except OSError as e:
             self._log(f"Error saving preset {name}: {e}")
+            return False
+        return True
+
+    def rename(self, old: str, new: str) -> bool:
+        """Rename the .json and .alc that exist, and rewrite the .alc so the clip
+        inside carries the new name. Return False if that failed (logged)."""
+        try:
+            if self.exists(old):
+                os.rename(self.json_path(old), self.json_path(new))
+            if os.path.exists(self.alc_path(old)):
+                # Rename first, then rewrite: on a case-insensitive disk a case-only
+                # rename is the same file, so writing the new one before removing
+                # the old one would remove both
+                os.rename(self.alc_path(old), self.alc_path(new))
+                self._write_alc(new)
+        except OSError as e:
+            self._log(f"Error renaming preset {old} to {new}: {e}")
             return False
         return True
 
@@ -173,6 +194,9 @@ class PresetEvents:
     def recalled(self, name: str) -> None:
         """The preset was applied to the board."""
 
+    def renamed(self, old: str, new: str) -> None:
+        """The preset's files and clips were renamed."""
+
     def template_clip_copied(self, scene_index: int) -> None:
         """The selected slot was empty and got a copy of the dummy clip in slot 0.
         Rename it, then store again."""
@@ -189,6 +213,9 @@ class PresetManager:
     slot gets a copy of the dummy clip in slot 0 (rename it, then store again).
     Overwriting an existing preset takes a second store() for the same name,
     or cancel().
+
+    Rename: rename() renames the preset's files and the clips that recall it,
+    or relinks the one clip when another preset already has the name.
 
     Recall: by name with recall(), and automatically when a clip starts playing
     on the pedalboard track (the preset with the clip's name).
@@ -271,6 +298,32 @@ class PresetManager:
         for listener in self._subscribers:
             listener.overwrite_cancelled(name)
         return True
+
+    def rename(self, scene_index: int, name: str) -> Literal["renamed", "linked", "failed"]:
+        """Rename the preset of the clip on this scene (the slot must hold a clip).
+        "linked": another preset has the name, so only this clip was renamed."""
+        clip = self._track.clip_slots[scene_index].clip
+        old = clip.name
+        if name == old:
+            return "renamed"
+        if name.casefold() != old.casefold() and self._store.has_files(name):
+            clip.name = name
+            return "linked"
+        if not self._store.has_files(old):
+            clip.name = name
+            return "renamed"
+
+        if self._pending_overwrite == old:
+            self.cancel()
+        if not self._store.rename(old, name):
+            return "failed"
+        # Every clip that recalled the old preset, matched like its file name
+        for slot in self._track.clip_slots:
+            if slot.has_clip and slot.clip.name.casefold() == old.casefold():
+                slot.clip.name = name
+        for listener in self._subscribers:
+            listener.renamed(old, name)
+        return "renamed"
 
     def recall(self, name: str) -> bool:
         """Apply the preset on Live's next tick. Return False if there is no such preset."""

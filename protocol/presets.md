@@ -1,9 +1,10 @@
 # Presets protocol
 
-**Version 0.2.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.3.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                          |
 |---------|---------------------------------------------------------------------------------|
+| 0.3.0   | `PresetManager.rename`, `renamed` event                                         |
 | 0.2.0   | `PresetManager` takes a `Listeners` registry; `disconnect()` only cancels       |
 | 0.1.0   | First version                                                                   |
 
@@ -65,6 +66,7 @@ thread only.
 | `store(scene_index)`        | Store the board as the preset named after the clip on that scene      |
 | `cancel() -> bool`          | Cancel a pending overwrite; False if none was pending                 |
 | `recall(name) -> bool`      | Apply a preset on Live's next tick; False if it doesn't exist         |
+| `rename(scene_index, name)` | Rename the preset of the clip on that scene; see the rename flow      |
 | `preset_names() -> list`    | Stored preset names, sorted                                           |
 | `pending_overwrite`         | Name waiting for overwrite confirmation, or None                      |
 | `subscribe(listener)`       | Register a `PresetEvents` listener (any number)                       |
@@ -79,6 +81,20 @@ registry passed to its constructor. Whoever owns that registry removes it with
 2. **Existing preset:** the store asks for confirmation instead of saving. A second `store()` for the **same** name overwrites; `cancel()` drops it. If a different preset is pending, it's cancelled first.
 3. **Otherwise:** the JSON and the `.alc` are written.
 
+**Rename flow** (`rename(scene_index, name)`, the slot must hold a clip; returns
+`"renamed"`, `"linked"` or `"failed"`):
+1. **Name taken:** another preset already has `name` (its `.json` or `.alc`, matched
+   case-insensitively): only this clip is renamed, so the scene recalls that preset.
+   Nothing changes on disk. Returns `"linked"`.
+2. **Preset files exist:** the `.json` and `.alc` are renamed, the `.alc` is rewritten
+   from the template (when there is one) so the clip inside carries the new name, and
+   every clip on the pedalboard track with the old name is renamed. A pending overwrite
+   is cancelled first. Emits `renamed`. Returns `"renamed"`, or `"failed"` when a file
+   couldn't be renamed (logged).
+3. **No preset files:** only this clip is renamed. Returns `"renamed"`.
+
+A change of case only (`forever` to `Forever`) is a rename, not a clash.
+
 **Recall:** launching a clip on the pedalboard track recalls the preset with the clip's name, if one exists.
 
 ### `PresetEvents`
@@ -92,6 +108,7 @@ Subclass it and override what you need; the defaults do nothing.
 | `saved(name)`                      | The preset was written                                    |
 | `save_failed(name)`                | Writing failed; the details are in Live's Log.txt         |
 | `recalled(name)`                   | The preset was applied to the board                       |
+| `renamed(old, new)`                | The preset's files and clips were renamed                 |
 | `template_clip_copied(scene_index)`| An empty slot got a copy of the dummy clip                |
 | `template_clip_missing()`          | An empty slot, and no dummy clip in slot 0 to copy        |
 

@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.17.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.18.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -21,6 +21,7 @@
 | 0.15.0  | Hub commands: `midi.send`, MIDI out through the hub                      |
 | 0.16.0  | `tuner` only while a note sounds (the tuner's `level`), held 3 s after   |
 | 0.17.0  | Scene entries carry `preset`: the clip name on the pedalboard track     |
+| 0.18.0  | `scene.rename`, `preset.rename`, `preset.renamed` event                  |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -89,7 +90,7 @@ clients that only show a connection light, the node keeps a dump self-contained.
 Preset events carry the arguments of the matching `PresetEvents` method
 (`presets.md` §2): `preset.overwrite_pending {"name"}`, `preset.overwrite_cancelled {"name"}`,
 `preset.saved {"name"}`, `preset.save_failed {"name"}`, `preset.recalled {"name"}`,
-`preset.template_clip_copied {"scene_index"}`, `preset.template_clip_missing {}`.
+`preset.renamed {"from", "to"}`, `preset.template_clip_copied {"scene_index"}`, `preset.template_clip_missing {}`.
 The durable part (`pending_overwrite`, `count`, `last`) is also in the state tree, so
 a client that misses an event still converges.
 
@@ -247,7 +248,7 @@ by the file system, so as case-insensitively as macOS and Live.
 
 The names themselves are not in the state: the list can be long and every dump would
 carry it. A client that shows them asks `preset.list` and asks again when `count`
-changes or a `preset.saved` event arrives.
+changes or a `preset.saved` or `preset.renamed` event arrives.
 
 ### `tuner`
 
@@ -313,6 +314,7 @@ new state arrives as `state.changed` (the result does not replace it).
 | `metronome.set`      | `{"on": bool}`                                    | `{"on": bool}`                  |
 | `tempo.set`          | `{"tempo": float}`                                | `{"tempo": float}`              |
 | `scene.list`         | none                                              | `{"scenes": [{index, name, color, preset}]}`, in set order |
+| `scene.rename`       | `{"index": int, "name": string}`                  | `{"index": int, "name": string}` |
 | `loop.set`           | `{"loop": int, "on": bool}`                       | `{"on": bool}`                  |
 | `loop.chain.select`  | `{"loop": int, "chain": string}`                  | `{"chain": string}`             |
 | `loop.param.set`     | `{"loop": int, "parameter": int, "value": float}` | `{"value": float, "display": string}` |
@@ -325,6 +327,7 @@ new state arrives as `state.changed` (the result does not replace it).
 | `preset.store`       | `{"scene_index": int}`                            | `{}`; outcome as `preset.*` event and `presets` state |
 | `preset.cancel`      | none                                              | `{"cancelled": bool}`           |
 | `preset.recall`      | `{"name": string}`                                | `{"found": bool}`               |
+| `preset.rename`      | `{"scene_index": int, "name": string}`            | `{"name": string, "linked": bool}` |
 
 - `loop` is a board device index (`loops[].index`), not a position. `value` is normalised 0..1; the script clamps it.
 - `state.dump` sends the `state.dump` event again, to the requesting connection only, right after the response. A client resyncs without reconnecting (debugging with `nc`, an iPad waking from sleep). It is the one method the hub answers itself, from its cache (including the `hub` node), so it also works while `live_connected` is false. The method shares the event's name on purpose: whatever asks for a dump handles it in the same place as any other dump.
@@ -341,6 +344,8 @@ new state arrives as `state.changed` (the result does not replace it).
 - `loop.param.select` sets what the expression pedal controls, like a macro pedal in `parameter_control` (`ParameterControl._select_macro`). Only for the loop being edited; otherwise `unavailable`.
 - `edit.open` enters `parameter_control` for a loop, like pressing a favorite's pedal twice on page 2; it goes to page 2 first if needed. `edit.close` returns to the favorites page, like CTL in `parameter_control`; outside it, it does nothing.
 - `preset.store` and `preset.recall` behave exactly as `PresetManager.store` / `recall`; a second `preset.store` for the same name confirms an overwrite, `preset.cancel` drops it. `preset.store` requires `scene_index`: a remote names its target explicitly. `preset.recall` already applies a preset without launching a scene.
+- `scene.rename` sets `Scene.name`. Any string, also an empty one (Live then shows the scene's number).
+- `preset.rename` renames the preset of the clip on that scene (`PresetManager.rename`, `presets.md` §2): its files and every clip on the pedalboard track with the old name. If another preset already has the name, only this clip is renamed and `linked` is true: the scene now recalls that preset. The name is trimmed; an empty name or one with `/` is `bad_params`, an empty slot `not_found`, a file that couldn't be renamed `internal`. A rename (not a link) emits `preset.renamed`.
 - `preset.state` from `presets.md` §3 is replaced by the `presets` state node.
 
 ### Errors
