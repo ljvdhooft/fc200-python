@@ -4,7 +4,7 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
 - Components:
   - MIDI Remote Script: `src/` (symlinked into Live User Library as `_FC200_SysEx_dev`; `_FC200_SysEx` points to the sibling `fc200-python-main` checkout)
   - Virtual pedal: `live/virtual-pedal/FC200_virtual-pedal.maxpat`, an air-gapped Max patch that emulates the FC-200 in Exclusive (SysEx) mode, for testing without the hardware. MIDI only (no OSC): in Live, select the Remote Script with MIDI in/out "from Max 1" / "to Max 1"; the patch uses the same virtual MIDI ports.
-  - M4L device: `FC200 Mira.amxd` (repo root), the old GUI for the script; removed in WP6
+  - Frontend: `apps/hub` (Python relay) + `apps/web` (Svelte web app), protocol `protocol/frontend.md`. It replaced the Mira GUI (`MiraGUI.py`, `FC200 Mira.amxd`), removed in WP6
   - Test set: `live/fc200-python Project/`. `tools/`: standalone helpers (`backwards-compatible.py` downgrades an `.als` to an older Live version)
 - Protocol: `protocol/presets.md` v0.2.0. Preset files and core API are implemented; the remote interface for a frontend is a **draft** (not implemented, needs approval). Change the spec first, then the code.
 - Live sets (outside the repo, in `~/Documents/01 AUDIO - 05 Worship Multitracks/_eGit FC200 2026 =BASIC= Project/`), all with the "FC200 Pedalboard" rack on the eGit track:
@@ -14,7 +14,7 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
 - Deploy: `make deploy` in `fc200-python-main` (on main) fast-forwards main to dev, updates the hub venv, builds the web app and runs `install.sh`. Restart Live Suite afterwards for Remote Script changes.
 - Hub in production: a launchd agent (`apps/hub/launchd/`, installed by `install.sh`, port 200) that the Remote Script starts on load (`src/hub_service.py`), only when the agent runs from the script's own checkout. The hub exits 10 minutes after Live is gone (`--idle-exit 600`). `~/Applications/FC200 Hub.app` is a launcher window to start, stop and open it. Dev: `make dev` (hub on 20031 + Vite on 5173, against Live) or `make mock` (fake state, no Live); both without mDNS, so open `http://<Mac IP>:5173`. `make test` runs every check that works without Live.
 - Unit tests: `python3.11 -m unittest discover -s tests` (Live-free modules only)
-- Type check: `mypy` (config in `mypy.ini`: Python 3.11 rules, skips vendored `xmltodict` and `MiraGUI`; mypy is installed system-wide, not in a venv)
+- Type check: `mypy` (config in `mypy.ini`: Python 3.11 rules, skips vendored `xmltodict`; mypy is installed system-wide, not in a venv)
 - Live listeners: always add them through a `Listeners` registry (`src/listeners.py`): `listeners.add(subject, "<prop>", callback)`. FC200 keeps `_listeners` (added by `_setup`, removed on config reload and unload) and `_script_listeners` (the Link-toggle reload trigger, removed on unload). Callbacks are wrapped so exceptions are logged with a traceback.
 - Live types: partial `.pyi` stubs for `Live` and `_Framework` in `stubs/` (mypy-only). Import Live types under `if TYPE_CHECKING:` with `from __future__ import annotations`, so nothing type-only is imported at runtime. Add a stub member when the script starts using one.
 - Integration tests: none yet
@@ -37,7 +37,7 @@ A dummy audio clip on the guitar track's clip slots doubles as a preset slot —
 - The `.json` and `.alc` are a loosely coupled pair kept in sync only by this store flow; renaming a clip in Live does **not** rename its shadow file.
 
 ### OSC side-channel
-`src/OSCremote.py` and `src/MiraGUI.py` each open their own outbound UDP/OSC socket (hand-rolled OSC packing, no library). `OSCremote` host/port come from `config.Settings` (`OSC_REMOTE_HOST`/`OSC_REMOTE_PORT`, 127.0.0.1:20022); MiraGUI's :8001 is still a hardcoded default — no `protocol/` spec exists for these messages yet. `MiraGUI` drives a Mira/touch-OSC-style display.
+`src/OSCremote.py` opens an outbound UDP/OSC socket (hand-rolled OSC packing, no library); host/port come from `config.Settings` (`OSC_REMOTE_HOST`/`OSC_REMOTE_PORT`, 127.0.0.1:20022). No `protocol/` spec exists for these messages yet.
 
 `OSCremote` (UDP 20022) is how the script gets MIDI to ForScore and back into Live:
 
