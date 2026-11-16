@@ -9,7 +9,7 @@ is put together.
 Follow the script's messages and errors in Live's log while you play:
 
 ```sh
-tail -f -n 0 ~/Library/Preferences/Ableton/"Live 12.4b14"/Log.txt | grep --line-buffered -E "\(FC200\)|RemoteScriptError"
+tail -f -n 0 ~/Library/Preferences/Ableton/"Live 12.4.16"/Log.txt | grep --line-buffered -E "\(FC200\)|RemoteScriptError"
 ```
 
 - `tail -f -n 0`: follow the file as it grows, starting from now (no old lines).
@@ -18,4 +18,5 @@ tail -f -n 0 ~/Library/Preferences/Ableton/"Live 12.4b14"/Log.txt | grep --line-
   - `\(FC200\)`: messages from this script (`log_message`, listener errors).
   - `RemoteScriptError`: Python tracebacks from any Remote Script.
 
-Change `Live 12.4b14` when you update Live; each version has its own `Log.txt`.
+Each Live version has its own `Log.txt`: `Live 12.4.16` is Suite (production),
+`Live 12.4b16` the Beta (development). Change the folder when you update Live.
