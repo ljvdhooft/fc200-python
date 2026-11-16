@@ -532,8 +532,11 @@
           oncontextmenu={(e) => e.preventDefault()}
         >
           <span class="strip" style:background={hex(scene.color)}></span>
-          <span class="down" title={scene.down ? "moves down" : undefined}>{scene.down ? "↓" : ""}</span>
-          <span class="num">{number(scene)}</span>
+          <span class="num"
+            ><span class="digits"
+              >{#if scene.down}<span class="down" title="moves down">↓</span>{/if}{number(scene)}</span
+            ></span
+          >
           <span class="title" use:stackSmoothly={{ selected: scene.index === selected, name: scene.name, preset: scene.preset }}>
             <span class="name" use:scrollToEnd={{ active: scene.index === selected, name: scene.name }}
               ><span class="dots" aria-hidden="true">…</span><span class="clip"><span class="text">{scene.name}</span></span><span class="dots" aria-hidden="true">…</span></span
@@ -1013,11 +1016,16 @@
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent-on) 60%, transparent);
     flex: none;
   }
+  /* Over the space left of the number, so it takes no room in the row */
+  .digits {
+    position: relative;
+  }
   .down {
-    flex: none;
-    width: 1ch;
-    margin-right: calc(-1 * var(--space-3) + 2px);
-    color: var(--text-muted);
+    position: absolute;
+    right: 100%;
+    padding-right: 1px;
+    font-weight: 200;
+    opacity: 0.5;
   }
   .num {
     color: var(--text-muted);
