@@ -262,8 +262,10 @@
         >
           <span class="strip" style:background={hex(scene.color)}></span>
           <span class="num">{number(scene)}</span>
-          <span class="name">{scene.name}</span>
-          {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
+          <span class="title">
+            <span class="name">{scene.name}</span>
+            {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
+          </span>
           {#if scene.index === fired?.index}<span class="led" title="playing" transition:fade={{ duration: FADE }}></span>{/if}
         </button>
       </li>
@@ -695,13 +697,19 @@
     width: 10px;
     opacity: 1;
   }
-  .row .name {
+  .title {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
   }
-  /* the scene name gives way first */
+  /* the scene name wins: the preset gives way first, down to a few letters */
   .preset {
-    flex: 0 1 auto;
-    max-width: 45%;
+    flex: 0 100 auto;
+    min-width: 6ch;
+    margin-left: auto;
+    text-align: right;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -766,6 +774,23 @@
     }
     :global(:root[data-island="right"]) .list {
       border-bottom-left-radius: var(--corner-concentric);
+    }
+  }
+
+  /* Portrait: the preset goes under the scene name */
+  @media (orientation: portrait) {
+    .title {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+    }
+    .title > * {
+      max-width: 100%;
+    }
+    .preset {
+      min-width: 0;
+      margin-left: 0;
+      text-align: left;
     }
   }
 

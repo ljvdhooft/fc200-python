@@ -104,9 +104,10 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* the scene name wins: the preset gives way first, down to a few letters */
   .preset {
-    flex: 0 1 auto;
-    max-width: 45%;
+    flex: 0 100 auto;
+    min-width: 6ch;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
