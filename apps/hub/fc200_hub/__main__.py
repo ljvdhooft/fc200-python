@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import signal
 
 from aiohttp import web
 
@@ -23,8 +24,12 @@ async def serve(args: argparse.Namespace) -> None:
     await web.TCPSite(runner, "0.0.0.0", args.port).start()
     logging.info("hub on :%s (%s)", args.port, "mock" if args.mock else "live")
     mdns = None if args.no_mdns else asyncio.create_task(advertise(args.port))
+    # SIGTERM (the Remote Script stopping the agent) is a clean exit, so launchd
+    # doesn't restart the hub
+    stop = asyncio.Event()
+    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, stop.set)
     try:
-        await asyncio.Event().wait()
+        await stop.wait()
     finally:
         if mdns:
             mdns.cancel()

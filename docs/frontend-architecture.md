@@ -311,7 +311,7 @@ folding it in.
 | Editing in v1      | yes, bidirectional from the start |
 | Repo               | monorepo (`apps/hub`, `apps/web`) |
 | Access outside LAN | no, no auth for now               |
-| Ports              | 20030 (script), 20031 (hub)       |
+| Ports              | 20030 (script), 20031 (hub; 200 in production) |
 | v1 targets         | iPad and iPhone                   |
 | Frontend stack     | TypeScript + Svelte + Vite        |
 | Stage network      | iPhone hotspot, self-healing      |

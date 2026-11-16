@@ -47,6 +47,7 @@ state is a **dump**, an update to it is a set of **changes**.
 - The **script is the server**, so Live can restart without any client logic in the script. It accepts several connections (the hub, plus `nc` for debugging).
 - JSON lines: UTF-8, one message per line, terminated by `\n`, no embedded newlines.
 - The hub serves the web app on the same port (`http://<host>:20031/`) and advertises itself as `fc200.local` (mDNS).
+- 20031 is the hub's default, used in development. The installed launchd agent (production) runs the hub on port **200** (`http://fc200.local:200`). Clients connect back to the host they were loaded from, so they never hardcode the port.
 - The hub passes script messages to clients **unchanged**, except for request ids (section 5) and the `hub` node (section 3).
 - The protocol assumes nothing browser-specific, so an ESP32 can be a client.
 - No authentication: LAN only.

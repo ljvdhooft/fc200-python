@@ -8,3 +8,10 @@ sed -e "s|@HUB_DIR@|$hub_dir|g" -e "s|@HOME@|$HOME|g" "$hub_dir/launchd/nl.fc200
 launchctl bootout "gui/$(id -u)" "$dest" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$dest"
 echo "installed $dest"
+
+# A manual start button: ~/Applications/FC200 Hub.app starts the hub without Live
+app="$HOME/Applications/FC200 Hub.app"
+mkdir -p "$HOME/Applications"
+rm -rf "$app"
+osacompile -o "$app" "$hub_dir/launchd/FC200 Hub.applescript"
+echo "installed $app"
