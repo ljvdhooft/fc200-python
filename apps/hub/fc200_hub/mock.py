@@ -36,6 +36,10 @@ class Mock:
         # Preset names aren't in the state (only their count), so the mock keeps them
         self._presets = ["Song A", "Song B", "Song C"]
         self.model.set("presets.count", len(self._presets))
+        # The preset clip on each scene; every fourth scene has none
+        self._clips: list[str | None] = [
+            None if i % 4 == 3 else self._presets[i % len(self._presets)] for i in range(len(self._names))
+        ]
         self._t = 0.0
         self._launch_in: float | None = None  # until the fired scene launches
 
@@ -77,9 +81,14 @@ class Mock:
     # --- scripted behaviour --------------------------------------------------------
 
     def _scene_entry(self, i: int) -> dict[str, Any]:
-        # Every fourth scene has no preset clip
-        preset = None if i % 4 == 3 else self._presets[i % len(self._presets)]
-        return {"index": i, "name": self._names[i], "color": 0x3366CC + i * 0x0A0A0A, "preset": preset}
+        return {"index": i, "name": self._names[i], "color": 0x3366CC + i * 0x0A0A0A, "preset": self._clips[i]}
+
+    def _scene_renamed(self, index: int) -> None:
+        """Show a renamed scene or clip in the window and the fired scene."""
+        self._select_scene(self.model.get("scenes.selected"))
+        fired = self.model.get("scenes.fired")
+        if fired and fired["index"] == index:
+            self.model.set("scenes.fired", self._scene_entry(index))
 
     def _select_scene(self, selected: int) -> None:
         count = self.model.get("scenes.count")
@@ -149,6 +158,14 @@ class Mock:
 
     def _m_scene_list(self, p: dict[str, Any]) -> Any:
         return {"scenes": [self._scene_entry(i) for i in range(len(self._names))]}
+
+    def _m_scene_rename(self, p: dict[str, Any]) -> Any:
+        index, name = int(p["index"]), str(p["name"])
+        if not 0 <= index < len(self._names):
+            raise LookupError(f"scene {index}")
+        self._names[index] = name
+        self._scene_renamed(index)
+        return {"index": index, "name": name}
 
     def _m_scene_fire(self, p: dict[str, Any]) -> Any:
         return {"index": self._fire_scene()}
@@ -279,6 +296,24 @@ class Mock:
         if name:
             self.hub.on_event(proto.event("preset.overwrite_cancelled", {"name": name}))
         return {"cancelled": bool(name)}
+
+    def _m_preset_rename(self, p: dict[str, Any]) -> Any:
+        """Like PresetManager.rename: an existing name links, otherwise every clip follows."""
+        index, name = int(p["scene_index"]), str(p["name"]).strip()
+        if not name or "/" in name:
+            raise ValueError("a preset name can't be empty or contain '/'")
+        old = self._clips[index]
+        if old is None:
+            raise LookupError(f"no clip on scene {index}")
+        linked = name != old and name in self._presets
+        if linked:
+            self._clips[index] = name
+        elif name != old:
+            self._presets = sorted({*self._presets, name} - {old})
+            self._clips = [name if c == old else c for c in self._clips]
+            self.hub.on_event(proto.event("preset.renamed", {"from": old, "to": name}))
+        self._scene_renamed(index)
+        return {"name": name, "linked": linked}
 
     def _m_preset_recall(self, p: dict[str, Any]) -> Any:
         found = p["name"] in self._presets

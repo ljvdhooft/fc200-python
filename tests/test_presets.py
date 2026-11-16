@@ -132,6 +132,38 @@ class PresetStoreTest(unittest.TestCase):
         with gzip.open(self.store.alc_path("Song A")) as f:
             self.assertIn(b'<Name Value="Song A">', f.read())
 
+    def test_rename_moves_both_files_and_rewrites_the_alc(self):
+        with open(os.path.join(self.store.folder, "template.alc.xml"), "w") as f:
+            f.write(TEMPLATE)
+        self.store.save("Song A", PRESET)
+        self.assertTrue(self.store.rename("Song A", "Song Z"))
+        self.assertFalse(self.store.has_files("Song A"))
+        self.assertEqual(self.store.load("Song Z"), PRESET)
+        with gzip.open(self.store.alc_path("Song Z")) as f:
+            self.assertIn(b'<Name Value="Song Z">', f.read())
+
+    def test_rename_case_only_keeps_the_files(self):
+        with open(os.path.join(self.store.folder, "template.alc.xml"), "w") as f:
+            f.write(TEMPLATE)
+        self.store.save("song a", PRESET)
+        self.assertTrue(self.store.rename("song a", "Song A"))
+        self.assertEqual(self.store.names(), ["Song A"])
+        self.assertEqual(self.store.load("Song A"), PRESET)
+
+    def test_rename_alc_only(self):
+        open(self.store.alc_path("Untitled"), "w").close()
+        self.assertTrue(self.store.rename("Untitled", "Song A"))
+        self.assertEqual(self.store.names(), ["Song A"])
+
+    def test_rename_failure_is_logged(self):
+        self.store.save("Song A", PRESET)
+        os.chmod(os.path.join(self.store.folder, "_json"), 0o500)
+        try:
+            self.assertFalse(self.store.rename("Song A", "Song Z"))
+        finally:
+            os.chmod(os.path.join(self.store.folder, "_json"), 0o700)
+        self.assertEqual(len(self.log), 1)
+
 
 class FakeTrack:
     def __init__(self, clip_names):
@@ -199,6 +231,9 @@ class RecordingEvents(presets.PresetEvents):
 
     def recalled(self, name):
         self.events.append(("recalled", name))
+
+    def renamed(self, old, new):
+        self.events.append(("renamed", old, new))
 
     def template_clip_copied(self, scene_index):
         self.events.append(("template_clip_copied", scene_index))
@@ -294,6 +329,55 @@ class PresetManagerTest(unittest.TestCase):
         self.manager.store(3)
         self.manager.store(1)
         self.assertEqual(self.manager.preset_names(), ["Song A", "Song B"])
+
+    def test_rename_moves_the_preset_and_every_clip_using_it(self):
+        self.track.clip_slots[2] = FakeTrack._slot("song a")    # same preset, other case
+        self.manager.store(1)
+        self.assertEqual(self.manager.rename(1, "Song Z"), "renamed")
+        self.assertEqual([s.clip.name for s in self.track.clip_slots],
+                         ["template", "Song Z", "Song Z", "Song B"])
+        self.assertTrue(self.store.exists("Song Z"))
+        self.assertFalse(self.store.exists("Song A"))
+        self.assertEqual(self.recorder.events[-1], ("renamed", "Song A", "Song Z"))
+
+    def test_rename_to_an_existing_preset_links_this_clip_only(self):
+        self.manager.store(1)
+        self.manager.store(3)
+        self.recorder.events.clear()
+        self.assertEqual(self.manager.rename(1, "Song B"), "linked")
+        self.assertEqual(self.track.clip_slots[1].clip.name, "Song B")
+        self.assertTrue(self.store.exists("Song A"))      # left alone
+        self.assertEqual(self.recorder.events, [])
+
+    def test_rename_case_only_is_a_rename(self):
+        self.manager.store(1)
+        self.assertEqual(self.manager.rename(1, "SONG A"), "renamed")
+        self.assertEqual(self.track.clip_slots[1].clip.name, "SONG A")
+        self.assertEqual(self.recorder.events[-1], ("renamed", "Song A", "SONG A"))
+
+    def test_rename_without_preset_files_renames_the_clip_only(self):
+        self.track.clip_slots[2] = FakeTrack._slot("template")
+        self.assertEqual(self.manager.rename(2, "Song C"), "renamed")
+        self.assertEqual(self.track.clip_slots[0].clip.name, "template")
+        self.assertEqual(self.track.clip_slots[2].clip.name, "Song C")
+        self.assertEqual(self.recorder.events, [])
+
+    def test_rename_cancels_its_pending_overwrite(self):
+        self.manager.store(1)
+        self.manager.store(1)       # asks
+        self.manager.rename(1, "Song Z")
+        self.assertIsNone(self.manager.pending_overwrite)
+        self.assertEqual(self.recorder.events[-2:], [
+            ("overwrite_cancelled", "Song A"), ("renamed", "Song A", "Song Z")])
+
+    def test_rename_failed(self):
+        self.manager.store(1)
+        os.chmod(os.path.join(self.store.folder, "_json"), 0o500)
+        try:
+            self.assertEqual(self.manager.rename(1, "Song Z"), "failed")
+        finally:
+            os.chmod(os.path.join(self.store.folder, "_json"), 0o700)
+        self.assertEqual(self.track.clip_slots[1].clip.name, "Song A")
 
     def test_recall_listener_goes_with_the_registry(self):
         self.assertEqual(len(self.track.listeners), 1)

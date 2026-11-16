@@ -245,6 +245,73 @@
     if (selected + 1 < count) optimistic(selected + 1);
     connection.send("scene.fire");
   }
+
+  // Long-press a row: rename its scene and, if it has one, its preset. A finger
+  // that moves (a scroll) or lifts early is a tap or a scroll, not a press.
+  const LONG_PRESS = 500;
+  const SLOP = 10; // px a press may drift
+  let press: { x: number; y: number; timer: ReturnType<typeof setTimeout> } | null = null;
+  let longPressed = false; // swallows the click that ends a long press
+  function pressStart(e: PointerEvent, scene: Scene) {
+    if (!$interactive || !$abletonConnected) return;
+    pressEnd();
+    longPressed = false;
+    const timer = setTimeout(() => {
+      press = null;
+      longPressed = true;
+      openRename(scene);
+    }, LONG_PRESS);
+    press = { x: e.clientX, y: e.clientY, timer };
+  }
+  function pressMove(e: PointerEvent) {
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > SLOP) pressEnd();
+  }
+  function pressEnd() {
+    if (press) clearTimeout(press.timer);
+    press = null;
+  }
+  function tap(index: number) {
+    if (longPressed) longPressed = false;
+    else select(index);
+  }
+
+  let renaming = $state<Scene | null>(null);
+  let sceneName = $state("");
+  let presetName = $state("");
+  let renameBusy = $state(false);
+  let renameError = $state<string | null>(null);
+  function openRename(scene: Scene) {
+    renaming = { ...scene }; // a copy: saving updates it, not the row in the state
+    sceneName = scene.name;
+    presetName = scene.preset ?? "";
+    renameError = null;
+  }
+  // The dialog keeps touch mode on until it closes
+  $effect(() => {
+    if (renaming !== null) return holdInteractive();
+  });
+  async function saveRename(e: SubmitEvent) {
+    e.preventDefault();
+    const scene = renaming;
+    if (!scene || renameBusy) return;
+    renameBusy = true;
+    renameError = null;
+    try {
+      if (sceneName !== scene.name) {
+        await connection.request("scene.rename", { index: scene.index, name: sceneName });
+        scene.name = sceneName; // a failing preset rename below doesn't send it again
+      }
+      if (scene.preset !== null && presetName.trim() !== scene.preset) {
+        await connection.request("preset.rename", { scene_index: scene.index, name: presetName });
+      }
+      renaming = null;
+      loadAll(); // the list may have rows outside the window that changed too
+    } catch (err) {
+      renameError = err instanceof Error ? err.message : String(err);
+    } finally {
+      renameBusy = false;
+    }
+  }
 </script>
 
 <section class="scenes" class:open={$interactive}>
@@ -258,7 +325,12 @@
           class:fired={scene.index === fired?.index}
           class:passive={!$interactive}
           disabled={!$abletonConnected || !$interactive}
-          onclick={() => select(scene.index)}
+          onclick={() => tap(scene.index)}
+          onpointerdown={(e) => pressStart(e, scene)}
+          onpointermove={pressMove}
+          onpointerup={pressEnd}
+          onpointercancel={pressEnd}
+          oncontextmenu={(e) => e.preventDefault()}
         >
           <span class="strip" style:background={hex(scene.color)}></span>
           <span class="num">{number(scene)}</span>
@@ -348,6 +420,29 @@
 </div>
 </Drawer>
 </aside>
+
+{#if renaming !== null}
+  <!-- Tapping beside the card cancels -->
+  <div class="rename" transition:fade={{ duration: FADE }} onclick={(e) => e.target === e.currentTarget && (renaming = null)} role="presentation">
+    <form class="card" onsubmit={saveRename}>
+      <label>
+        <span class="label">scene {number(renaming)}</span>
+        <input bind:value={sceneName} enterkeyhint="done" autocomplete="off" autocorrect="off" spellcheck="false" />
+      </label>
+      {#if renaming.preset !== null}
+        <label>
+          <span class="label">⟡ preset</span>
+          <input bind:value={presetName} enterkeyhint="done" autocomplete="off" autocorrect="off" spellcheck="false" />
+        </label>
+      {/if}
+      {#if renameError !== null}<p class="error">{renameError}</p>{/if}
+      <div class="actions">
+        <button type="button" onclick={() => (renaming = null)}>cancel</button>
+        <button type="submit" class="save" disabled={renameBusy || !$abletonConnected}>rename</button>
+      </div>
+    </form>
+  </div>
+{/if}
 </section>
 
 <style>
@@ -592,6 +687,71 @@
     line-height: 1.15;
     color: var(--status-error);
     overflow-wrap: anywhere;
+  }
+  /* Rename dialog: near the top, so the keyboard leaves it in view */
+  .rename {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: max(var(--space-5), var(--safe-top)) var(--space-4) 0;
+    background: color-mix(in srgb, var(--bg) 30%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .rename .card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    background: var(--panel);
+    border: 1px solid var(--accent-select);
+    border-radius: calc(var(--radius) * 2);
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.6);
+    width: min(560px, 100%);
+  }
+  .rename label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .rename .label {
+    font-size: var(--text-label);
+    color: var(--text-muted);
+  }
+  .rename input {
+    font: inherit;
+    font-size: var(--text-name); /* 16px or more: iOS doesn't zoom in on focus */
+    color: var(--text);
+    min-height: var(--touch);
+    padding: 0 var(--space-3);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    -webkit-user-select: text; /* the page turns selection off, which blocks typing */
+    user-select: text;
+  }
+  .rename input:focus {
+    outline: none;
+    border-color: var(--accent-select);
+  }
+  .rename .error {
+    margin: 0;
+    color: var(--status-error);
+  }
+  .rename .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+  .rename .actions button {
+    padding: 0 var(--space-4);
+  }
+  .rename .save {
+    color: var(--accent-select);
+    border-color: var(--accent-select);
   }
   /* the store's outcome, for a moment */
   .store.saved {

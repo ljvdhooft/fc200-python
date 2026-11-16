@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from .FC200 import FC200
     from .listeners import Listeners
 
-VERSION = "0.17.0"
+VERSION = "0.18.0"
 SCENE_WINDOW = 3        # scenes shown before and after the selected one
 MACROS = range(1, 9)    # rack parameters 1-8; parameter 0 switches the loop on/off
 MIN_TEMPO, MAX_TEMPO = 20.0, 999.0   # Live's tempo range
@@ -260,6 +260,11 @@ class UiBindings(presets.PresetEvents):
         self._last_preset = name
         self._preset_event("recalled", {"name": name})
 
+    def renamed(self, old: str, new: str) -> None:
+        if self._last_preset == old:
+            self._last_preset = new
+        self._preset_event("renamed", {"from": old, "to": new})
+
     def template_clip_copied(self, scene_index: int) -> None:
         self._preset_event("template_clip_copied", {"scene_index": scene_index})
 
@@ -288,6 +293,7 @@ class UiBindings(presets.PresetEvents):
             "metronome.set": self._metronome_set,
             "tempo.set": self._tempo_set,
             "scene.list": self._scene_list,
+            "scene.rename": self._scene_rename,
             "loop.set": self._loop_set,
             "loop.chain.select": self._chain_select,
             "loop.param.set": self._param_set,
@@ -300,6 +306,7 @@ class UiBindings(presets.PresetEvents):
             "preset.store": self._preset_store,
             "preset.cancel": self._preset_cancel,
             "preset.recall": self._preset_recall,
+            "preset.rename": self._preset_rename,
         }
 
         def refreshing(method: Handler, params: dict[str, Any]) -> Any:
@@ -326,6 +333,15 @@ class UiBindings(presets.PresetEvents):
 
     def _scene_list(self, params: dict[str, Any]) -> Any:
         return {"scenes": [self._scene(i) for i in range(len(self.s._all_scenes))]}
+
+    def _scene_rename(self, params: dict[str, Any]) -> Any:
+        index = _arg(params, "index", int)
+        name = _arg(params, "name", str)
+        scenes = self.s._all_scenes
+        if not 0 <= index < len(scenes):
+            raise MethodError("not_found", f"no scene {index}")
+        scenes[index].name = name
+        return {"index": index, "name": name}
 
     def _scene_fire(self, params: dict[str, Any]) -> Any:
         index = self.s._selected_scene_index
@@ -446,6 +462,21 @@ class UiBindings(presets.PresetEvents):
 
     def _preset_recall(self, params: dict[str, Any]) -> Any:
         return {"found": self._presets().recall(_arg(params, "name", str))}
+
+    def _preset_rename(self, params: dict[str, Any]) -> Any:
+        manager = self._presets()
+        scene_index = _arg(params, "scene_index", int)
+        name = _arg(params, "name", str).strip()
+        if not name or "/" in name:
+            raise MethodError("bad_params", "a preset name can't be empty or contain '/'")
+        if not 0 <= scene_index < len(self.s._all_scenes):
+            raise MethodError("bad_params", "scene_index out of range")
+        if not self.s._board_track().clip_slots[scene_index].has_clip:
+            raise MethodError("not_found", f"no clip on scene {scene_index}")
+        result = manager.rename(scene_index, name)
+        if result == "failed":
+            raise MethodError("internal", "renaming the preset files failed, see Log.txt")
+        return {"name": name, "linked": result == "linked"}
 
     def _presets(self) -> presets.PresetManager:
         if self.s._presets is None:
