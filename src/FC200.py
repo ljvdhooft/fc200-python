@@ -10,6 +10,7 @@ from .hardware import FC200Hardware
 from .hub_service import HubService
 from .listeners import Listeners
 from .preset_feedback import PresetFeedback
+from .tuner import TunerGate
 from .ui_bindings import UiBindings
 from .ui_gateway import UiGateway
 from .ui_protocol import StateModel, command
@@ -140,7 +141,6 @@ class FC200(ControlSurface):
         self._fired_scene = None
         self._triggered_scenes = set()
         self._watch_scenes()
-        self._volume_at_zero = False
         self._on_is_playing_changed()
         self._on_metronome_changed()
 
@@ -148,10 +148,18 @@ class FC200(ControlSurface):
             track = self._board_track()
             self._volume_param = self._loop(self.settings.LOOP_VOLUME).parameters[1]
             self._tuner_rack = cast("RackDevice", track.devices[self.settings.TUNER_RACK])
-            self._tuner_device = self._tuner_rack.chains[self.settings.TUNER_CHAIN].devices[self.settings.TUNER_DEVICE]
-            self._volume = self._volume_param.value
-            self._listeners.add(self._volume_param, "value", self._on_volume_changed)
-            self._listeners.add(self._tuner_device.parameters[1], "value", self._display_tuner)
+            tuner_device = self._tuner_rack.chains[self.settings.TUNER_CHAIN].devices[self.settings.TUNER_DEVICE]
+            # By name: the device's parameter order changes when it is edited
+            tuner = {p.name: p for p in tuner_device.parameters}
+            self._tuner_cents, self._tuner_note, self._tuner_level = tuner["cents"], tuner["note"], tuner["level"]
+            # Optional "Threshold" macro on the tuner rack, 0..127 for a threshold of 0..1
+            self._tuner_threshold = {p.name: p for p in self._tuner_rack.parameters}.get("Threshold")
+            self._tuner = TunerGate(self.settings.TUNER_LEVEL_THRESHOLD, self.settings.TUNER_HOLD,
+                                    self._after, self._on_tuner_shown)
+            for subject in (self._volume_param, self._tuner_level):
+                self._listeners.add(subject, "value", self._update_tuner)
+            for subject in (self._tuner_cents, self._tuner_note):
+                self._listeners.add(subject, "value", self._display_tuner)
             self._presets = presets.PresetManager(
                 presets.PresetStore(self.settings.PRESET_FOLDER, self.log_message),
                 track, self._pedalboard(), self.settings.LOOP_MAPPING,
@@ -250,8 +258,9 @@ class FC200(ControlSurface):
         self._ui.refresh()
         self._ui_gateway.poll()
 
-    def _after(self, seconds: float, fn: Callable[[], None]) -> None:
-        self._tasks.add(Task.sequence(Task.wait(seconds), Task.run(fn)))
+    def _after(self, seconds: float, fn: Callable[[], None]) -> Task.Task:
+        """Run fn once after `seconds`; kill the returned task to cancel it."""
+        return self._tasks.add(Task.sequence(Task.wait(seconds), Task.run(fn)))
 
     def _every(self, seconds: float, fn: Callable[[], None]) -> Task.Task:
         """Run fn every `seconds` until the returned task is killed."""
@@ -291,19 +300,30 @@ class FC200(ControlSurface):
             self._send_midi((0xB0, 0, value))
             return
         self._volume_param.value = value
-        self._volume = value
 
     def _tuner_reading(self) -> tuple[str, float]:
         """The tuner's note ("c" .. "b", "#" for sharps) and its deviation in
         cents, including the rack's reference offset."""
-        note = int(self._tuner_device.parameters[2].value) % 12
-        cents: float = int(self._tuner_device.parameters[1].value) - 50
+        note = int(self._tuner_note.value) % 12
+        cents: float = int(self._tuner_cents.value) - 50
         notes = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b']
         offset = (float(self._tuner_rack.parameters[1].value) - 64) / 1.
         return notes[note], cents + offset
 
+    def _update_tuner(self) -> None:
+        if self._tuner_threshold is not None:
+            self._tuner.threshold = self._tuner_threshold.value / 127
+        self._tuner.update(self._volume_param.value, self._tuner_level.value)
+
+    def _on_tuner_shown(self, shown: bool) -> None:
+        if shown:
+            self._display_tuner()
+        elif self._mode.shows_tuner:
+            self._hw.set_bank_display(' ', self._page)
+        self._ui.tuner_changed()
+
     def _display_tuner(self) -> None:
-        if self._volume > 0:
+        if not self._tuner.active:
             return
         if not self._mode.shows_tuner:
             return
@@ -321,17 +341,8 @@ class FC200(ControlSurface):
             binary += 1
         if cents >= tolerance:
             binary += 8
-        # Stays until the volume goes up again (see _on_volume_changed)
+        # Stays until the tuner hides (TunerGate), which shows the page again
         self._hw.set_bank_display_segments(se.segments(note_a), binary)
-
-    def _on_volume_changed(self) -> None:
-        at_zero = self._volume_param.value <= 0
-        if at_zero == self._volume_at_zero:
-            return
-        self._volume_at_zero = at_zero
-        # Leaving volume 0: the tuner display no longer applies, show the page again
-        if not at_zero and self._mode.shows_tuner:
-            self._hw.set_bank_display(' ', self._page)
 
     def disconnect(self) -> None:
         """Clean up when the script is unloaded."""

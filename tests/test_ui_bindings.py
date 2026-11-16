@@ -63,7 +63,9 @@ class Surface(FakeSurface):
         self.settings.MIN_PAGE, self.settings.MAX_PAGE = 0, 2
         self.settings.TUNER_TOLERANCE = 2
         self._volume_param = Parameter("Volume", 100)
-        self._tuner_device = SimpleNamespace(parameters=[Parameter(f"Tuner p{i}") for i in range(3)])
+        self._tuner_cents = Parameter("cents")
+        self._tuner_note = Parameter("note")
+        self._tuner = SimpleNamespace(active=False)
         self._tuner_rack = SimpleNamespace(parameters=[Parameter(f"Tuner rack p{i}") for i in range(2)])
         self.tuner = ("a#", 0.0)
 
@@ -140,7 +142,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.14.0")
+        self.assertEqual(state["version"], "0.16.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -157,22 +159,25 @@ class UiBindingsTest(unittest.TestCase):
                                             "last": None})
         self.assertEqual(self.s._presets.subscribers, [self.ui])
 
-    def test_tuner_only_while_the_volume_is_0(self):
+    def test_tuner_only_while_it_shows(self):
         self.assertNotIn("tuner", self.model.dump())
-        self.s._volume_param.value = 0
+        cents = self.s._tuner_cents
         self.s.tuner = ("a#", -3.0)
-        self.listeners.fire(self.s._volume_param, "value")
+        self.listeners.fire(cents, "value")             # a reading, but the gate is closed
+        self.assertIsNone(self.model.flush())
+
+        self.s._tuner.active = True
+        self.ui.tuner_changed()                         # FC200 calls this when the gate flips
         self.assertEqual(self.model.flush(),
                          {"tuner": {"note": "A#", "cents": -3.0, "in_tune": False, "tolerance": 2}})
 
-        cents = self.s._tuner_device.parameters[1]
         self.s.tuner = ("a#", 1.0)
-        self.listeners.fire(cents, "value")
+        self.listeners.fire(self.s._tuner_note, "value")
         self.assertEqual(self.model.flush(),
                          {"tuner": {"note": "A#", "cents": 1.0, "in_tune": True, "tolerance": 2}})
 
-        self.s._volume_param.value = 64
-        self.listeners.fire(cents, "value")
+        self.s._tuner.active = False
+        self.ui.tuner_changed()
         self.assertEqual(self.model.flush(), {"tuner": None})
 
     def test_scene_window_is_clipped(self):

@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.15.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.16.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -19,6 +19,7 @@
 | 0.13.0  | `tempo.set`                                                              |
 | 0.14.0  | `scenes.triggered`: a fired scene waiting for its launch                 |
 | 0.15.0  | Hub commands: `midi.send`, MIDI out through the hub                      |
+| 0.16.0  | `tuner` only while a note sounds (the tuner's `level`), held 3 s after   |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -247,20 +248,25 @@ changes or a `preset.saved` event arrives.
 
 ### `tuner`
 
-The pedalboard's tuner, present only while the volume (EXP, `LOOP_VOLUME`) is at 0,
-which is when the FC-200 shows it on the bank display. Missing/`null` otherwise and
-without a pedalboard. Whether a client shows it, and how, is up to the client.
+The pedalboard's tuner, present only while the FC-200 shows it on the bank display:
+the volume (EXP, `LOOP_VOLUME`) is at 0 and a note sounds (the tuner device's `level`
+above the tuner rack's "Threshold" macro / 127, or `TUNER_LEVEL_THRESHOLD` if the rack
+has no such macro), and for `TUNER_HOLD` (3 s) after the note stops, so a
+short gap between notes doesn't flicker. Raising the volume removes it at once.
+Missing/`null` otherwise and without a pedalboard. Whether a client shows it, and how,
+is up to the client.
 
 | Field       | Type   | Meaning                                                       | Source                                                   |
 |-------------|--------|---------------------------------------------------------------|----------------------------------------------------------|
-| `note`      | string | Detected note: `"C"`, `"C#"` .. `"B"`                         | tuner device `parameters[2]` mod 12                      |
-| `cents`     | float  | Deviation in cents, including the reference offset (~-50..50) | tuner `parameters[1]` - 50 + (rack `parameters[1]` - 64) |
+| `note`      | string | Detected note: `"C"`, `"C#"` .. `"B"`                         | tuner device parameter `note` mod 12                     |
+| `cents`     | float  | Deviation in cents, including the reference offset (~-50..50) | tuner `cents` - 50 + (rack `parameters[1]` - 64)         |
 | `in_tune`   | bool   | `abs(cents) < tolerance`, as on the bank display              | `FC200._tuner_reading`                                   |
 | `tolerance` | float  | Cents either side of 0 that count as in tune                  | `config.Settings.TUNER_TOLERANCE`                        |
 
 The tuner device is `track.devices[TUNER_RACK].chains[TUNER_CHAIN].devices[TUNER_DEVICE]`
-(`config.Settings`). The values follow its listeners, so they change often while a
-string sounds; the model drops repeats.
+(`config.Settings`), a Max for Live device whose parameters are found by name (`cents`,
+`note`, `level`). The values follow its listeners while a string sounds; the model
+drops repeats.
 
 ### `hub`
 
