@@ -152,6 +152,8 @@ class FC200(ControlSurface):
             # By name: the device's parameter order changes when it is edited
             tuner = {p.name: p for p in tuner_device.parameters}
             self._tuner_cents, self._tuner_note, self._tuner_level = tuner["cents"], tuner["note"], tuner["level"]
+            # Optional "Threshold" macro on the tuner rack, 0..127 for a threshold of 0..1
+            self._tuner_threshold = {p.name: p for p in self._tuner_rack.parameters}.get("Threshold")
             self._tuner = TunerGate(self.settings.TUNER_LEVEL_THRESHOLD, self.settings.TUNER_HOLD,
                                     self._after, self._on_tuner_shown)
             for subject in (self._volume_param, self._tuner_level):
@@ -309,6 +311,8 @@ class FC200(ControlSurface):
         return notes[note], cents + offset
 
     def _update_tuner(self) -> None:
+        if self._tuner_threshold is not None:
+            self._tuner.threshold = self._tuner_threshold.value / 127
         self._tuner.update(self._volume_param.value, self._tuner_level.value)
 
     def _on_tuner_shown(self, shown: bool) -> None:

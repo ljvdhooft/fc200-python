@@ -250,7 +250,8 @@ changes or a `preset.saved` event arrives.
 
 The pedalboard's tuner, present only while the FC-200 shows it on the bank display:
 the volume (EXP, `LOOP_VOLUME`) is at 0 and a note sounds (the tuner device's `level`
-above `TUNER_LEVEL_THRESHOLD`), and for `TUNER_HOLD` (3 s) after the note stops, so a
+above the tuner rack's "Threshold" macro / 127, or `TUNER_LEVEL_THRESHOLD` if the rack
+has no such macro), and for `TUNER_HOLD` (3 s) after the note stops, so a
 short gap between notes doesn't flicker. Raising the volume removes it at once.
 Missing/`null` otherwise and without a pedalboard. Whether a client shows it, and how,
 is up to the client.
