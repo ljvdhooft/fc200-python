@@ -11,7 +11,7 @@ import copy
 import logging
 from typing import Any, Protocol
 
-from aiohttp import web
+from aiohttp import WSCloseCode, web
 
 from . import ui_protocol as proto
 
@@ -111,6 +111,11 @@ class Hub:
         except TimeoutError:
             self._pending.pop(hub_id, None)
             return proto.error_response(None, "timeout", f"no response within {self.timeout:g} s")
+
+    async def close_clients(self) -> None:
+        """Close every WebSocket. On shutdown, so aiohttp doesn't wait for clients to leave."""
+        for ws in list(self.clients):
+            await ws.close(code=WSCloseCode.GOING_AWAY, message=b"hub stopping")
 
     async def handle_ws(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse(heartbeat=20)

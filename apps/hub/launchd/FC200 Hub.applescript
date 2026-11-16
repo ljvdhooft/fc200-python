@@ -12,6 +12,14 @@ on hubRunning()
 	end try
 end hubRunning
 
+-- Wait up to 10 s for the hub to reach the wanted state, so the window shows the result
+on waitFor(wanted)
+	repeat 20 times
+		if hubRunning() is wanted then return
+		delay 0.5
+	end repeat
+end waitFor
+
 repeat
 	if hubRunning() then
 		set reply to button returned of (display dialog "The FC200 hub is running at " & webApp & ".
@@ -19,7 +27,7 @@ repeat
 It stops by itself 10 minutes after Ableton Live is gone." with title "FC200 Hub" buttons {"Close", "Stop", "Open"} default button "Open" cancel button "Close")
 		if reply is "Stop" then
 			do shell script "launchctl kill SIGTERM " & job
-			delay 1
+			waitFor(false)
 		else
 			open location webApp
 			exit repeat
@@ -27,6 +35,6 @@ It stops by itself 10 minutes after Ableton Live is gone." with title "FC200 Hub
 	else
 		set reply to button returned of (display dialog "The FC200 hub is stopped." with title "FC200 Hub" buttons {"Close", "Start"} default button "Start" cancel button "Close")
 		do shell script "launchctl kickstart " & job
-		delay 1
+		waitFor(true)
 	end if
 end repeat

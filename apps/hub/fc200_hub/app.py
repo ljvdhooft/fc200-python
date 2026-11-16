@@ -21,6 +21,10 @@ PLACEHOLDER = (
 def make_app(hub: Hub, dist: Path = DIST) -> web.Application:
     app = web.Application()
     app.router.add_get("/ws", hub.handle_ws)
+
+    async def close_clients(_: web.Application) -> None:
+        await hub.close_clients()
+    app.on_shutdown.append(close_clients)
     if (dist / "index.html").is_file():
         async def index(_: web.Request) -> web.FileResponse:
             return web.FileResponse(dist / "index.html")
