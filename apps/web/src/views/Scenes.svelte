@@ -532,11 +532,7 @@
           oncontextmenu={(e) => e.preventDefault()}
         >
           <span class="strip" style:background={hex(scene.color)}></span>
-          <span class="num"
-            ><span class="digits"
-              >{#if scene.down}<span class="down" title="moves down">↓</span>{/if}{number(scene)}</span
-            ></span
-          >
+          <span class="num">{#if scene.down}<span class="down" title="moves down">↓</span>{/if}{number(scene)}</span>
           <span class="title" use:stackSmoothly={{ selected: scene.index === selected, name: scene.name, preset: scene.preset }}>
             <span class="name" use:scrollToEnd={{ active: scene.index === selected, name: scene.name }}
               ><span class="dots" aria-hidden="true">…</span><span class="clip"><span class="text">{scene.name}</span></span><span class="dots" aria-hidden="true">…</span></span
@@ -1016,20 +1012,21 @@
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent-on) 60%, transparent);
     flex: none;
   }
-  /* Over the space left of the number, so it takes no room in the row */
-  .digits {
-    position: relative;
-  }
+  /* Zero wide, its glyph spilling left (rtl), so it takes no room in the row
+     and sits on the digits' baseline */
   .down {
-    position: absolute;
-    right: 100%;
-    top: 50%;
-    transform: translateY(-50%);
-    padding-right: 1px;
+    display: inline-block;
+    width: 0;
+    direction: rtl;
+    transform: translateX(-1px);
     font-size: var(--text-row); /* also on the selected row, whose text grows */
-    line-height: 1;
     font-weight: 200;
     opacity: 0.5;
+    transition: vertical-align var(--motion) var(--ease);
+  }
+  /* Centred on the larger digits: half the difference in cap height (~0.7em) */
+  .row.selected .down {
+    vertical-align: calc((var(--text-scene) - var(--text-row)) * 0.35);
   }
   .num {
     color: var(--text-muted);
