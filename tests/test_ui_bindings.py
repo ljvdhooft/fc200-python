@@ -56,7 +56,9 @@ class Surface(FakeSurface):
         self._fired_scene = None
         self._transport_page = self._pages[0]
         self._favorites_page = self._pages[2]
-        self._track = SimpleNamespace(name="Guitar")
+        self.slots = [SimpleNamespace(has_clip=False, clip=None) for _ in self.scenes]
+        self.slots[5] = SimpleNamespace(has_clip=True, clip=SimpleNamespace(name="Lead"))
+        self._track = SimpleNamespace(name="Guitar", clip_slots=self.slots)
         self._track_index = 31
         self._device = SimpleNamespace(name="FC200 Pedalboard")
         self._device_index = 4
@@ -142,7 +144,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.16.0")
+        self.assertEqual(state["version"], "0.17.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -185,6 +187,14 @@ class UiBindingsTest(unittest.TestCase):
         self.ui.refresh()
         window = self.model.get("scenes.window")
         self.assertEqual([w["index"] for w in window], [0, 1, 2, 3, 4])
+
+    def test_scene_preset_is_the_clip_on_the_pedalboard_track(self):
+        window = {w["index"]: w["preset"] for w in self.model.get("scenes.window")}
+        self.assertEqual(window[5], "Lead")
+        self.assertIsNone(window[4])                    # empty slot
+        self.s.slots[5].clip.name = "Lead 2"            # renamed in Live: the next refresh has it
+        self.ui.refresh()
+        self.assertEqual(self.model.get("scenes.window.3.preset"), "Lead 2")
 
     def test_tempo_listener(self):
         self.s.song_obj.tempo = 90.0
@@ -280,6 +290,7 @@ class UiBindingsTest(unittest.TestCase):
         UiBindings(s, model, lambda m: None).setup(FakeListeners())
         self.assertEqual(model.get("loops"), [])
         self.assertIsNone(model.get("presets"))
+        self.assertIsNone(model.get("scenes.window.0.preset"))
         with self.assertRaises(MethodError) as cm:
             UiBindings(s, model, lambda m: None).handlers()["loop.set"]({"loop": 0, "on": True})
         self.assertEqual(cm.exception.code, "unavailable")
@@ -391,7 +402,7 @@ class UiBindingsTest(unittest.TestCase):
         self.ui.scene_fired(5)
         self.ui.scene_fired(5)
         fired = [e["data"] for e in self.events if e["event"] == "scene.fired"]
-        self.assertEqual(fired, [{"index": 5, "name": "Scene 5", "color": 5}] * 2)
+        self.assertEqual(fired, [{"index": 5, "name": "Scene 5", "color": 5, "preset": "Lead"}] * 2)
 
     def test_edit_open_select_close(self):
         self.s._show_page(0)

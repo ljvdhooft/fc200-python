@@ -31,6 +31,7 @@ export interface Scene {
   index: number;
   name: string;
   color: number;
+  preset: string | null; // clip name on the pedalboard track
 }
 
 export interface Scenes {

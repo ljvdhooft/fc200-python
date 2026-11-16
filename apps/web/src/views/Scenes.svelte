@@ -263,6 +263,7 @@
           <span class="strip" style:background={hex(scene.color)}></span>
           <span class="num">{number(scene)}</span>
           <span class="name">{scene.name}</span>
+          {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
           {#if scene.index === fired?.index}<span class="led" title="playing" transition:fade={{ duration: FADE }}></span>{/if}
         </button>
       </li>
@@ -696,6 +697,16 @@
   }
   .row .name {
     flex: 1;
+  }
+  /* the scene name gives way first */
+  .preset {
+    flex: 0 1 auto;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-size: var(--text-label);
   }
 
   .controls {

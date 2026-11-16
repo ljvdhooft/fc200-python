@@ -77,7 +77,9 @@ class Mock:
     # --- scripted behaviour --------------------------------------------------------
 
     def _scene_entry(self, i: int) -> dict[str, Any]:
-        return {"index": i, "name": self._names[i], "color": 0x3366CC + i * 0x0A0A0A}
+        # Every fourth scene has no preset clip
+        preset = None if i % 4 == 3 else self._presets[i % len(self._presets)]
+        return {"index": i, "name": self._names[i], "color": 0x3366CC + i * 0x0A0A0A, "preset": preset}
 
     def _select_scene(self, selected: int) -> None:
         count = self.model.get("scenes.count")

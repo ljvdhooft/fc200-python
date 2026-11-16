@@ -16,7 +16,7 @@ describe("applyChanges", () => {
 
   it("replaces a list whole", () => {
     const s = fixture();
-    applyChanges(s, { "loops.0.chains": ["A"], "scenes.window": [{ index: 1, name: "x", color: 0 }] });
+    applyChanges(s, { "loops.0.chains": ["A"], "scenes.window": [{ index: 1, name: "x", color: 0, preset: null }] });
     expect((s.loops![0] as any).chains).toEqual(["A"]);
     expect((s.scenes as any).window).toHaveLength(1);
   });

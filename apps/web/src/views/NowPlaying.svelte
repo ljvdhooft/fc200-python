@@ -39,6 +39,7 @@
     <span class="strip" style:background={hex(fired.color)}></span>
     <span class="num">{number(fired)}</span>
     <span class="name">{fired.name}</span>
+    {#if fired.preset}<span class="preset">⟡ {fired.preset}</span>{/if}
   {:else}
     <span class="name muted">nothing fired yet</span>
   {/if}
@@ -102,6 +103,15 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .preset {
+    flex: 0 1 auto;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-size: var(--text-label);
   }
   .lock {
     margin-left: auto;
