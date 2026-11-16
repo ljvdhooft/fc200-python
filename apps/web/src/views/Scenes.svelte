@@ -3,7 +3,7 @@
   import { appState, abletonConnected, type Scene } from "../lib/state";
   import { holdInteractive, interactive, keepInteractive, session, wake } from "../lib/touch";
   import { fade } from "svelte/transition";
-  import { ease, FADE, GLIDE } from "../lib/motion";
+  import { ease, FADE, GLIDE, MOTION } from "../lib/motion";
   import { hex, number } from "../lib/scene";
   import { expect, localFires, view } from "../lib/optimistic";
   import Drawer from "../lib/Drawer.svelte";
@@ -246,6 +246,70 @@
     connection.send("scene.fire");
   }
 
+  // Portrait: a selected name too long for its row glides to its end and stays
+  // there, since the end usually names the song part. It starts once the row has
+  // settled (it grows on selection: every resize restarts the wait) and snaps
+  // back on deselection. A fade on the left shows that the start is cut off.
+  const NAME_PAUSE = 600; // ms on the start before the glide
+  const NAME_SPEED = 60; // px per second
+  function scrollToEnd(node: HTMLElement, params: { active: boolean; name: string }) {
+    const text = node.firstElementChild as HTMLElement;
+    const portrait = matchMedia("(orientation: portrait)");
+    let active = params.active;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let scrolled = false;
+
+    const shift = () => Math.max(0, text.offsetWidth - node.clientWidth);
+    function show(px: number) {
+      text.style.transform = `translateX(${-px}px)`;
+      node.style.setProperty("mask-image", "linear-gradient(to right, transparent, #000 1.5em)");
+      node.style.setProperty("-webkit-mask-image", "linear-gradient(to right, transparent, #000 1.5em)");
+    }
+    function reset() {
+      clearTimeout(timer);
+      scrolled = false;
+      text.style.transition = "";
+      text.style.transform = "";
+      text.style.display = "";
+      node.style.textOverflow = "";
+      node.style.removeProperty("mask-image");
+      node.style.removeProperty("-webkit-mask-image");
+    }
+    function start() {
+      reset();
+      if (!active || !portrait.matches) return;
+      timer = setTimeout(() => {
+        const px = shift();
+        if (px === 0) return;
+        scrolled = true;
+        node.style.textOverflow = "clip";
+        text.style.display = "inline-block"; // inline keeps the ellipsis, but can't move
+        void text.offsetWidth; // lay it out at the start first, so the glide starts from there
+        const time = MOTION ? Math.min(4000, Math.max(800, (px / NAME_SPEED) * 1000)) : 0;
+        text.style.transition = time ? `transform ${time}ms cubic-bezier(0.45, 0, 0.55, 1)` : "";
+        show(px);
+      }, MOTION + NAME_PAUSE);
+    }
+    // Touch mode narrows the row: once at the end, follow it there instead of restarting
+    const observer = new ResizeObserver(() => (scrolled ? show(shift()) : start()));
+    observer.observe(node);
+    portrait.addEventListener("change", start);
+    start();
+    return {
+      update(next: { active: boolean; name: string }) {
+        const changed = next.active !== active || next.name !== params.name;
+        active = next.active;
+        params = next;
+        if (changed) start();
+      },
+      destroy() {
+        clearTimeout(timer);
+        observer.disconnect();
+        portrait.removeEventListener("change", start);
+      },
+    };
+  }
+
   // Long-press a row: rename its scene and, if it has one, its preset. A finger
   // that moves (a scroll) or lifts early is a tap or a scroll, not a press.
   const LONG_PRESS = 500;
@@ -345,7 +409,7 @@
           <span class="strip" style:background={hex(scene.color)}></span>
           <span class="num">{number(scene)}</span>
           <span class="title">
-            <span class="name">{scene.name}</span>
+            <span class="name" use:scrollToEnd={{ active: scene.index === selected, name: scene.name }}><span class="text">{scene.name}</span></span>
             {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
           </span>
           {#if scene.index === fired?.index}<span class="led" title="playing" transition:fade={{ duration: FADE }}></span>{/if}
