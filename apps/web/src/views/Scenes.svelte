@@ -789,8 +789,7 @@
     }
     .preset {
       min-width: 0;
-      margin-left: 0;
-      text-align: left;
+      align-self: flex-end;
     }
   }
 
