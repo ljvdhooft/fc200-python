@@ -1,6 +1,6 @@
 # Frontend protocol
 
-**Version 0.18.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
+**Version 0.19.0**. Semver: minor for additions, major for breaking changes (0.x: minor may break).
 
 | Version | Change                                                                  |
 |---------|-------------------------------------------------------------------------|
@@ -22,6 +22,7 @@
 | 0.16.0  | `tuner` only while a note sounds (the tuner's `level`), held 3 s after   |
 | 0.17.0  | Scene entries carry `preset`: the clip name on the pedalboard track     |
 | 0.18.0  | `scene.rename`, `preset.rename`, `preset.renamed` event                  |
+| 0.19.0  | Scene entries carry `down`: a ClyphX `DOWN` command in the scene         |
 
 | Part                  | Status                                     |
 |-----------------------|--------------------------------------------|
@@ -82,7 +83,7 @@ Same conventions as `presets.md` §3 (ableton-dev conventions):
 | `state.changed`      | `{"<path>": value, ...}`      | script, hub   | At most once per `update_display` tick, never empty |
 | `hub.status`         | `{"live_connected": bool}`    | hub           | On client connect, and when the Live link changes |
 | `preset.<event>`     | see below                     | script        | A `PresetEvents` call (transient, not in state)  |
-| `scene.fired`        | `{index, name, color, preset}`| script        | Every scene launch (pedal, `scene.fire`, Ableton) |
+| `scene.fired`        | `{index, name, color, preset, down}`| script        | Every scene launch (pedal, `scene.fire`, Ableton) |
 
 `hub.status` and the `hub` node both carry `live_connected`: the event suits simple
 clients that only show a connection light, the node keeps a dump self-contained.
@@ -151,14 +152,16 @@ are missing; methods that need it answer `unavailable`.
 |------------|-------------|----------------------------------------------------------|----------------------------------------|
 | `count`    | int         | Number of scenes in the set                              | `len(FC200._all_scenes)`               |
 | `selected` | int         | Index of the selected scene                              | `FC200._selected_scene_index` (`Song.view.selected_scene`) |
-| `fired`    | object/null | Scene last launched (pedal, `scene.fire` or Ableton): `{index, name, color, preset}` | `FC200._fired_scene` (`Scene.is_triggered` listener) |
+| `fired`    | object/null | Scene last launched (pedal, `scene.fire` or Ableton): `{index, name, color, preset, down}` | `FC200._fired_scene` (`Scene.is_triggered` listener) |
 | `triggered`| int/null    | Index of `fired` while it waits for its launch (launch quantization); null once it plays. Never set from a stopped transport: the scene starts at once | `Scene.is_triggered` of `FC200._fired_scene` |
 | `window`   | list        | Scenes `selected-3 .. selected+3`, clipped to existing scenes, in order | `Song.scenes` |
 
 A `window` / `fired` entry: `index` (int), `name` (string, `Scene.name`), `color`
 (int, `Scene.color`, `0xRRGGBB`), `preset` (string/null: the name of the clip in the
 scene's slot on the pedalboard track, which is the preset it recalls; null for an
-empty slot or without a pedalboard. Reported whether or not a preset file matches). The window replaces `MiraGUI.scene_overview`
+empty slot or without a pedalboard. Reported whether or not a preset file matches). `down` (bool: a clip in the scene's slot on a track named "ClyphX" has a
+`DOWN` command, so launching the scene moves the selection down: a ClyphX clip name is
+`[]` followed by commands separated by `;`, e.g. `[] DOWN` or `[] UP; SCENE SEL`). The window replaces `MiraGUI.scene_overview`
 (`prev3..next3`, `cur`); the current scene is the entry whose `index` equals `selected`.
 Near the start or end of the set the window is shorter; clients lay it out by `index`.
 The full list isn't in the state (a set can have hundreds of scenes); a client that
@@ -313,7 +316,7 @@ new state arrives as `state.changed` (the result does not replace it).
 | `transport.stop`     | none                                              | `{}`                            |
 | `metronome.set`      | `{"on": bool}`                                    | `{"on": bool}`                  |
 | `tempo.set`          | `{"tempo": float}`                                | `{"tempo": float}`              |
-| `scene.list`         | none                                              | `{"scenes": [{index, name, color, preset}]}`, in set order |
+| `scene.list`         | none                                              | `{"scenes": [{index, name, color, preset, down}]}`, in set order |
 | `scene.rename`       | `{"index": int, "name": string}`                  | `{"index": int, "name": string}` |
 | `loop.set`           | `{"loop": int, "on": bool}`                       | `{"on": bool}`                  |
 | `loop.chain.select`  | `{"loop": int, "chain": string}`                  | `{"chain": string}`             |

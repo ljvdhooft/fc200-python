@@ -59,6 +59,8 @@ class Surface(FakeSurface):
         self.slots = [SimpleNamespace(has_clip=False, clip=None) for _ in self.scenes]
         self.slots[5] = SimpleNamespace(has_clip=True, clip=SimpleNamespace(name="Lead"))
         self._track = SimpleNamespace(name="Guitar", clip_slots=self.slots)
+        self.clyphx = [[SimpleNamespace(has_clip=False, clip=None) for _ in self.scenes] for _ in range(2)]
+        self.song_obj.tracks = [self._track, *(SimpleNamespace(name="ClyphX", clip_slots=s) for s in self.clyphx)]
         self._track_index = 31
         self._device = SimpleNamespace(name="FC200 Pedalboard")
         self._device_index = 4
@@ -148,7 +150,7 @@ class UiBindingsTest(unittest.TestCase):
 
     def test_dump(self):
         state = self.model.dump()
-        self.assertEqual(state["version"], "0.18.0")
+        self.assertEqual(state["version"], "0.19.0")
         self.assertEqual((state["page"], state["mode"]), (2, "favorites"))
         self.assertEqual(state["tempo"], 120.0)
         self.assertEqual(state["transport"], {"playing": False, "metronome": True})
@@ -428,11 +430,22 @@ class UiBindingsTest(unittest.TestCase):
         self.ui.refresh()
         self.assertIsNone(self.model.get("scenes.triggered"))
 
+    def test_scene_down_is_a_clyphx_down_command_in_either_clyphx_track(self):
+        def clip(name):
+            return SimpleNamespace(has_clip=True, clip=SimpleNamespace(name=name))
+        self.s.clyphx[0][4] = clip("[] METRO ON")
+        self.s.clyphx[1][4] = clip("[] metro off; down")    # second track, among other commands
+        self.s.clyphx[0][6] = clip("[] UP; SCENE SEL")
+        self.s.slots[7] = clip("[] DOWN")                    # not a ClyphX track
+        self.ui.refresh()
+        window = {w["index"]: w["down"] for w in self.model.get("scenes.window")}
+        self.assertEqual(window, {2: False, 3: False, 4: True, 5: False, 6: False, 7: False, 8: False})
+
     def test_every_fire_is_an_event_also_the_same_scene_again(self):
         self.ui.scene_fired(5)
         self.ui.scene_fired(5)
         fired = [e["data"] for e in self.events if e["event"] == "scene.fired"]
-        self.assertEqual(fired, [{"index": 5, "name": "Scene 5", "color": 5, "preset": "Lead"}] * 2)
+        self.assertEqual(fired, [{"index": 5, "name": "Scene 5", "color": 5, "preset": "Lead", "down": False}] * 2)
 
     def test_edit_open_select_close(self):
         self.s._show_page(0)

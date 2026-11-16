@@ -172,7 +172,6 @@ class TransportPage(Page):
         """Launch the selected scene and select the next one."""
         scene = self.s._selected_scene
         scene.fire()
-        self._move_scene(1)
         self.s._fired_scene = scene  # the scene's is_triggered listener tells the frontend
         self.s.show_message(f"Fired: {scene.name}")
 

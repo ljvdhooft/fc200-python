@@ -1,5 +1,5 @@
 {
-  "version": "0.18.0",
+  "version": "0.19.0",
   "page": 2,
   "mode": "parameter_control",
   "tempo": 120.0,
@@ -21,7 +21,8 @@
       "index": 11,
       "name": "Verse 2",
       "color": 65280,
-      "preset": "Song B"
+      "preset": "Song B",
+      "down": false
     },
     "triggered": null,
     "window": [
@@ -29,43 +30,50 @@
         "index": 9,
         "name": "Intro",
         "color": 16711680,
-        "preset": "Song A"
+        "preset": "Song A",
+        "down": false
       },
       {
         "index": 10,
         "name": "Verse 1",
         "color": 65280,
-        "preset": "Song B"
+        "preset": "Song B",
+        "down": true
       },
       {
         "index": 11,
         "name": "Chorus 1",
         "color": 255,
-        "preset": "Song B"
+        "preset": "Song B",
+        "down": false
       },
       {
         "index": 12,
         "name": "Verse 2",
         "color": 65280,
-        "preset": "Song C"
+        "preset": "Song C",
+        "down": false
       },
       {
         "index": 13,
         "name": "Chorus 2",
         "color": 255,
-        "preset": null
+        "preset": null,
+        "down": false
       },
       {
         "index": 14,
         "name": "Bridge",
         "color": 16776960,
-        "preset": "Song A"
+        "preset": "Song A",
+        "down": false
       },
       {
         "index": 15,
         "name": "Outro",
         "color": 16711935,
-        "preset": null
+        "preset": null,
+        "down": false
       }
     ]
   },

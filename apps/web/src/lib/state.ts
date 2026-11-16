@@ -32,6 +32,7 @@ export interface Scene {
   name: string;
   color: number;
   preset: string | null; // clip name on the pedalboard track
+  down: boolean; // a ClyphX DOWN command: launching it moves the selection down
 }
 
 export interface Scenes {

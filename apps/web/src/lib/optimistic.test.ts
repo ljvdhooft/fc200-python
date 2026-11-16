@@ -30,7 +30,7 @@ describe("optimistic view", () => {
   });
 
   it("matches objects by value", () => {
-    const scene = { index: 4, name: "Bridge", color: 255, preset: null };
+    const scene = { index: 4, name: "Bridge", color: 255, preset: null, down: false };
     appState.set({ scenes: { count: 9, selected: 4, fired: null, window: [] } });
     expect("scenes.fired", scene);
     appState.set({ scenes: { count: 9, selected: 5, fired: { ...scene }, window: [] } });

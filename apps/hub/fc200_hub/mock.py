@@ -81,7 +81,8 @@ class Mock:
     # --- scripted behaviour --------------------------------------------------------
 
     def _scene_entry(self, i: int) -> dict[str, Any]:
-        return {"index": i, "name": self._names[i], "color": 0x3366CC + i * 0x0A0A0A, "preset": self._clips[i]}
+        return {"index": i, "name": self._names[i], "color": 0x3366CC + i * 0x0A0A0A, "preset": self._clips[i],
+                "down": i % 5 == 2}
 
     def _scene_renamed(self, index: int) -> None:
         """Show a renamed scene or clip in the window and the fired scene."""

@@ -7,6 +7,7 @@
   import { hex, number } from "../lib/scene";
   import { expect, localFires, view } from "../lib/optimistic";
   import Drawer from "../lib/Drawer.svelte";
+  import { firedStopped } from "../lib/fired";
 
   let scenes = $derived($appState.scenes);
   let serverSelected = $derived($appState.scenes?.selected ?? -1);
@@ -532,14 +533,15 @@
           oncontextmenu={(e) => e.preventDefault()}
         >
           <span class="strip" style:background={hex(scene.color)}></span>
-          <span class="num">{number(scene)}</span>
+          <span class="num">{#if scene.down}<span class="down" title="moves down">↓</span>{/if}{number(scene)}</span>
           <span class="title" use:stackSmoothly={{ selected: scene.index === selected, name: scene.name, preset: scene.preset }}>
             <span class="name" use:scrollToEnd={{ active: scene.index === selected, name: scene.name }}
               ><span class="dots" aria-hidden="true">…</span><span class="clip"><span class="text">{scene.name}</span></span><span class="dots" aria-hidden="true">…</span></span
             >
             {#if scene.preset}<span class="preset">⟡ {scene.preset}</span>{/if}
           </span>
-          {#if scene.index === fired?.index}<span class="led" title="playing" transition:fade={{ duration: FADE }}></span>{/if}
+          {#if scene.index === fired?.index}<span class="led" class:waiting={scene.index === scenes?.triggered}
+              class:off={$firedStopped} title="playing" transition:fade={{ duration: FADE }}></span>{/if}
         </button>
       </li>
     {/each}
@@ -1011,6 +1013,45 @@
     background: var(--accent-on);
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent-on) 60%, transparent);
     flex: none;
+    transition:
+      background var(--motion) var(--ease),
+      box-shadow var(--motion) var(--ease);
+  }
+  /* the fired scene stopped: the last one played, like Now Playing */
+  .led.off {
+    background: var(--text-muted);
+    box-shadow: none;
+  }
+  /* Fired, waiting for its launch (launch quantization): a quick fading blink,
+     like a triggered clip in Ableton */
+  .led.waiting {
+    animation: led-blink 0.2s ease-in-out infinite alternate;
+  }
+  @keyframes led-blink {
+    to {
+      opacity: 0.15;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .led.waiting {
+      animation: none;
+    }
+  }
+  /* Zero wide, its glyph spilling left (rtl), so it takes no room in the row
+     and sits on the digits' baseline */
+  .down {
+    display: inline-block;
+    width: 0;
+    direction: rtl;
+    transform: translateX(-1px);
+    font-size: var(--text-row); /* also on the selected row, whose text grows */
+    font-weight: 200;
+    opacity: 0.5;
+    transition: vertical-align var(--motion) var(--ease);
+  }
+  /* Centred on the larger digits: half the difference in cap height (~0.7em) */
+  .row.selected .down {
+    vertical-align: calc((var(--text-scene) - var(--text-row)) * 0.35);
   }
   .num {
     color: var(--text-muted);
@@ -1112,8 +1153,11 @@
     align-items: baseline;
     gap: var(--space-2);
   }
-  /* the scene name wins: the preset gives way first, down to a few letters */
+  /* the scene name wins: the preset gives way first, down to a few letters.
+     Centred, not on the name's baseline: on the selected row the name is much
+     larger and the preset would sit low */
   .preset {
+    align-self: center;
     flex: 0 100 auto;
     min-width: 6ch;
     margin-left: auto;
