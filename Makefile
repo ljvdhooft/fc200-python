@@ -1,6 +1,6 @@
-# Releases are annotated tags vYYYY.MM.DD (.1, .2 for more on the same day) whose
-# message lists the commits since the previous release.
-#   make release             on dev: tags HEAD and pushes the tag
+# Releases are annotated tags vMAJOR.MINOR.PATCH whose message lists the commits
+# since the previous release.
+#   make release             on dev: asks for the version, tags HEAD and pushes the tag
 #   make deploy [V=<tag>]    in the production worktree (fc200-python-main, detached):
 #                            checks out the tag (default: the newest), updates the
 #                            hub's Python packages, builds the web app and reinstalls
@@ -28,15 +28,7 @@ test:
 	cd apps/web && npm test --silent && npm run check
 
 release:
-	@test "$$(git branch --show-current)" = dev || { echo "run this on dev"; exit 1; }
-	@test -z "$$(git status --porcelain)" || { echo "uncommitted changes; commit or stash them first"; exit 1; }
-	@last=$$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null); \
-	test -z "$$last" || test "$$(git rev-list -n1 $$last)" != "$$(git rev-parse HEAD)" || { echo "HEAD is already released as $$last"; exit 1; }; \
-	tag=v$$(date +%Y.%m.%d); base=$$tag; n=0; \
-	while git rev-parse -q --verify "refs/tags/$$tag" >/dev/null; do n=$$((n+1)); tag=$$base.$$n; done; \
-	{ echo "Release $$tag"; echo; git log --oneline --no-merges $${last:+$$last..}HEAD; } | git tag -a "$$tag" -F - && \
-	git push -q origin "$$tag" && \
-	echo "released $$tag; deploy it with 'make deploy' in fc200-python-main"
+	@tools/release.sh
 
 deploy:
 	@test -z "$$(git branch --show-current)" || { echo "run this in the production worktree (fc200-python-main, detached at a release)"; exit 1; }
