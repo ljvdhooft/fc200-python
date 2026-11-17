@@ -1,10 +1,14 @@
-# Production deploy. Run it in the production worktree (fc200-python-main, on main):
-#   make deploy
-# It fast-forwards main to dev, updates the hub's Python packages, builds the web
-# app and reinstalls the launchd agent (which restarts the hub) and FC200 Hub.app.
-# Live still needs a restart to load new Remote Script code (Suite can't reload).
+# Releases are annotated tags vYYYY.MM.DD (.1, .2 for more on the same day) whose
+# message lists the commits since the previous release.
+#   make release             on dev: tags HEAD and pushes the tag
+#   make deploy [V=<tag>]    in the production worktree (fc200-python-main, detached):
+#                            checks out the tag (default: the newest), updates the
+#                            hub's Python packages, builds the web app and reinstalls
+#                            the launchd agent (which restarts the hub) and FC200 Hub.app.
+# Rolling back is deploying an older tag. Live still needs a restart to load new
+# Remote Script code (Suite can't reload).
 
-.PHONY: deploy dev mock test
+.PHONY: release deploy dev mock test
 
 # Development: the hub on :20031 plus Vite on :5173 (hot reload; it proxies /ws to
 # the hub). Open http://<this Mac's IP>:5173 on the phone. Ctrl-C stops both.
@@ -23,10 +27,23 @@ test:
 	cd apps/hub && .venv/bin/python -m pytest -q
 	cd apps/web && npm test --silent && npm run check
 
-deploy:
-	@test "$$(git branch --show-current)" = main || { echo "run this on main (fc200-python-main)"; exit 1; }
+release:
+	@test "$$(git branch --show-current)" = dev || { echo "run this on dev"; exit 1; }
 	@test -z "$$(git status --porcelain)" || { echo "uncommitted changes; commit or stash them first"; exit 1; }
-	git merge --ff-only dev
+	@last=$$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null); \
+	test -z "$$last" || test "$$(git rev-list -n1 $$last)" != "$$(git rev-parse HEAD)" || { echo "HEAD is already released as $$last"; exit 1; }; \
+	tag=v$$(date +%Y.%m.%d); base=$$tag; n=0; \
+	while git rev-parse -q --verify "refs/tags/$$tag" >/dev/null; do n=$$((n+1)); tag=$$base.$$n; done; \
+	{ echo "Release $$tag"; echo; git log --oneline --no-merges $${last:+$$last..}HEAD; } | git tag -a "$$tag" -F - && \
+	git push -q origin "$$tag" && \
+	echo "released $$tag; deploy it with 'make deploy' in fc200-python-main"
+
+deploy:
+	@test -z "$$(git branch --show-current)" || { echo "run this in the production worktree (fc200-python-main, detached at a release)"; exit 1; }
+	@test -z "$$(git status --porcelain)" || { echo "uncommitted changes; commit or stash them first"; exit 1; }
+	@tag="$(V)"; test -n "$$tag" || tag=$$(git tag --list 'v*' --sort=-v:refname | head -n1); \
+	test -n "$$tag" || { echo "no release tags yet; run 'make release' on dev"; exit 1; }; \
+	echo "deploying $$tag"; git checkout -q --detach "$$tag"
 	test -d apps/hub/.venv || python3.14 -m venv apps/hub/.venv
 	apps/hub/.venv/bin/pip install -q -r apps/hub/requirements.txt
 	cd apps/web && npm ci --silent && npm run build

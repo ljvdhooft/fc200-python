@@ -2,7 +2,7 @@
 Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extension work.
 - Live versions pinned: Suite 12.4.16 for production (reselecting a control surface doesn't re-import the script: restart Live), Beta 12.4b16 for development (Tools → Reload MIDI Remote Scripts)
 - Components:
-  - MIDI Remote Script: `src/` (symlinked into Live User Library as `_FC200_SysEx_dev`; `_FC200_SysEx` points to the sibling `fc200-python-main` checkout)
+  - MIDI Remote Script: `src/` (symlinked into Live User Library as `_FC200_SysEx_dev`; `_FC200_SysEx` points to the sibling `fc200-python-main` worktree, detached at a release tag)
   - Virtual pedal: `live/virtual-pedal/FC200_virtual-pedal.maxpat`, an air-gapped Max patch that emulates the FC-200 in Exclusive (SysEx) mode, for testing without the hardware. MIDI only (no OSC): in Live, select the Remote Script with MIDI in/out "from Max 1" / "to Max 1"; the patch uses the same virtual MIDI ports.
   - Frontend: `apps/hub` (Python relay) + `apps/web` (Svelte web app), protocol `protocol/frontend.md`. It replaced the Mira GUI (`MiraGUI.py`, `FC200 Mira.amxd`), removed in WP6
   - Test set: `live/fc200-python Project/`. `tools/`: standalone helpers (`backwards-compatible.py` downgrades an `.als` to an older Live version)
@@ -11,7 +11,7 @@ Uses the `ableton-dev` skill — load it for any Live/Max/Remote Script/extensio
   - `_eGit FC200 2026 Live.als`: production, opened in Suite.
   - `_eGit FC200 2026 Live dev.als`: development, usually opened in Beta (saving there makes it unreadable for Suite; accepted).
   - `_eGit FC200 2026 Live dev LIGHT.als`: the dev set with every third-party plugin on eGit replaced by stock devices (same rack/chain/device order and macro names, so the script's indices still hold); loads much faster. Some macros have no stock equivalent and do nothing, and values were estimated, so it sounds different: for testing the script, not for gigs.
-- Deploy: `make deploy` in `fc200-python-main` (on main) fast-forwards main to dev, updates the hub venv, builds the web app and runs `install.sh`. Restart Live Suite afterwards for Remote Script changes.
+- Release: `make release` on dev tags HEAD `vYYYY.MM.DD` (annotated, commits since the last release as message) and pushes the tag. Deploy: `make deploy [V=<tag>]` in `fc200-python-main` checks out the tag (default newest; an older one rolls back), updates the hub venv, builds the web app and runs `install.sh`. `main` isn't used by either. Restart Live Suite afterwards for Remote Script changes.
 - Hub in production: a launchd agent (`apps/hub/launchd/`, installed by `install.sh`, port 200) that the Remote Script starts on load (`src/hub_service.py`), only when the agent runs from the script's own checkout. The hub exits 10 minutes after Live is gone (`--idle-exit 600`). `~/Applications/FC200 Hub.app` is a launcher window to start, stop and open it. Dev: `make dev` (hub on 20031 + Vite on 5173, against Live) or `make mock` (fake state, no Live); both without mDNS, so open `http://<Mac IP>:5173`. `make test` runs every check that works without Live.
 - Unit tests: `python3.11 -m unittest discover -s tests` (Live-free modules only)
 - Type check: `mypy` (config in `mypy.ini`: Python 3.11 rules, skips vendored `xmltodict`; mypy is installed system-wide, not in a venv)
