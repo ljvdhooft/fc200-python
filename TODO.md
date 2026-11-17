@@ -7,6 +7,7 @@
 - [x] Refactor: MIDI loopback into Ableton. The script's own output can't loop back (Live jams the IAC track input), so the ForScore pedals go through the hub (`midi.send`, protocol 0.15.0).
 - [x] Feat: Add "preset name" next to scene name in frontend if there is a clip on the eGit track. Both "scene name" and "preset name" (.alc clip)
 - [x] Feat: Add preset name edit support in WebUI.
+- [ ] Fix: Nowplaying scene name / preset name overflow
 - [ ] Feat: Add/delete/reorder scenes from webUI. "Edit" toggle button allows to edit scenes.
 - [ ] Come up with an easier workflow for saving presets.
 - [ ] Preset housekeeping: the `.alc` files lead (managed in Live's browser), so renaming or deleting one must carry its `.json` along. Today they are a loose pair matched by file name; renames orphan the `.json` (24 orphans and `Untitled.alc` without one, 2026-11-11). Options to weigh:
